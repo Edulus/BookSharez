@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>BookeSharez - Used Books Marketplace</title>
+    <link rel="stylesheet" href="css/style.css" />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
+    />
+  </head>
+  <body>
+    <!-- Header -->
+    <header>
+      <div class="container">
+        <div class="header-content">
+          <div class="logo">
+            <i class="fas fa-book"></i>
+            <span>BookSharez</span>
+          </div>
+          <div class="header-actions">
+            <div class="main-buttons">
+              <button class="btn btn-secondary" onclick="showBuyBooks()">
+                <i class="fas fa-shopping-cart"></i> Buy Books
+              </button>
+              <button class="btn btn-secondary" onclick="showSellModal()">
+                <i class="fas fa-tags"></i> Sell Books
+              </button>
+            </div>
+            <button class="btn btn-login" onclick="showLogin()">
+              <i class="fas fa-user"></i> Login
+            </button>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <!-- Main Content -->
+    <div id="homepage">
+      <!-- Hero Section -->
+      <section class="hero">
+        <div class="container">
+          <h1>Find Your Next Great Read</h1>
+          <p>Buy and sell used books in our trusted marketplace</p>
+          <div class="search-bar">
+            <input
+              type="text"
+              placeholder="Search for books, authors, or ISBN..."
+              id="searchInput"
+            />
+            <button onclick="searchBooks()">
+              <i class="fas fa-search"></i>
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Stats Section -->
+      <section class="container">
+        <div class="stats">
+          <div class="stats-grid">
+            <div class="stat-item">
+              <h3>15,247</h3>
+              <p>Books Available</p>
+            </div>
+            <div class="stat-item">
+              <h3>3,891</h3>
+              <p>Happy Sellers</p>
+            </div>
+            <div class="stat-item">
+              <h3>12,456</h3>
+              <p>Books Sold</p>
+            </div>
+            <div class="stat-item">
+              <h3>4.8★</h3>
+              <p>Average Rating</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Featured Books -->
+      <section class="featured">
+        <div class="container">
+          <h2 class="section-title">Featured Books</h2>
+          <div class="books-grid" id="booksGrid">
+            <!-- Books will be dynamically loaded here -->
+          </div>
+        </div>
+      </section>
+
+      <!-- How It Works -->
+      <section class="how-it-works">
+        <div class="container">
+          <h2 class="section-title">How BookSharez Works</h2>
+          <div class="steps-grid">
+            <div class="step-card">
+              <div class="step-icon">
+                <i class="fas fa-book-open"></i>
+                <div class="step-number">1</div>
+              </div>
+              <h3>List Your Books</h3>
+              <p>
+                Upload photos and details of books you want to sell. Set your
+                price and condition.
+              </p>
+            </div>
+            <div class="step-card">
+              <div class="step-icon">
+                <i class="fas fa-search"></i>
+                <div class="step-number">2</div>
+              </div>
+              <h3>Buyers Find You</h3>
+              <p>
+                Buyers discover your books through our smart search and
+                recommendation system.
+              </p>
+            </div>
+            <div class="step-card">
+              <div class="step-icon">
+                <i class="fas fa-handshake"></i>
+                <div class="step-number">3</div>
+              </div>
+              <h3>Secure Transaction</h3>
+              <p>
+                We handle payments securely and provide shipping labels for
+                direct delivery.
+              </p>
+            </div>
+            <div class="step-card">
+              <div class="step-icon">
+                <i class="fas fa-shipping-fast"></i>
+                <div class="step-number">4</div>
+              </div>
+              <h3>Ship & Get Paid</h3>
+              <p>
+                Ship directly to buyer, get tracking, and receive payment once
+                delivered.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <!-- User Dashboard -->
+    <div id="dashboard" class="dashboard">
+      <div class="container">
+        <h2 class="section-title">Your Dashboard</h2>
+        <div class="dashboard-nav">
+          <div class="dashboard-tabs">
+            <button
+              class="tab-btn active"
+              onclick="showDashboardTab('listings')"
+            >
+              My Listings
+            </button>
+            <button class="tab-btn" onclick="showDashboardTab('purchases')">
+              My Purchases
+            </button>
+            <button class="tab-btn" onclick="showDashboardTab('messages')">
+              Messages
+            </button>
+            <button class="tab-btn" onclick="showDashboardTab('profile')">
+              Profile
+            </button>
+          </div>
+        </div>
+        <div class="dashboard-content">
+          <div id="listings-tab">
+            <h3>Your Book Listings</h3>
+            <div id="userListings"></div>
+          </div>
+          <div id="purchases-tab" style="display: none">
+            <h3>Your Purchases</h3>
+            <p>Your purchase history will appear here.</p>
+          </div>
+          <div id="messages-tab" style="display: none">
+            <h3>Messages</h3>
+            <p>Your conversations with buyers and sellers.</p>
+          </div>
+          <div id="profile-tab" style="display: none">
+            <h3>Profile Settings</h3>
+            <p>Manage your account settings and preferences.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Login Modal -->
+    <div id="loginModal" class="modal">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3>Login to BookSharez</h3>
+          <span class="close" onclick="closeModal('loginModal')">&times;</span>
+        </div>
+        <div class="modal-body">
+          <form id="loginForm">
+            <div class="form-group">
+              <label for="email">Email:</label>
+              <input type="email" id="email" name="email" required />
+            </div>
+            <div class="form-group">
+              <label for="password">Password:</label>
+              <input type="password" id="password" name="password" required />
+            </div>
+            <button type="submit" class="btn btn-primary" style="width: 100%">
+              Login
+            </button>
+          </form>
+          <p style="text-align: center; margin-top: 1rem">
+            Don't have an account?
+            <a href="#" onclick="showSignup()">Sign up here</a>
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Sell Book Modal -->
+    <div id="sellModal" class="modal">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3>List Your Book</h3>
+          <span class="close" onclick="closeModal('sellModal')">&times;</span>
+        </div>
+        <div class="modal-body">
+          <form id="sellForm">
+            <div class="form-group">
+              <label for="bookTitle">Book Title:</label>
+              <input type="text" id="bookTitle" name="bookTitle" required />
+            </div>
+            <div class="form-group">
+              <label for="bookAuthor">Author:</label>
+              <input type="text" id="bookAuthor" name="bookAuthor" required />
+            </div>
+            <div class="form-group">
+              <label for="bookISBN">ISBN (optional):</label>
+              <input type="text" id="bookISBN" name="bookISBN" />
+            </div>
+            <div class="form-group">
+              <label for="bookCondition">Condition:</label>
+              <select id="bookCondition" name="bookCondition" required>
+                <option value="">Select condition</option>
+                <option value="like-new">Like New</option>
+                <option value="very-good">Very Good</option>
+                <option value="good">Good</option>
+                <option value="fair">Fair</option>
+                <option value="poor">Poor</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="bookPrice">Price ($):</label>
+              <input
+                type="number"
+                id="bookPrice"
+                name="bookPrice"
+                step="0.01"
+                min="0.01"
+                required
+              />
+            </div>
+            <div class="form-group">
+              <label for="bookDescription">Description:</label>
+              <textarea
+                id="bookDescription"
+                name="bookDescription"
+                rows="4"
+                placeholder="Describe the book's condition, any highlights, etc."
+              ></textarea>
+            </div>
+            <div class="form-group">
+              <label for="bookPhoto">Book Photo:</label>
+              <input
+                type="file"
+                id="bookPhoto"
+                name="bookPhoto"
+                accept="image/*"
+              />
+            </div>
+            <button type="submit" class="btn btn-primary" style="width: 100%">
+              List Book
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <footer>
+      <div class="container">
+        <p>
+          &copy; 2025 BookSharez Marketplace. Connecting book lovers worldwide.
+        </p>
+      </div>
+    </footer>
+
+    <!-- Supabase JS library (must load before supabase-config.js) -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="js/supabase-config.js"></script>
+    <script src="js/main.js"></script>
+  </body>
+</html>
