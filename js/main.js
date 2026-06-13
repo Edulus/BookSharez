@@ -71,12 +71,18 @@ let currentUser = null;
 document.addEventListener("DOMContentLoaded", function () {
   loadFeaturedBooks();
   setupEventListeners();
+  initAuth();
 });
 
 // Setup event listeners
 function setupEventListeners() {
   // Login form
   document.getElementById("loginForm").addEventListener("submit", handleLogin);
+
+  // Signup form
+  document
+    .getElementById("signupForm")
+    .addEventListener("submit", handleSignup);
 
   // Sell form
   document
@@ -275,12 +281,16 @@ function showBuyBooks() {
 
 // Show login modal
 function showLogin() {
+  closeModal("signupModal");
+  clearAuthMessage("loginMessage");
   document.getElementById("loginModal").style.display = "block";
 }
 
-// Show signup (placeholder)
+// Show signup modal
 function showSignup() {
-  alert("Signup functionality would be implemented here");
+  closeModal("loginModal");
+  clearAuthMessage("signupMessage");
+  document.getElementById("signupModal").style.display = "block";
 }
 
 // Show sell modal
@@ -293,27 +303,141 @@ function showSellModal() {
   document.getElementById("sellModal").style.display = "block";
 }
 
-// Handle login
-function handleLogin(e) {
-  e.preventDefault();
-  const email = document.getElementById("email").value;
-  const password = document.getElementById("password").value;
+// ---------------------------------------------------------------------------
+// Authentication (Supabase)
+// ---------------------------------------------------------------------------
 
-  // Simple demo login (in real app, this would be server-side)
-  if (email && password) {
+// Initialise auth: react to the current session and any future changes.
+function initAuth() {
+  // Fires once with the restored session (INITIAL_SESSION event) and again on
+  // every sign in / sign out, so a page refresh keeps the user logged in.
+  supabaseClient.auth.onAuthStateChange((_event, session) => {
+    applyAuthState(session);
+  });
+}
+
+// Sync global state + header UI to the current session (null when logged out).
+function applyAuthState(session) {
+  const loginBtn = document.getElementById("loginBtn");
+  const logoutBtn = document.getElementById("logoutBtn");
+
+  if (session && session.user) {
     isLoggedIn = true;
-    currentUser = email;
-    closeModal("loginModal");
-    updateUIForLoggedInUser();
-    alert("Login successful!");
+    currentUser = session.user.email;
+    loginBtn.innerHTML = '<i class="fas fa-user-circle"></i> Dashboard';
+    loginBtn.onclick = showDashboard;
+    logoutBtn.style.display = "inline-flex";
+  } else {
+    isLoggedIn = false;
+    currentUser = null;
+    loginBtn.innerHTML = '<i class="fas fa-user"></i> Login';
+    loginBtn.onclick = showLogin;
+    logoutBtn.style.display = "none";
+    // If the user was viewing the dashboard, send them back to the homepage.
+    document.getElementById("homepage").style.display = "block";
+    document.getElementById("dashboard").style.display = "none";
   }
 }
 
-// Update UI for logged in user
-function updateUIForLoggedInUser() {
-  const loginBtn = document.querySelector(".btn-login");
-  loginBtn.innerHTML = '<i class="fas fa-user-circle"></i> Dashboard';
-  loginBtn.onclick = showDashboard;
+// Handle login form submission.
+async function handleLogin(e) {
+  e.preventDefault();
+  const email = document.getElementById("email").value.trim();
+  const password = document.getElementById("password").value;
+
+  const { error } = await supabaseClient.auth.signInWithPassword({
+    email,
+    password,
+  });
+
+  if (error) {
+    showAuthMessage("loginMessage", mapAuthError(error), "error");
+    return;
+  }
+
+  // onAuthStateChange updates the UI; just close the modal and reset the form.
+  closeModal("loginModal");
+  e.target.reset();
+}
+
+// Handle signup form submission.
+async function handleSignup(e) {
+  e.preventDefault();
+  const email = document.getElementById("signupEmail").value.trim();
+  const password = document.getElementById("signupPassword").value;
+  const confirm = document.getElementById("signupPasswordConfirm").value;
+
+  if (password.length < 8) {
+    showAuthMessage(
+      "signupMessage",
+      "Password must be at least 8 characters.",
+      "error"
+    );
+    return;
+  }
+  if (password !== confirm) {
+    showAuthMessage("signupMessage", "Passwords do not match.", "error");
+    return;
+  }
+
+  const { data, error } = await supabaseClient.auth.signUp({ email, password });
+
+  if (error) {
+    showAuthMessage("signupMessage", mapAuthError(error), "error");
+    return;
+  }
+
+  // With email confirmation OFF, signUp returns an active session and
+  // onAuthStateChange logs the user in. If confirmation is later turned on,
+  // there is no session yet, so prompt the user to check their email.
+  if (data.session) {
+    closeModal("signupModal");
+    e.target.reset();
+  } else {
+    showAuthMessage(
+      "signupMessage",
+      "Account created. Please check your email to confirm before logging in.",
+      "success"
+    );
+    e.target.reset();
+  }
+}
+
+// Handle logout. onAuthStateChange resets the UI to the logged-out state.
+async function handleLogout() {
+  await supabaseClient.auth.signOut();
+}
+
+// Map Supabase auth errors to friendly messages (never expose internals).
+function mapAuthError(error) {
+  const msg = error && error.message ? error.message.toLowerCase() : "";
+  if (msg.includes("invalid login")) {
+    return "Incorrect email or password.";
+  }
+  if (msg.includes("already registered")) {
+    return "Email already registered. Try logging in instead.";
+  }
+  if (msg.includes("password")) {
+    return "Password must be at least 8 characters.";
+  }
+  if (msg.includes("email")) {
+    return "Please enter a valid email address.";
+  }
+  return "Something went wrong. Please try again.";
+}
+
+// Show an inline message inside a modal (type: "error" | "success").
+function showAuthMessage(elId, text, type) {
+  const el = document.getElementById(elId);
+  el.textContent = text;
+  el.className = "form-message " + type;
+}
+
+// Clear an inline modal message.
+function clearAuthMessage(elId) {
+  const el = document.getElementById(elId);
+  el.textContent = "";
+  el.className = "form-message";
 }
 
 // Show dashboard
