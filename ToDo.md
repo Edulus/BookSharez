@@ -36,7 +36,7 @@
 ## 🟢 BACKEND BUILD (agreed Gap 1+2 starting point)
 
 - [x] **4. Run database schema** in Supabase SQL editor — **done June 14** (`db/schema.sql` ran clean: "Success. No rows returned"). Tables (books, listings, listing_photos), indexes, RLS policies, and both storage policies created. `books` got RLS + public read-only policy (deviation from verbatim spec, see commit `9ae1014`). Bucket `listing-photos` created first: Public OFF, 5 MB cap, MIME image/jpeg+png+webp.
-- [ ] **5. Test RLS policies** (cross-user access should fail; anonymous sees active listings only) — **test harness prepared at `db/rls_test.sql`** (seeds 2 users + listings, runs 8 checks under real anon/authenticated roles, prints PASS/FAIL). ⏳ Awaiting run in the SQL editor; expect all 8 PASS.
+- [x] **5. Test RLS policies** — **done June 14: all 8 checks PASS** via `db/rls_test.sql` (anon/other-user see active only, owner sees own removed, non-owner update/delete blocked, owner update allowed, spoofed-user_id insert rejected, photo visibility). RLS verified as the primary security layer.
 - [x] **6. Implement real auth** — signup, login, logout, session persistence (done; commit `aa89912`)
 
 ## 🔵 DECISIONS NEEDED
