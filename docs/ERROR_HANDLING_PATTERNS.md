@@ -2,18 +2,17 @@
 
 **Version:** 1.1  
 **Date:** January 23, 2026 (architecture revision June 14, 2026)  
+**Updated:** June 14, 2026 — Reflects vanilla JS + Supabase Edge Functions stack (pivoted from Next.js).  
 **Purpose:** Standardized error handling for BookSharez Phase 1
 
 > **Architecture note (June 12, 2026):** Vanilla JS + Supabase Edge Functions,
-> not Next.js. Read the code blocks as **patterns**, with this mapping:
-> - Any handler that touches a third-party key (ISBNdb, Google Books, AI) runs
->   **inside an Edge Function** (Deno) — `process.env.X` becomes
->   `Deno.env.get('X')`. The browser never calls those APIs directly.
-> - `/api/*` paths are **Edge Function endpoints**
->   (`${SUPABASE_URL}/functions/v1/<name>`), invoked from client JS with
->   `supabaseClient.functions.invoke('<name>', …)` or `fetch`.
-> - The browser-side handlers (photo upload, DB insert, auth) use the
->   `supabaseClient` from js/supabase-config.js directly — those are unchanged.
+> not Next.js. The code blocks below are plain JavaScript (Edge Functions run on
+> the Deno runtime). Two contexts to keep straight:
+> - **Edge Function (Deno) handlers** touch third-party keys (ISBNdb, Google
+>   Books, AI) via `Deno.env.get('X')`. The browser never calls those APIs.
+> - **Browser handlers** (photo upload, DB insert, auth) use the `supabaseClient`
+>   from js/supabase-config.js directly, and call Edge Functions with
+>   `supabaseClient.functions.invoke('<name>', …)`.
 
 ---
 
@@ -37,13 +36,13 @@
 - `403 Forbidden` - Invalid/expired API key
 - Network timeout
 
-**Handling Pattern:**
-```typescript
-async function lookupISBN(isbn: string) {
+**Handling Pattern (runs inside the `isbn-lookup` Edge Function):**
+```javascript
+async function lookupISBN(isbn) {
   try {
     const response = await fetch(`https://api2.isbndb.com/book/${isbn}`, {
-      headers: { 
-        'Authorization': process.env.ISBNDB_API_KEY!,
+      headers: {
+        'Authorization': Deno.env.get('ISBNDB_API_KEY'),
         'Content-Type': 'application/json'
       },
       signal: AbortSignal.timeout(5000) // 5 second timeout
@@ -89,11 +88,11 @@ async function lookupISBN(isbn: string) {
 - `403 Forbidden` - API key issue or quota exceeded
 - Network timeout
 
-**Handling Pattern:**
-```typescript
-async function lookupGoogleBooks(isbn: string) {
+**Handling Pattern (runs inside the `isbn-lookup` Edge Function):**
+```javascript
+async function lookupGoogleBooks(isbn) {
   try {
-    const url = `https://www.googleapis.com/books/v1/volumes?q=isbn:${isbn}&key=${process.env.GOOGLE_BOOKS_API_KEY}`;
+    const url = `https://www.googleapis.com/books/v1/volumes?q=isbn:${isbn}&key=${Deno.env.get('GOOGLE_BOOKS_API_KEY')}`;
     
     const response = await fetch(url, {
       signal: AbortSignal.timeout(5000)
@@ -134,7 +133,7 @@ async function lookupGoogleBooks(isbn: string) {
 - API key invalid
 
 **Handling Pattern:**
-```typescript
+```javascript
 // Runs in the browser; calls the `pricing` Edge Function (which holds the AI key).
 async function estimatePrice(bookData, condition) {
   try {
@@ -165,7 +164,7 @@ async function estimatePrice(bookData, condition) {
   }
 }
 
-function fallbackPricing(bookData: BookData, condition: string) {
+function fallbackPricing(bookData, condition) {
   // Simple condition-based pricing if AI fails
   const basePrice = bookData.listPrice || 20; // Default to $20
   
@@ -199,9 +198,9 @@ function fallbackPricing(bookData: BookData, condition: string) {
 - Network upload failure
 - Storage quota exceeded
 
-**Handling Pattern:**
-```typescript
-async function uploadPhoto(file: File, listingId: string) {
+**Handling Pattern (browser):**
+```javascript
+async function uploadPhoto(file, listingId) {
   // Validate before upload
   const MAX_SIZE = 5 * 1024 * 1024; // 5MB
   const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
@@ -215,7 +214,7 @@ async function uploadPhoto(file: File, listingId: string) {
   }
 
   try {
-    const { data, error } = await supabase.storage
+    const { data, error } = await supabaseClient.storage
       .from('listing-photos')
       .upload(`${listingId}/${Date.now()}.jpg`, file, {
         cacheControl: '3600',
@@ -248,11 +247,11 @@ async function uploadPhoto(file: File, listingId: string) {
 - RLS policy denial
 - Connection timeout
 
-**Handling Pattern:**
-```typescript
-async function createListing(listingData: ListingData) {
+**Handling Pattern (browser):**
+```javascript
+async function createListing(listingData) {
   try {
-    const { data, error } = await supabase
+    const { data, error } = await supabaseClient
       .from('listings')
       .insert([listingData])
       .select()
@@ -300,11 +299,11 @@ async function createListing(listingData: ListingData) {
 - Session expired
 - Email not verified
 
-**Handling Pattern:**
-```typescript
-async function signUp(email: string, password: string) {
+**Handling Pattern (browser):**
+```javascript
+async function signUp(email, password) {
   try {
-    const { data, error } = await supabase.auth.signUp({
+    const { data, error } = await supabaseClient.auth.signUp({
       email,
       password
     });
@@ -347,9 +346,9 @@ async function signUp(email: string, password: string) {
 ## Network Errors
 
 **Handling Pattern:**
-```typescript
+```javascript
 // Add timeout to all fetch calls
-const fetchWithTimeout = async (url: string, options: RequestInit = {}) => {
+const fetchWithTimeout = async (url, options = {}) => {
   const timeout = 10000; // 10 seconds
   
   const controller = new AbortController();
@@ -381,8 +380,8 @@ const fetchWithTimeout = async (url: string, options: RequestInit = {}) => {
 ## Error Logging
 
 **Pattern for Production:**
-```typescript
-function logError(error: Error, context: Record<string, any>) {
+```javascript
+function logError(error, context) {
   // Log to console in development
   if (process.env.NODE_ENV === 'development') {
     console.error('Error:', error);
@@ -404,7 +403,9 @@ function logError(error: Error, context: Record<string, any>) {
 ## UI Error Display
 
 **Toast Notifications (Recommended):**
-```typescript
+`toast` here is a small vanilla-JS notification helper (no react-hot-toast) —
+e.g. a function that appends a styled, auto-dismissing `<div>` to the DOM.
+```javascript
 // Success
 toast.success('Book listed successfully!');
 
@@ -425,7 +426,7 @@ toast.info('Searching alternate database...');
 - Show on blur or submit
 
 **Critical Errors:**
-- Full-page error boundary
+- Full-page error fallback UI
 - Option to reload
 - Contact support link
 
@@ -442,13 +443,13 @@ cost). Keep the throttle as a courtesy on the client; do server-side
 caching/queueing in the function.
 
 **Client-Side Throttling (courtesy only):**
-```typescript
+```javascript
 // Prevent rapid API calls
-const throttle = (func: Function, delay: number) => {
-  let timeoutId: NodeJS.Timeout;
+const throttle = (func, delay) => {
+  let timeoutId;
   let lastRun = 0;
-  
-  return (...args: any[]) => {
+
+  return (...args) => {
     if (Date.now() - lastRun >= delay) {
       func(...args);
       lastRun = Date.now();

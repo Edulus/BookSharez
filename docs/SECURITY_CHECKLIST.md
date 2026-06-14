@@ -2,6 +2,7 @@
 
 **Version:** 1.1  
 **Date:** January 23, 2026 (architecture revision June 14, 2026)  
+**Updated:** June 14, 2026 — Reflects vanilla JS + Supabase Edge Functions stack (pivoted from Next.js).  
 **Purpose:** Security requirements for BookSharez Phase 1 MVP
 
 > **Architecture note (June 12, 2026):** BookSharez is **vanilla HTML/CSS/JS +
@@ -149,7 +150,7 @@ Deno.serve(async (req) => {
 - [ ] ISBNdb key never exposed to client
 - [ ] Google Books key never exposed to client
 - [ ] OpenAI/Claude key never exposed to client
-- [ ] All external API calls from server routes only
+- [ ] All external API calls from Supabase Edge Functions only
 
 ---
 
@@ -163,22 +164,33 @@ Deno.serve(async (req) => {
 - [ ] Email format validation on signup
 - [ ] Password strength requirements
 
-**Validation with Zod:**
-```typescript
-import { z } from 'zod';
+**Validation (plain JS — no Zod/TypeScript in this stack):**
+```javascript
+// Returns an array of error strings; empty array means valid.
+const ALLOWED_CONDITIONS = ['like_new', 'very_good', 'good', 'acceptable'];
 
-const listingSchema = z.object({
-  isbn: z.string()
-    .regex(/^(\d{10}|\d{13})$/, 'Invalid ISBN'),
-  price: z.number()
-    .min(0.01, 'Price must be at least $0.01')
-    .max(9999.99, 'Price cannot exceed $9999.99'),
-  condition: z.enum(['like_new', 'very_good', 'good', 'acceptable']),
-  description: z.string()
-    .max(500, 'Description cannot exceed 500 characters')
-    .optional()
-});
+function validateListing({ isbn, price, condition, description }) {
+  const errors = [];
+
+  if (!/^(\d{10}|\d{13})$/.test(isbn)) {
+    errors.push('Invalid ISBN (must be 10 or 13 digits).');
+  }
+  if (typeof price !== 'number' || price < 0.01 || price > 9999.99) {
+    errors.push('Price must be between $0.01 and $9999.99.');
+  }
+  if (!ALLOWED_CONDITIONS.includes(condition)) {
+    errors.push('Invalid condition.');
+  }
+  if (description != null && description.length > 500) {
+    errors.push('Description cannot exceed 500 characters.');
+  }
+
+  return errors;
+}
 ```
+> Validate on the client for instant feedback **and** re-validate inside the Edge
+> Function before writing — never trust the browser. The database also enforces
+> these via CHECK constraints (price, condition, description length).
 
 ### File Uploads
 - [ ] Maximum file size enforced (5MB)
@@ -188,11 +200,11 @@ const listingSchema = z.object({
 - [ ] MIME type verification (not just extension)
 
 **File Validation:**
-```typescript
+```javascript
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 
-function validateFile(file: File): boolean {
+function validateFile(file) {
   if (file.size > MAX_FILE_SIZE) {
     throw new Error('File too large');
   }
@@ -305,7 +317,7 @@ WITH CHECK (
 - [ ] No database structure revealed in errors
 
 **Safe Error Display:**
-```typescript
+```javascript
 // Bad
 catch (error) {
   return { error: error.message }; // May expose internal details
@@ -363,19 +375,15 @@ ISBN caching strategy (check the `books` table first; call ISBNdb only on a miss
 
 ## Dependency Security
 
-### NPM Packages
-- [ ] Regular `npm audit` checks
-- [ ] Update dependencies monthly
-- [ ] No packages with critical vulnerabilities
-- [ ] Use lock file (package-lock.json or yarn.lock)
-- [ ] Review dependencies before adding
-
-**Commands:**
-```bash
-npm audit
-npm audit fix
-npm outdated
-```
+### Dependencies (vanilla frontend + Deno Edge Functions)
+The frontend has **no npm / node_modules** — it loads `supabase-js` from a CDN
+with a pinned version. Edge Functions run on **Deno** and import dependencies by
+URL, which has different security considerations than npm.
+- [ ] Pin the `supabase-js` CDN version (avoid `@latest`); review on bump
+- [ ] Edge Functions: pin imported URLs to specific versions; review before adding
+- [ ] Prefer `jsr:`/`npm:` specifiers with versions over arbitrary URLs in Deno
+- [ ] No dependencies with known critical vulnerabilities
+- [ ] If a build toolchain is later added, run `npm audit` and use a lock file
 
 ---
 
@@ -385,7 +393,7 @@ npm outdated
 - [ ] All secrets set as Supabase Edge Function secrets (not in client JS)
 - [ ] Supabase RLS policies tested thoroughly
 - [ ] No console.log with sensitive data
-- [ ] Error boundaries implemented
+- [ ] Error handling UI implemented (try/catch with user-friendly fallbacks)
 - [ ] 404 and 500 error pages created
 - [ ] Rate limiting configured
 - [ ] HTTPS redirect enabled

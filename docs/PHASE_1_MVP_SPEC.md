@@ -1,6 +1,7 @@
 # Phase 1 MVP Specification
 **Version:** 1.1  
 **Date:** January 23, 2026 (architecture revision June 14, 2026)  
+**Updated:** June 14, 2026 — Reflects vanilla JS + Supabase Edge Functions stack (pivoted from Next.js).  
 **Status:** AUTHORITATIVE - Overrides conflicting information in other documents
 
 > ### Architecture Decision Record
@@ -9,8 +10,10 @@
 > existing prototype. Server-side work (proxying ISBNdb / Google Books / AI keys,
 > JWT-protected writes) is done in **Supabase Edge Functions**, not Next.js API
 > routes. The scope, condition system, schema, and success metrics in this spec
-> are unchanged; only the stack and deploy target are revised. TypeScript/Next.js
-> code samples in the companion docs are **patterns to translate**, not the stack.
+> are unchanged; only the stack and deploy target are revised. The companion docs
+> (security, error-handling, env) have been **converted** to vanilla JS + Edge
+> Function (Deno) examples to match — Next.js/TypeScript samples are no longer the
+> reference.
 
 ---
 
@@ -286,7 +289,7 @@ CREATE POLICY "Users can insert photos for their listings"
 ## ðŸ”§ TECHNICAL IMPLEMENTATION NOTES
 
 ### AI Pricing Logic
-```typescript
+```javascript
 // Simplified pricing algorithm for Phase 1
 function estimatePrice(bookData, condition) {
   // 1. Get base price from Google Books API (list price)
