@@ -26,8 +26,10 @@ Note: the prototype's condition values (`like-new`, `very-good`, `good`, `fair`,
 
 - [docs/ERROR_HANDLING_PATTERNS.md](docs/ERROR_HANDLING_PATTERNS.md) — required patterns for API failures. Core rule: ISBNdb errors (404/429/timeout) always fall back silently to Google Books; users see seamless messaging, never raw errors; final fallback is manual entry.
 - [docs/ISBNdb_API.md](docs/ISBNdb_API.md) — ISBNdb reference. Base URL is plan-specific (`api2.isbndb.com` for basic, 1 req/sec). API key goes in the `Authorization` header only, never in GET parameters.
-- [docs/SECURITY_CHECKLIST.md](docs/SECURITY_CHECKLIST.md) — Phase 1 security requirements: RLS on all tables, server-side auth checks in Next.js middleware (client-side checks are UI-only), JWT validation on API routes.
+- [docs/SECURITY_CHECKLIST.md](docs/SECURITY_CHECKLIST.md) — Phase 1 security requirements: RLS on all tables (the *primary* security layer here), JWT validation inside Edge Functions, client-side checks are UI-only. (Revised June 14 from Next.js middleware to Edge Functions.)
 - [docs/env.example](docs/env.example) — all expected environment variables by phase. Phase 1 requires Supabase keys, ISBNDB_API_KEY, GOOGLE_BOOKS_API_KEY, and one AI key (OpenAI or Anthropic).
+- [docs/SEARCH_SYSTEMS.md](docs/SEARCH_SYSTEMS.md) — **two distinct "search" systems, do not conflate:** seller-side ISBN lookup (external APIs) vs. buyer-side browse/search (local Supabase DB only, no external calls). Affiliate fallback is deferred, not Phase 1.
+- [docs/ISBN_LOOKUP_DESIGN.md](docs/ISBN_LOOKUP_DESIGN.md) — design for the `isbn-lookup` Edge Function: cache-first against the `books` table, ISBNdb→Google Books fallback, rate-limiting approach (items 9 & 10).
 
 ## Prototype Architecture Notes
 

@@ -109,6 +109,8 @@ function setupEventListeners() {
 // Load featured books
 function loadFeaturedBooks() {
   const booksGrid = document.getElementById("booksGrid");
+  const sectionTitle = document.getElementById("featuredTitle");
+  if (sectionTitle) sectionTitle.textContent = "Featured Books";
   booksGrid.innerHTML = "";
 
   sampleBooks.forEach((book) => {
@@ -243,14 +245,20 @@ function formatCondition(condition) {
 }
 
 // Search functionality
+// Buyer-side browse/search. Phase 1: filters the in-memory sampleBooks as a
+// placeholder for a local Supabase full-text query (never external sources) —
+// see docs/SEARCH_SYSTEMS.md.
 function searchBooks() {
   const searchTerm = document.getElementById("searchInput").value.toLowerCase();
   const booksGrid = document.getElementById("booksGrid");
+  const sectionTitle = document.getElementById("featuredTitle");
 
   if (!searchTerm.trim()) {
     loadFeaturedBooks();
     return;
   }
+
+  if (sectionTitle) sectionTitle.textContent = "Search Results";
 
   const filteredBooks = sampleBooks.filter(
     (book) =>
@@ -268,6 +276,13 @@ function searchBooks() {
       const bookCard = createBookCard(book);
       booksGrid.appendChild(bookCard);
     });
+  }
+
+  // The search bar lives in the hero; results render in the Featured section
+  // far below the fold. Scroll the results into view so the search feels live.
+  const resultsSection = document.querySelector(".featured");
+  if (resultsSection) {
+    resultsSection.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 }
 
