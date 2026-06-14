@@ -5,7 +5,7 @@ const sampleBooks = [
     title: "The Great Gatsby",
     author: "F. Scott Fitzgerald",
     price: 12.99,
-    condition: "very-good",
+    condition: "very_good",
     image:
       "https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=300&h=400&fit=crop",
     seller: "BookLover123",
@@ -25,7 +25,7 @@ const sampleBooks = [
     title: "1984",
     author: "George Orwell",
     price: 10.75,
-    condition: "like-new",
+    condition: "like_new",
     image:
       "https://images.unsplash.com/photo-1512820790803-83ca734da794?w=300&h=400&fit=crop",
     seller: "BookCollector",
@@ -45,7 +45,7 @@ const sampleBooks = [
     title: "The Catcher in the Rye",
     author: "J.D. Salinger",
     price: 11.99,
-    condition: "fair",
+    condition: "acceptable",
     image:
       "https://images.unsplash.com/photo-1543002588-bfa74002ed7e?w=300&h=400&fit=crop",
     seller: "VintageBooks",
@@ -55,7 +55,7 @@ const sampleBooks = [
     title: "Harry Potter and the Sorcerer's Stone",
     author: "J.K. Rowling",
     price: 18.0,
-    condition: "very-good",
+    condition: "very_good",
     image:
       "https://images.unsplash.com/photo-1621351183012-e2f9972dd9bf?w=300&h=400&fit=crop",
     seller: "MagicReader",
@@ -234,11 +234,10 @@ function createBookCard(book) {
 // Format condition for display
 function formatCondition(condition) {
   const conditions = {
-    "like-new": "Like New",
-    "very-good": "Very Good",
+    like_new: "Like New",
+    very_good: "Very Good",
     good: "Good",
-    fair: "Fair",
-    poor: "Poor",
+    acceptable: "Acceptable",
   };
   return conditions[condition] || condition;
 }
