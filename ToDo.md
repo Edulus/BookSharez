@@ -35,7 +35,7 @@
 
 ## 🟢 BACKEND BUILD (agreed Gap 1+2 starting point)
 
-- [ ] **4. Run database schema** in Supabase SQL editor — **paste-ready file prepared at `db/schema.sql`** (verbatim tables/indexes/RLS + storage policies + `uuid-ossp` enable line). ⏳ Awaiting you to run it in the dashboard. Prereq: create the `listing-photos` bucket first — settings chosen June 14: **Public OFF** (private, RLS-controlled), **file size restricted to 5 MB**, **MIME types restricted to image/jpeg, image/png, image/webp**.
+- [x] **4. Run database schema** in Supabase SQL editor — **done June 14** (`db/schema.sql` ran clean: "Success. No rows returned"). Tables (books, listings, listing_photos), indexes, RLS policies, and both storage policies created. `books` got RLS + public read-only policy (deviation from verbatim spec, see commit `9ae1014`). Bucket `listing-photos` created first: Public OFF, 5 MB cap, MIME image/jpeg+png+webp.
 - [ ] **5. Test RLS policies** (cross-user access should fail; anonymous sees active listings only)
 - [x] **6. Implement real auth** — signup, login, logout, session persistence (done; commit `aa89912`)
 
