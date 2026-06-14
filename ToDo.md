@@ -46,8 +46,8 @@
 
 ## ⚪ DESIGN BEFORE BUILDING
 
-- [ ] **9. ISBN caching strategy** — Edge Function checks `books` table first, calls ISBNdb only on cache miss (solves 1 req/sec limit + speeds lookups)
-- [ ] **10. Edge Function rate limiting** — server-side, not the client-side throttle from ERROR_HANDLING_PATTERNS.md
+- [x] **9. ISBN caching strategy** — **designed June 15** in `docs/ISBN_LOOKUP_DESIGN.md`: `books` table doubles as a permanent cache (UNIQUE isbn + index), cache-first lookup, ISBN-13 canonical cache key, upsert-on-conflict, no expiry in Phase 1.
+- [x] **10. Edge Function rate limiting** — **designed June 15** (same doc): recommend in-memory per-instance gate (option B) backed by the 429→Google Books fallback as safety net; DB-backed advisory-lock gate (option C) documented as the upgrade path. *(Both are design only — implementation deferred with the ISBN build, items 7/8.)*
 
 ---
 
