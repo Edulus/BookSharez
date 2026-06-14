@@ -111,7 +111,15 @@ CREATE POLICY "Users can insert photos for their listings"
 -- STORAGE POLICIES  (source: docs/SECURITY_CHECKLIST.md)
 -- ============================================================
 -- PREREQUISITE: first create a Storage bucket named `listing-photos`
---   (Dashboard → Storage → New bucket). Then run the two policies below.
+--   (Dashboard → Storage → New bucket), with these settings (June 14, 2026):
+--     • Public bucket:      OFF  (private — reads governed by the RLS policy
+--                                 below, which limits them to active listings;
+--                                 a public bucket would bypass that)
+--     • Restrict file size: ON, 5 MB (5242880 bytes) — matches the spec's cap
+--     • Restrict MIME types: ON — allow only image/jpeg, image/png, image/webp
+--   Then run the two policies below.
+--   Note: because the bucket is private, the app serves photos via the
+--   authenticated Supabase client or signed URLs, not plain public URLs.
 -- The `books` table is intentionally left without RLS so book metadata is
 -- publicly readable / cacheable (it holds no per-user data).
 
