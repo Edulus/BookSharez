@@ -41,8 +41,8 @@
 
 ## 🔵 DECISIONS NEEDED
 
-- [ ] **7. Choose AI pricing provider** — OpenAI or Anthropic (one)
-- [ ] **8. Confirm ISBNdb plan** — Basic $10/mo; time 7-day trial to integration work, not before
+- [ ] **7. Choose AI pricing provider** — OpenAI or Anthropic (one). *June 14: deferred — decide when building the pricing Edge Function (ISBN lookup doesn't need it). Docs lean Anthropic.*
+- [ ] **8. Confirm ISBNdb plan** — Basic $10/mo; time 7-day trial to integration work, not before. *June 14: deferred — leave open; design items 9-10 first, subscribe when we start the lookup build.*
 
 ## ⚪ DESIGN BEFORE BUILDING
 
