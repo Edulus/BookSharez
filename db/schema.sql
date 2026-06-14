@@ -71,6 +71,17 @@ CREATE INDEX idx_books_author_search ON books USING gin(to_tsvector('english', a
 ALTER TABLE listings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE listing_photos ENABLE ROW LEVEL SECURITY;
 
+-- books: deliberate deviation from the verbatim spec (which left books without
+-- RLS). With RLS off, the anon key could WRITE to books, not just read. Instead
+-- we enable RLS and grant PUBLIC READ ONLY. Inserts/updates happen only inside
+-- the ISBN-lookup Edge Function via the service-role key, which bypasses RLS —
+-- so clients never need write access. (June 14, 2026)
+ALTER TABLE books ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Anyone can read books"
+  ON books FOR SELECT
+  USING (true);
+
 CREATE POLICY "Users can insert their own listings"
   ON listings FOR INSERT
   WITH CHECK (auth.uid() = user_id);
@@ -120,8 +131,8 @@ CREATE POLICY "Users can insert photos for their listings"
 --   Then run the two policies below.
 --   Note: because the bucket is private, the app serves photos via the
 --   authenticated Supabase client or signed URLs, not plain public URLs.
--- The `books` table is intentionally left without RLS so book metadata is
--- publicly readable / cacheable (it holds no per-user data).
+-- The `books` table has RLS enabled with a public read-only policy (see above):
+-- metadata is publicly readable, but only the service-role Edge Function writes.
 
 CREATE POLICY "Public read access to listing photos"
 ON storage.objects FOR SELECT
