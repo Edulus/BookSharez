@@ -10,6 +10,7 @@
 - [x] **1. Initialize git** — repo created; prototype committed (`e708d78 Initial commit`).
 - [x] **6. Implement real auth** — signup, login, logout, session persistence wired to Supabase, replacing the fake login (`aa89912`). *(Done ahead of items 2–3; condition fix below was originally sequenced before it.)*
 - [x] **3. Fix prototype condition values** — June 14: `index.html` `<select>` and `js/main.js` (label map + 4 sample books) converted from `fair`/`poor`/hyphens to the spec's 4 grades `like_new` / `very_good` / `good` / `acceptable`. Verified no stale values remain.
+- [x] **2. Documentation patch** — June 14: PHASE_1_MVP_SPEC (ADR line, retired "2 weeks", Next.js→vanilla checklist, host-agnostic deploy), SECURITY_CHECKLIST (middleware.ts & API-route examples → Edge Function equivalents, vanilla XSS/CSP/rate-limit guidance), ERROR_HANDLING_PATTERNS (`/api/pricing` → `functions.invoke`, throttle caveat), env.example (dropped `NEXT_PUBLIC_*`, secrets→Edge Function). *PROJECT_FILES_INDEX.md is not in this repo (Claude-project doc) — patch it there.*
 
 ---
 
@@ -20,13 +21,13 @@
 
 ## 🟠 DOCUMENTATION PATCH (one focused pass)
 
-- [ ] **2. Update docs for vanilla JS + Edge Functions architecture:**
-  - [ ] PHASE_1_MVP_SPEC.md — replace "Initialize Next.js" checklist item; revise deploy target; reset timeline dates
-  - [ ] SECURITY_CHECKLIST.md — replace middleware.ts / Next.js API route examples with Edge Function equivalents
-  - [ ] ERROR_HANDLING_PATTERNS.md — re-point `/api/*` patterns to Edge Functions
-  - [ ] env.example — remove `NEXT_PUBLIC_*` prefixes; note Edge Function secrets live in Supabase dashboard
-  - [ ] PROJECT_FILES_INDEX.md — change dev folder label from "Next.js project"
-  - [ ] Add architecture decision record line: "June 12, 2026: Vanilla JS + Supabase Edge Functions chosen over Next.js"
+- [x] **2. Update docs for vanilla JS + Edge Functions architecture:** *(done June 14)*
+  - [x] PHASE_1_MVP_SPEC.md — replace "Initialize Next.js" checklist item; revise deploy target; reset timeline dates
+  - [x] SECURITY_CHECKLIST.md — replace middleware.ts / Next.js API route examples with Edge Function equivalents
+  - [x] ERROR_HANDLING_PATTERNS.md — re-point `/api/*` patterns to Edge Functions
+  - [x] env.example — remove `NEXT_PUBLIC_*` prefixes; note Edge Function secrets live in Supabase dashboard
+  - [ ] PROJECT_FILES_INDEX.md — change dev folder label from "Next.js project" *(file lives in the Claude project, not this repo — patch there)*
+  - [x] Add architecture decision record line: "June 12, 2026: Vanilla JS + Supabase Edge Functions chosen over Next.js"
 
 ## 🟡 PRE-INTEGRATION FIXES
 
@@ -34,7 +35,7 @@
 
 ## 🟢 BACKEND BUILD (agreed Gap 1+2 starting point)
 
-- [ ] **4. Run database schema** from PHASE_1_MVP_SPEC.md in Supabase SQL editor (verbatim: tables, indexes, RLS policies)
+- [ ] **4. Run database schema** in Supabase SQL editor — **paste-ready file prepared at `db/schema.sql`** (verbatim tables/indexes/RLS + storage policies + `uuid-ossp` enable line). ⏳ Awaiting you to run it in the dashboard. Prereq for storage policies: create the `listing-photos` bucket first.
 - [ ] **5. Test RLS policies** (cross-user access should fail; anonymous sees active listings only)
 - [x] **6. Implement real auth** — signup, login, logout, session persistence (done; commit `aa89912`)
 

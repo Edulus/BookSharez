@@ -1,8 +1,18 @@
 # Security Checklist
 
-**Version:** 1.0  
-**Date:** January 23, 2026  
+**Version:** 1.1  
+**Date:** January 23, 2026 (architecture revision June 14, 2026)  
 **Purpose:** Security requirements for BookSharez Phase 1 MVP
+
+> **Architecture note (June 12, 2026):** BookSharez is **vanilla HTML/CSS/JS +
+> Supabase Edge Functions**, not Next.js. The original code samples below were
+> Next.js (`middleware.ts`, `app/api/*` route handlers, `next.config.js`) and
+> have been replaced with their Edge Function / static-hosting equivalents.
+> Two consequences run through this whole document:
+> 1. **There is no server-side middleware.** All client JS is fully visible, so
+>    client-side auth checks are **UX only**. Real authorization comes from
+>    **RLS** (primary layer) and **JWT verification inside Edge Functions**.
+> 2. Secrets live as **Supabase Edge Function secrets**, never in client code.
 
 ---
 
@@ -17,34 +27,53 @@
 - [ ] No passwords stored in code or logs
 
 ### Protected Routes
-- [ ] All listing creation routes require authentication
-- [ ] Middleware checks auth on server-side routes
-- [ ] Client-side auth checks for UI only (not security)
-- [ ] API routes validate JWT tokens
-- [ ] Unauthenticated users redirected to login
+- [ ] All write operations (create/edit/delete listing) require authentication
+- [ ] Edge Functions validate the JWT on every privileged request (real security)
+- [ ] Client-side auth checks gate the UI only (a hidden "Sell" view is NOT security)
+- [ ] RLS enforces ownership even if a request bypasses the UI
+- [ ] Unauthenticated users sent to the login modal
 
-**Implementation:**
-```typescript
-// middleware.ts
-import { createMiddlewareClient } from '@supabase/auth-helpers-nextjs';
-import { NextResponse } from 'next/server';
-import type { NextRequest } from 'next/server';
+**Implementation — client-side UI gate (UX only, vanilla JS):**
+```javascript
+// Hide/redirect away from the dashboard view if there's no session.
+// This is cosmetic — it stops the page rendering, NOT the data access.
+async function requireAuth() {
+  const { data: { session } } = await supabaseClient.auth.getSession();
+  if (!session) {
+    showView('home');
+    openLoginModal();
+    return null;
+  }
+  return session;
+}
+```
 
-export async function middleware(req: NextRequest) {
-  const res = NextResponse.next();
-  const supabase = createMiddlewareClient({ req, res });
-  
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
+**Implementation — real check inside an Edge Function (security):**
+```javascript
+// supabase/functions/create-listing/index.ts  (Deno runtime)
+import { createClient } from 'jsr:@supabase/supabase-js@2';
 
-  // Protect routes that require auth
-  if (!session && req.nextUrl.pathname.startsWith('/shelf')) {
-    return NextResponse.redirect(new URL('/login', req.url));
+Deno.serve(async (req) => {
+  const authHeader = req.headers.get('Authorization'); // "Bearer <jwt>"
+  if (!authHeader) {
+    return new Response('Unauthorized', { status: 401 });
   }
 
-  return res;
-}
+  // Validate the caller's JWT by passing their token through.
+  const supabase = createClient(
+    Deno.env.get('SUPABASE_URL')!,
+    Deno.env.get('SUPABASE_ANON_KEY')!,
+    { global: { headers: { Authorization: authHeader } } }
+  );
+
+  const { data: { user }, error } = await supabase.auth.getUser();
+  if (error || !user) {
+    return new Response('Unauthorized', { status: 401 });
+  }
+
+  // Authenticated. RLS will also enforce auth.uid() = user_id on the insert.
+  // ... process request ...
+});
 ```
 
 ---
@@ -76,41 +105,44 @@ export async function middleware(req: NextRequest) {
 
 ## API Security
 
-### Environment Variables
-- [ ] All API keys in .env.local (never committed)
-- [ ] .env.local in .gitignore
-- [ ] Different keys for dev/staging/production
-- [ ] API keys stored in Vercel environment variables
+### Environment Variables / Secrets
+- [ ] Third-party secrets stored as Supabase Edge Function secrets (`supabase secrets set`)
+- [ ] Only the Supabase URL + publishable/anon key appear in client JS (js/supabase-config.js)
+- [ ] Service-role key used ONLY inside Edge Functions, never shipped to the browser
+- [ ] .env (local reference) in .gitignore; no real secrets committed
 - [ ] No API keys in client-side code
 
-### API Route Protection
-- [ ] Server-side API routes only (no client direct calls to external APIs)
-- [ ] Rate limiting per user/IP
-- [ ] Input validation on all endpoints
-- [ ] CORS properly configured
-- [ ] API routes check authentication
+### Edge Function Protection
+- [ ] All external API calls (ISBNdb, Google Books, AI) go through Edge Functions — never direct from the browser
+- [ ] Rate limiting per user/IP enforced server-side in the Edge Function (see ISBN caching strategy)
+- [ ] Input validation on every function
+- [ ] CORS headers restricted to the site origin
+- [ ] Each privileged function verifies the caller's JWT
 
-**Example Protected Route:**
-```typescript
-// app/api/listings/route.ts
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
-import { cookies } from 'next/headers';
+**Example Protected Edge Function:**
+```javascript
+// supabase/functions/create-listing/index.ts  (Deno runtime)
+import { createClient } from 'jsr:@supabase/supabase-js@2';
 
-export async function POST(request: Request) {
-  const supabase = createRouteHandlerClient({ cookies });
-  
-  // Verify authentication
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
-  
-  if (!session) {
+Deno.serve(async (req) => {
+  const authHeader = req.headers.get('Authorization');
+  if (!authHeader) {
     return new Response('Unauthorized', { status: 401 });
   }
-  
-  // Process authenticated request
-  // ...
-}
+
+  const supabase = createClient(
+    Deno.env.get('SUPABASE_URL')!,
+    Deno.env.get('SUPABASE_ANON_KEY')!,
+    { global: { headers: { Authorization: authHeader } } }
+  );
+
+  const { data: { user }, error } = await supabase.auth.getUser();
+  if (!user || error) {
+    return new Response('Unauthorized', { status: 401 });
+  }
+
+  // Process authenticated request (secrets via Deno.env.get(...)) ...
+});
 ```
 
 ### Third-Party API Keys
@@ -178,28 +210,33 @@ function validateFile(file: File): boolean {
 ## Data Sanitization
 
 ### XSS Prevention
-- [ ] React automatically escapes output (verify no dangerouslySetInnerHTML)
-- [ ] User-generated content sanitized before display
+⚠️ **Vanilla JS does NOT auto-escape.** Unlike React, there is no framework
+escaping output. The prototype builds book cards with `innerHTML` and unescaped
+user input (title/author) — a real XSS hole once user data flows in. Fix before
+listings are user-generated.
+- [ ] Never interpolate user input into `innerHTML` — use `textContent`, or escape first
+- [ ] User-generated content (title, author, description) escaped before display
 - [ ] No eval() or Function() constructor with user input
-- [ ] Content Security Policy headers configured
+- [ ] Content Security Policy headers configured (via host / `<meta>` tag)
 
-**CSP Headers (next.config.js):**
+**Escape helper (vanilla JS):**
 ```javascript
-const securityHeaders = [
-  {
-    key: 'Content-Security-Policy',
-    value: "default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline'; style-src 'self' 'unsafe-inline';"
-  },
-  {
-    key: 'X-Frame-Options',
-    value: 'DENY'
-  },
-  {
-    key: 'X-Content-Type-Options',
-    value: 'nosniff'
-  }
-];
+// Use instead of dropping raw strings into innerHTML.
+function escapeHTML(str) {
+  const div = document.createElement('div');
+  div.textContent = str ?? '';
+  return div.innerHTML;
+}
+// e.g. card.innerHTML = `<h3>${escapeHTML(book.title)}</h3>`;
 ```
+
+**CSP:** there is no `next.config.js`. Set headers at the static host (Netlify
+`_headers`, Cloudflare Pages, Nginx) or, as a baseline, a meta tag in index.html:
+```html
+<meta http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' https: data:; connect-src 'self' https://*.supabase.co;">
+```
+(Also set `X-Frame-Options: DENY` and `X-Content-Type-Options: nosniff` at the host.)
 
 ### SQL Injection Prevention
 - [ ] All database queries use parameterized queries
@@ -250,7 +287,7 @@ WITH CHECK (
 ## HTTPS & Transport Security
 
 ### Production Requirements
-- [ ] HTTPS enforced (Vercel handles automatically)
+- [ ] HTTPS enforced (most static hosts — Netlify/Cloudflare Pages/GitHub Pages — do this automatically; Supabase is HTTPS-only)
 - [ ] No mixed content warnings
 - [ ] Secure cookies (httpOnly, secure flags)
 - [ ] HSTS header enabled
@@ -286,7 +323,7 @@ catch (error) {
 - [ ] No API keys in logs
 - [ ] No credit card data in logs
 - [ ] User identifiers hashed in logs (Phase 2+)
-- [ ] Logs stored securely (Vercel/Sentry)
+- [ ] Logs stored securely (Supabase Edge Function logs / Sentry)
 
 ---
 
@@ -299,15 +336,11 @@ catch (error) {
 - [ ] Photo uploads limited (20 per hour per user)
 - [ ] Search queries limited (100 per hour per IP)
 
-**Implementation (next.config.js or middleware):**
-```typescript
-import rateLimit from 'express-rate-limit';
-
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100 // limit each IP to 100 requests per windowMs
-});
-```
+**Implementation:** Supabase Auth already rate-limits signup/login server-side.
+For listing/photo/search abuse, enforce limits inside the relevant Edge Function
+(e.g. count recent rows per `auth.uid()` before allowing the write), since there
+is no Express/Next middleware layer. ISBNdb's 1 req/sec limit is handled by the
+ISBN caching strategy (check the `books` table first; call ISBNdb only on a miss).
 
 ---
 
@@ -349,7 +382,7 @@ npm outdated
 ## Pre-Production Checklist
 
 ### Before Launch
-- [ ] All environment variables set in Vercel
+- [ ] All secrets set as Supabase Edge Function secrets (not in client JS)
 - [ ] Supabase RLS policies tested thoroughly
 - [ ] No console.log with sensitive data
 - [ ] Error boundaries implemented
@@ -382,7 +415,7 @@ npm outdated
 
 ### Updates
 - [ ] Update Supabase dashboard weekly
-- [ ] Update Next.js monthly
+- [ ] Update the Supabase JS library (CDN version pin) and Edge Function deps monthly
 - [ ] Update all dependencies monthly
 - [ ] Review Supabase security advisories
 - [ ] Subscribe to security mailing lists

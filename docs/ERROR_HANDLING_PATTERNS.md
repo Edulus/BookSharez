@@ -1,8 +1,19 @@
 # Error Handling Patterns
 
-**Version:** 1.0  
-**Date:** January 23, 2026  
+**Version:** 1.1  
+**Date:** January 23, 2026 (architecture revision June 14, 2026)  
 **Purpose:** Standardized error handling for BookSharez Phase 1
+
+> **Architecture note (June 12, 2026):** Vanilla JS + Supabase Edge Functions,
+> not Next.js. Read the code blocks as **patterns**, with this mapping:
+> - Any handler that touches a third-party key (ISBNdb, Google Books, AI) runs
+>   **inside an Edge Function** (Deno) — `process.env.X` becomes
+>   `Deno.env.get('X')`. The browser never calls those APIs directly.
+> - `/api/*` paths are **Edge Function endpoints**
+>   (`${SUPABASE_URL}/functions/v1/<name>`), invoked from client JS with
+>   `supabaseClient.functions.invoke('<name>', …)` or `fetch`.
+> - The browser-side handlers (photo upload, DB insert, auth) use the
+>   `supabaseClient` from js/supabase-config.js directly — those are unchanged.
 
 ---
 
@@ -124,20 +135,20 @@ async function lookupGoogleBooks(isbn: string) {
 
 **Handling Pattern:**
 ```typescript
-async function estimatePrice(bookData: BookData, condition: string) {
+// Runs in the browser; calls the `pricing` Edge Function (which holds the AI key).
+async function estimatePrice(bookData, condition) {
   try {
-    const response = await fetch('/api/pricing', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ bookData, condition }),
-      signal: AbortSignal.timeout(10000) // 10 second timeout
+    const { data, error } = await supabaseClient.functions.invoke('pricing', {
+      body: { bookData, condition }
+      // invoke attaches the user's JWT automatically and has its own timeout;
+      // the function itself uses AbortSignal.timeout(10000) on the AI call.
     });
 
-    if (!response.ok) {
-      throw new Error(`Pricing API error: ${response.status}`);
+    if (error) {
+      throw new Error(`Pricing function error: ${error.message}`);
     }
 
-    const { price, confidence } = await response.json();
+    const { price, confidence } = data;
     
     // Validate price is reasonable
     if (price < 0.5 || price > 1000) {
@@ -378,8 +389,9 @@ function logError(error: Error, context: Record<string, any>) {
     console.error('Context:', context);
   }
   
-  // Send to Sentry in production
-  if (process.env.NODE_ENV === 'production' && process.env.NEXT_PUBLIC_SENTRY_DSN) {
+  // Send to Sentry in production (Phase 2). Browser uses the public SENTRY_DSN;
+  // Edge Functions read it via Deno.env.get('SENTRY_DSN').
+  if (SENTRY_DSN) {
     Sentry.captureException(error, {
       extra: context
     });
@@ -421,7 +433,15 @@ toast.info('Searching alternate database...');
 
 ## Rate Limiting
 
-**Client-Side Throttling:**
+⚠️ **The client-side throttle below is NOT sufficient on its own.** It only
+paces one browser tab. With Edge Functions, many users can hit ISBNdb
+concurrently and breach the 1 req/sec Basic-plan limit. The real defense is the
+**ISBN caching strategy**: the lookup Edge Function checks the `books` table
+first and calls ISBNdb only on a cache miss (also speeds lookups and cuts API
+cost). Keep the throttle as a courtesy on the client; do server-side
+caching/queueing in the function.
+
+**Client-Side Throttling (courtesy only):**
 ```typescript
 // Prevent rapid API calls
 const throttle = (func: Function, delay: number) => {

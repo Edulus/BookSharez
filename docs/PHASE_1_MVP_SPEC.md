@@ -1,13 +1,24 @@
 # Phase 1 MVP Specification
-**Version:** 1.0  
-**Date:** January 23, 2026  
+**Version:** 1.1  
+**Date:** January 23, 2026 (architecture revision June 14, 2026)  
 **Status:** AUTHORITATIVE - Overrides conflicting information in other documents
+
+> ### Architecture Decision Record
+> **June 12, 2026: Vanilla JS + Supabase Edge Functions chosen over Next.js.**
+> BookSharez stays a vanilla HTML/CSS/JS site and evolves incrementally from the
+> existing prototype. Server-side work (proxying ISBNdb / Google Books / AI keys,
+> JWT-protected writes) is done in **Supabase Edge Functions**, not Next.js API
+> routes. The scope, condition system, schema, and success metrics in this spec
+> are unchanged; only the stack and deploy target are revised. TypeScript/Next.js
+> code samples in the companion docs are **patterns to translate**, not the stack.
 
 ---
 
 ## ðŸŽ¯ PHASE 1 SCOPE DEFINITION
 
-**Goal:** Functional book listing and discovery in 2 weeks  
+**Goal:** Functional book listing and discovery (a focused build, sequenced by
+the ToDo.md backlog — the original "2 weeks" estimate is retired; work proceeds
+incrementally from the existing prototype)  
 **NOT included:** Payments, shipping, SHAREZ credits, detailed condition system
 
 ---
@@ -307,28 +318,31 @@ function estimatePrice(bookData, condition) {
 
 ## ðŸ“‹ PHASE 1 CHECKLIST
 
-### Week 1: Foundation
-- [ ] Initialize Next.js project
+_Sequence is tracked in ToDo.md; grouping below is logical, not time-boxed._
+
+### Stage 1: Foundation
+- [x] Keep the vanilla HTML/CSS/JS prototype as the baseline (committed to git)
+- [x] Initialize Supabase client (js/supabase-config.js — URL + publishable key)
 - [ ] Set up Supabase (database + auth)
-- [ ] Get API keys (ISBNdb, Google Books, OpenAI)
-- [ ] Create database schema with indexes
-- [ ] Implement auth pages (login, signup)
-- [ ] Build Scanner component (barcode + manual)
-- [ ] Integrate ISBNdb API with Google Books fallback
+- [ ] Get API keys (ISBNdb, Google Books, Anthropic) — stored as Edge Function secrets
+- [ ] Create database schema with indexes (run the SQL in this spec, verbatim)
+- [x] Implement real auth (login, signup, logout) — replaces fake login
+- [ ] Build Scanner (camera barcode + manual ISBN entry)
+- [ ] ISBN lookup Edge Function — ISBNdb with Google Books fallback + `books`-table cache
 - [ ] Test end-to-end book lookup
 
-### Week 2: Listing & Dashboard
+### Stage 2: Listing & Dashboard
 - [ ] Build listing form with validation
-- [ ] Implement AI pricing function
-- [ ] Photo upload component (3-5 photos)
-- [ ] Create "My Shelf" dashboard
-- [ ] Edit/delete listing functionality
+- [ ] AI pricing Edge Function (Anthropic) + fallback algorithm
+- [ ] Photo upload to Supabase Storage (3-5 photos)
+- [ ] Build out "My Shelf" dashboard
+- [ ] Edit / delete / mark-as-sold listing functionality
 - [ ] Browse all listings page
 - [ ] Basic search implementation
 - [ ] Book detail page
 - [ ] Mobile responsive polish
 - [ ] Load testing with 100 sample listings
-- [ ] Deploy to Vercel staging
+- [ ] Deploy static site to a host (e.g. Netlify / Cloudflare Pages / GitHub Pages)
 
 ---
 
