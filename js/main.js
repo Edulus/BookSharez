@@ -107,39 +107,104 @@ function setupEventListeners() {
 }
 
 // Load featured books
-function loadFeaturedBooks() {
+// --- Buyer-side browse/search (Supabase-backed, Phase 1) --------------------
+// Reads ACTIVE listings joined to their book from Supabase (local DB only,
+// never external sources) — see docs/SEARCH_SYSTEMS.md §2. Replaces the old
+// in-memory sampleBooks filter. (sampleBooks remains only for the not-yet-
+// persisted in-memory sell flow, which is replaced in Step 2.)
+
+let displayedListings = []; // normalized cards currently shown in the grid
+
+// Vanilla JS has no auto-escaping; escape user text before putting it in HTML.
+function escapeHTML(value) {
+  const div = document.createElement("div");
+  div.textContent = value == null ? "" : String(value);
+  return div.innerHTML;
+}
+
+// Map a Supabase {listing + books} row to the shape createBookCard expects.
+function normalizeListing(row) {
+  const book = row.books || {};
+  return {
+    id: row.id, // listing UUID
+    title: book.title,
+    author: book.author,
+    price: row.price,
+    condition: row.condition,
+    image: book.cover_url,
+    isbn: book.isbn,
+  };
+}
+
+function showGridMessage(message) {
+  document.getElementById("booksGrid").innerHTML =
+    '<p style="text-align:center;grid-column:1/-1;color:#666;">' +
+    escapeHTML(message) +
+    "</p>";
+}
+
+function renderListings(rows) {
   const booksGrid = document.getElementById("booksGrid");
+  displayedListings = (rows || []).map(normalizeListing);
+  if (displayedListings.length === 0) {
+    showGridMessage("No books found.");
+    return;
+  }
+  booksGrid.innerHTML = "";
+  displayedListings.forEach((book) =>
+    booksGrid.appendChild(createBookCard(book))
+  );
+}
+
+// Shared query: active listings, newest first, joined to their book.
+function activeListingsQuery() {
+  return supabaseClient
+    .from("listings")
+    .select(
+      "id, price, condition, created_at, books!inner(title, author, cover_url, isbn)"
+    )
+    .eq("status", "active")
+    .order("created_at", { ascending: false });
+}
+
+// Load active listings into the homepage grid.
+async function loadFeaturedBooks() {
   const sectionTitle = document.getElementById("featuredTitle");
   if (sectionTitle) sectionTitle.textContent = "Featured Books";
-  booksGrid.innerHTML = "";
+  showGridMessage("Loading books…");
 
-  sampleBooks.forEach((book) => {
-    const bookCard = createBookCard(book);
-    booksGrid.appendChild(bookCard);
-  });
+  const { data, error } = await activeListingsQuery().limit(24);
+  if (error) {
+    console.error("Failed to load listings:", error);
+    showGridMessage("Couldn't load books. Please try again.");
+    return;
+  }
+  renderListings(data);
 }
 
 // Create book card element
 function createBookCard(book) {
   const card = document.createElement("div");
   card.className = "book-card";
+  const priceNum = Number(book.price);
+  const priceLabel = Number.isFinite(priceNum) ? `$${priceNum.toFixed(2)}` : "";
   card.innerHTML = `
     <div class="book-image">
-      <img src="${book.image}" alt="${
+      <img src="${escapeHTML(book.image)}" alt="${escapeHTML(
     book.title
-  }" onerror="this.src='https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=300&h=400&fit=crop'">
+  )}" onerror="this.src='https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=300&h=400&fit=crop'">
       <div class="book-condition">${formatCondition(book.condition)}</div>
     </div>
     <div class="book-info">
-      <h3 class="book-title">${book.title}</h3>
-      <p class="book-author">by ${book.author}</p>
+      <h3 class="book-title">${escapeHTML(book.title)}</h3>
+      <p class="book-author">by ${escapeHTML(book.author)}</p>
       <div class="book-footer">
-        <span class="book-price">$${book.price}</span>
-        <button class="btn btn-primary btn-small" onclick="buyBook(${book.id})">
+        <span class="book-price">${priceLabel}</span>
+        <button class="btn btn-primary btn-small" onclick="buyBook('${book.id}')">
           <i class="fas fa-cart-plus"></i> Buy Now
         </button>
       </div>
-      <p class="book-seller">Sold by: ${book.seller}</p>
+      <p class="book-seller">Sold by a BookSharez seller</p>
     </div>
   `;
 
@@ -245,41 +310,39 @@ function formatCondition(condition) {
 }
 
 // Search functionality
-// Buyer-side browse/search. Phase 1: filters the in-memory sampleBooks as a
-// placeholder for a local Supabase full-text query (never external sources) —
-// see docs/SEARCH_SYSTEMS.md.
-function searchBooks() {
-  const searchTerm = document.getElementById("searchInput").value.toLowerCase();
-  const booksGrid = document.getElementById("booksGrid");
+// Buyer search: title/author match against ACTIVE listings (local DB only,
+// never external sources). See docs/SEARCH_SYSTEMS.md §2.
+async function searchBooks() {
+  const searchTerm = document.getElementById("searchInput").value.trim();
   const sectionTitle = document.getElementById("featuredTitle");
 
-  if (!searchTerm.trim()) {
+  if (!searchTerm) {
     loadFeaturedBooks();
     return;
   }
 
   if (sectionTitle) sectionTitle.textContent = "Search Results";
+  showGridMessage("Searching…");
 
-  const filteredBooks = sampleBooks.filter(
-    (book) =>
-      book.title.toLowerCase().includes(searchTerm) ||
-      book.author.toLowerCase().includes(searchTerm)
-  );
+  // Strip characters that would break the PostgREST or() filter syntax.
+  const safe = searchTerm.replace(/[,()%*]/g, " ").trim();
+  const pattern = `%${safe}%`;
 
-  booksGrid.innerHTML = "";
+  const { data, error } = await activeListingsQuery()
+    .or(`title.ilike.${pattern},author.ilike.${pattern}`, {
+      referencedTable: "books",
+    })
+    .limit(48);
 
-  if (filteredBooks.length === 0) {
-    booksGrid.innerHTML =
-      '<p style="text-align: center; grid-column: 1/-1; color: #666;">No books found matching your search.</p>';
+  if (error) {
+    console.error("Search failed:", error);
+    showGridMessage("Search failed. Please try again.");
   } else {
-    filteredBooks.forEach((book) => {
-      const bookCard = createBookCard(book);
-      booksGrid.appendChild(bookCard);
-    });
+    renderListings(data);
   }
 
   // The search bar lives in the hero; results render in the Featured section
-  // far below the fold. Scroll the results into view so the search feels live.
+  // below the fold — scroll there so the search feels responsive.
   const resultsSection = document.querySelector(".featured");
   if (resultsSection) {
     resultsSection.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -598,24 +661,22 @@ function loadUserListings() {
   }
 }
 
-// Buy book functionality
-function buyBook(bookId) {
+// Buy book functionality (Phase 1: visual only — no real payment; Stripe is Phase 3)
+function buyBook(listingId) {
   if (!isLoggedIn) {
     alert("Please login first to buy books");
     showLogin();
     return;
   }
 
-  const book = sampleBooks.find((b) => b.id === bookId);
-  if (book) {
-    if (
-      confirm(`Are you sure you want to buy "${book.title}" for ${book.price}?`)
-    ) {
-      alert(
-        "Purchase successful! You will receive shipping information via email."
-      );
-      // In a real app, this would integrate with payment processing
-    }
+  const book = displayedListings.find((b) => b.id === listingId);
+  if (!book) return;
+
+  const priceLabel = `$${Number(book.price).toFixed(2)}`;
+  if (confirm(`Are you sure you want to buy "${book.title}" for ${priceLabel}?`)) {
+    alert(
+      "Purchase successful! You will receive shipping information via email."
+    );
   }
 }
 

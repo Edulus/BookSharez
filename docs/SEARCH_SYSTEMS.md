@@ -71,12 +71,15 @@ Fully designed in **[ISBN_LOOKUP_DESIGN.md](ISBN_LOOKUP_DESIGN.md)**. Summary:
 - ❌ No external book-source results in buyer search
 - ❌ No affiliate links (see deferred section below)
 
-### Current prototype status (interim)
-The hero/browse search in [js/main.js](../js/main.js) (`searchBooks()`)
-currently filters the **6 hardcoded `sampleBooks`** in memory by title/author
-substring. This is a **placeholder** for the Supabase full-text query above; it
-will be replaced once listings are persisted to the database. It is buyer-side
-and local-only, consistent with this design — it simply has no real data yet.
+### Current status (interim)
+The hero/browse search in [js/main.js](../js/main.js) (`searchBooks()` +
+`loadFeaturedBooks()`) now **reads from Supabase** (active `listings` joined to
+`books`, `status = 'active'`) — local DB only, never external sources, with
+XSS-safe rendering. Search uses `ilike` on title/author (an interim; the GIN
+full-text indexes are the eventual refinement). Demo data comes from
+[db/seed.sql](../db/seed.sql) until the sell flow persists real listings (Step 2).
+The old in-memory `sampleBooks` array is now used only by the not-yet-persisted
+sell flow.
 
 > Stack translation: the briefing's `src/app/(main)/browse/page.tsx` is, for us,
 > the homepage search UI in `index.html` + `searchBooks()` in `js/main.js`,

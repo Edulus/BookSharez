@@ -72,6 +72,13 @@ _Phase 1 backend foundation + documentation. Work to date: 2026-06-14 – 2026-0
   stale Next.js/Vercel/not-a-git-repo/condition-mismatch lines). Resolved an
   internal "seller rating" vs. no-ratings inconsistency in ARCHITECTURE §7.4.
 
+### Added
+- **Buyer-side browse/search now reads real data from Supabase** (Step 1 of
+  persistence). `loadFeaturedBooks()` + `searchBooks()` query active `listings`
+  joined to `books` (local DB only, never external), with `ilike` title/author
+  matching and XSS-safe rendering (also closes the `innerHTML` XSS gap). Demo
+  data via `db/seed.sql` until the sell flow persists real listings.
+
 ### Fixed
 - **Hero search appeared broken:** results render in the Featured section below
   the fold and the page never scrolled there (and "two" matched none of the 6
