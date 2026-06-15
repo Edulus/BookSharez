@@ -114,6 +114,7 @@ function setupEventListeners() {
 // persisted in-memory sell flow, which is replaced in Step 2.)
 
 let displayedListings = []; // normalized cards currently shown in the grid
+let myListings = []; // the logged-in user's own listings (My Shelf)
 
 // Vanilla JS has no auto-escaping; escape user text before putting it in HTML.
 function escapeHTML(value) {
@@ -642,35 +643,69 @@ async function ensureBook({ isbn, title, author }) {
 }
 
 // Load user listings
-function loadUserListings() {
+// My Shelf: the logged-in user's own listings, read from Supabase (all
+// statuses), with working edit/mark-sold/delete. (RLS lets a user see and
+// modify only their own rows.)
+async function loadUserListings() {
   const userListingsDiv = document.getElementById("userListings");
+  userListingsDiv.innerHTML = "<p>Loading your listings…</p>";
 
-  if (userBooks.length === 0) {
+  const {
+    data: { user },
+  } = await supabaseClient.auth.getUser();
+  if (!user) {
+    userListingsDiv.innerHTML = "<p>Please log in to see your listings.</p>";
+    return;
+  }
+
+  const { data, error } = await supabaseClient
+    .from("listings")
+    .select("id, price, condition, status, description, books!inner(title, author)")
+    .eq("user_id", user.id)
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    console.error("Failed to load your listings:", error);
+    userListingsDiv.innerHTML =
+      "<p>Couldn't load your listings. Please try again.</p>";
+    return;
+  }
+
+  myListings = data || [];
+
+  if (myListings.length === 0) {
     userListingsDiv.innerHTML =
       '<p>You haven\'t listed any books yet. <a href="#" onclick="showSellModal()">List your first book!</a></p>';
     return;
   }
 
   userListingsDiv.innerHTML = "";
-  userBooks.forEach((book) => {
+  myListings.forEach((row) => {
+    const book = row.books || {};
+    const priceLabel = `$${Number(row.price).toFixed(2)}`;
+    const isActive = row.status === "active";
     const listingCard = document.createElement("div");
     listingCard.className = "listing-card";
     listingCard.innerHTML = `
       <div class="listing-info">
-        <h4>${book.title}</h4>
-        <p>by ${book.author}</p>
-        <p>Condition: ${formatCondition(book.condition)}</p>
-        <p class="listing-price">${book.price}</p>
+        <h4>${escapeHTML(book.title)}</h4>
+        <p>by ${escapeHTML(book.author)}</p>
+        <p>Condition: ${formatCondition(row.condition)}</p>
+        <p class="listing-price">${priceLabel}</p>
+        <p>Status: ${escapeHTML(row.status)}</p>
       </div>
       <div class="listing-actions">
-        <button class="btn btn-secondary btn-small" onclick="editListing(${
-          book.id
-        })">
-          <i class="fas fa-edit"></i> Edit
+        <button class="btn btn-secondary btn-small" onclick="editListing('${row.id}')">
+          <i class="fas fa-edit"></i> Edit price
         </button>
-        <button class="btn btn-primary btn-small" onclick="deleteListing(${
-          book.id
-        })">
+        ${
+          isActive
+            ? `<button class="btn btn-secondary btn-small" onclick="markAsSold('${row.id}')">
+          <i class="fas fa-check"></i> Mark sold
+        </button>`
+            : ""
+        }
+        <button class="btn btn-primary btn-small" onclick="deleteListing('${row.id}')">
           <i class="fas fa-trash"></i> Delete
         </button>
       </div>
@@ -738,29 +773,67 @@ function buyBook(listingId) {
   }
 }
 
-// Edit listing (placeholder)
-function editListing(bookId) {
-  alert("Edit functionality would be implemented here");
+// Edit a listing's price (basic; condition/description editing can follow).
+async function editListing(listingId) {
+  const current = myListings.find((l) => l.id === listingId);
+  if (!current) return;
+
+  const input = prompt("New price (USD):", Number(current.price).toFixed(2));
+  if (input === null) return; // cancelled
+  const price = parseFloat(input);
+  if (!(price >= 0.01 && price <= 9999.99)) {
+    alert("Please enter a price between $0.01 and $9999.99.");
+    return;
+  }
+
+  const { error } = await supabaseClient
+    .from("listings")
+    .update({ price })
+    .eq("id", listingId);
+  if (error) {
+    console.error("Edit failed:", error);
+    alert("Couldn't update the price. Please try again.");
+    return;
+  }
+  await loadUserListings();
+  loadFeaturedBooks();
+  alert("Price updated.");
 }
 
-// Delete listing
-function deleteListing(bookId) {
-  if (confirm("Are you sure you want to delete this listing?")) {
-    // Remove from user books
-    userBooks = userBooks.filter((book) => book.id !== bookId);
+// Mark a listing as sold (removes it from public browse; stays on My Shelf).
+async function markAsSold(listingId) {
+  if (!confirm("Mark this listing as sold?")) return;
 
-    // Remove from sample books
-    const sampleIndex = sampleBooks.findIndex((book) => book.id === bookId);
-    if (sampleIndex > -1) {
-      sampleBooks.splice(sampleIndex, 1);
-    }
-
-    // Refresh displays
-    loadUserListings();
-    loadFeaturedBooks();
-
-    alert("Listing deleted successfully!");
+  const { error } = await supabaseClient
+    .from("listings")
+    .update({ status: "sold" })
+    .eq("id", listingId);
+  if (error) {
+    console.error("Mark-sold failed:", error);
+    alert("Couldn't update the listing. Please try again.");
+    return;
   }
+  await loadUserListings();
+  loadFeaturedBooks();
+  alert("Marked as sold.");
+}
+
+// Delete a listing for good.
+async function deleteListing(listingId) {
+  if (!confirm("Are you sure you want to delete this listing?")) return;
+
+  const { error } = await supabaseClient
+    .from("listings")
+    .delete()
+    .eq("id", listingId);
+  if (error) {
+    console.error("Delete failed:", error);
+    alert("Couldn't delete the listing. Please try again.");
+    return;
+  }
+  await loadUserListings();
+  loadFeaturedBooks();
+  alert("Listing deleted.");
 }
 
 // Close modal

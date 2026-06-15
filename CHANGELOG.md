@@ -82,6 +82,11 @@ _Phase 1 backend foundation + documentation. Work to date: 2026-06-14 – 2026-0
   internal "seller rating" vs. no-ratings inconsistency in ARCHITECTURE §7.4.
 
 ### Added
+- **My Shelf reads real listings** (Step 3, **pending live verification**): the
+  dashboard now lists the logged-in user's own listings from Supabase (all
+  statuses) with working **delete**, **mark-as-sold**, and a basic **edit price**
+  (RLS scopes everything to the owner). Replaces the in-memory placeholder; the
+  old `editListing` alert and in-memory delete are gone.
 - **Sell flow persists to Supabase** (Step 2, **pending live verification**):
   `handleSellBook()` validates input, ensures the catalog `books` row exists for
   the ISBN, then inserts the listing under the logged-in user. ISBN is now
