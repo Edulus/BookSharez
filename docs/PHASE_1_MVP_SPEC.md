@@ -51,6 +51,14 @@ incrementally from the existing prototype)
    - May have damage or missing dust jacket
 
 ### Photo Requirements
+
+**Cover image vs. seller photos (decision, June 15, 2026):**
+- The **catalog cover image** is auto-fetched free from the **Google Books API**
+  as part of ISBN lookup — the seller does not supply it. Until ISBN lookup is
+  built, listings show a generic fallback cover.
+- The seller then uploads photos of **their actual copy**, with a UX nudge:
+  *the more real photos you add, the more likely your book is to sell.*
+
 **Minimum 3 photos required:**
 1. Front cover (straight-on)
 2. Sample interior pages (showing any markings/highlighting)
