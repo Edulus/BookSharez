@@ -59,7 +59,7 @@ Fully designed in **[ISBN_LOOKUP_DESIGN.md](ISBN_LOOKUP_DESIGN.md)**. Summary:
   ```
 - Query `listings` joined to `books`, restricted to `status = 'active'` (RLS
   already enforces this for anon/other users).
-- Filter by condition (`like_new`, `very_good`, `good`, `acceptable`).
+- Filter by condition (`like_new`, `very_good`, `good`, `fair`, `poor`).
 - Sort by: newest, price low→high, price high→low.
 - Search fields: title, author. (ISBN search is in the spec's feature list —
   exact-match on `books.isbn` — but is **not** fuzzy.)

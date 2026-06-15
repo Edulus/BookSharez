@@ -51,6 +51,15 @@ _Phase 1 backend foundation + documentation. Work to date: 2026-06-14 – 2026-0
   added to each.
 
 ### Changed
+- **Condition grades: 4 → 5** (June 15). Switched from
+  `like_new/very_good/good/acceptable` to the industry-standard
+  `like_new/very_good/good/fair/poor` across the app, schema, seed, and docs
+  (with plain-language definitions in PHASE_1_MVP_SPEC). Migration:
+  `db/condition_5grade.sql` (remaps existing `acceptable` → `fair`).
+- **Catalog book writes relaxed for Phase 1:** authenticated users may INSERT
+  `books` from the browser (was service-role-only), so the sell flow can add a
+  new ISBN without an Edge Function yet. Documented simplification, to be moved
+  server-side when ISBN-lookup is built.
 - **Architecture pivot recorded:** vanilla HTML/CSS/JS + Supabase Edge Functions
   chosen over Next.js (ADR in `docs/PHASE_1_MVP_SPEC.md`).
 - **Docs converted off Next.js/React/TypeScript** to vanilla JS + Edge Functions
@@ -73,6 +82,12 @@ _Phase 1 backend foundation + documentation. Work to date: 2026-06-14 – 2026-0
   internal "seller rating" vs. no-ratings inconsistency in ARCHITECTURE §7.4.
 
 ### Added
+- **Sell flow persists to Supabase** (Step 2, **pending live verification**):
+  `handleSellBook()` validates input, ensures the catalog `books` row exists for
+  the ISBN, then inserts the listing under the logged-in user. ISBN is now
+  required on the form. New RLS policy lets authenticated users add catalog books
+  (`db/books_insert_policy.sql`) — a Phase-1 simplification (see Changed). Photos
+  still deferred; needs the policy applied + a live test before it's "done."
 - **Buyer-side browse/search now reads real data from Supabase** (Step 1 of
   persistence). `loadFeaturedBooks()` + `searchBooks()` query active `listings`
   joined to `books` (local DB only, never external), with `ilike` title/author

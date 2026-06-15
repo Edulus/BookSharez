@@ -101,7 +101,7 @@ listing
 ├── seller_user_id (FK → user)
 ├── shelf_entry_id (FK → shelf_entry) — links back to shelf
 ├── price (DECIMAL(10,2))
-├── condition (enum: like_new | very_good | good | acceptable)
+├── condition (enum: like_new | very_good | good | fair | poor)
 ├── description (TEXT, max 500 chars)
 ├── shipping_method (enum: local_pickup | self_ship | platform_kit) — Phase 3+
 ├── status (enum: active | sold | removed)

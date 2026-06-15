@@ -20,11 +20,11 @@ This **is** a git repository (initialized June 2026). Completed work is logged i
 
 [docs/PHASE_1_MVP_SPEC.md](docs/PHASE_1_MVP_SPEC.md) is authoritative **for Phase 1 implementation scope** and **overrides conflicting information about what we build now**. Key Phase 1 boundaries:
 
-- **In scope:** ISBN scan/entry with ISBNdb lookup (Google Books fallback), 4-grade condition system (Like New / Very Good / Good / Acceptable), 3–5 photo upload, AI price suggestion with manual override, Supabase email/password auth, "My Shelf" dashboard, browse/search/filter listings, book detail page.
+- **In scope:** ISBN scan/entry with ISBNdb lookup (Google Books fallback), 5-grade condition system (Like New / Very Good / Good / Fair / Poor), 3–5 photo upload, AI price suggestion with manual override, Supabase email/password auth, "My Shelf" dashboard, browse/search/filter listings, book detail page.
 - **Explicitly NOT in Phase 1:** payments (Stripe is Phase 3), shipping, messaging, SHAREZ credits, transaction fees, reputation system, detailed condition verification.
 - The full Postgres schema (books, listings, listing_photos) with indexes and RLS policies is in the spec — use it verbatim rather than redesigning.
 
-Note: the prototype's condition values were aligned to the spec's four grades (`like_new`, `very_good`, `good`, `acceptable`) on June 14 — `fair`/`poor` and the hyphen format are gone. The spec wins for any new work.
+Note: condition uses **5 grades** (`like_new`, `very_good`, `good`, `fair`, `poor`, underscore format) as of June 15 — switched from the earlier 4-grade set (`acceptable` is gone). The spec wins for any new work.
 
 ## Other Docs
 

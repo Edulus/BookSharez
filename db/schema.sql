@@ -33,7 +33,7 @@ CREATE TABLE listings (
   user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
   book_id UUID REFERENCES books(id) ON DELETE CASCADE NOT NULL,
   price DECIMAL(10,2) NOT NULL CHECK (price >= 0.01),
-  condition TEXT NOT NULL CHECK (condition IN ('like_new', 'very_good', 'good', 'acceptable')),
+  condition TEXT NOT NULL CHECK (condition IN ('like_new', 'very_good', 'good', 'fair', 'poor')),
   description TEXT CHECK (char_length(description) <= 500),
   status TEXT DEFAULT 'active' CHECK (status IN ('active', 'sold', 'removed')),
   created_at TIMESTAMP DEFAULT NOW(),
@@ -73,14 +73,21 @@ ALTER TABLE listing_photos ENABLE ROW LEVEL SECURITY;
 
 -- books: deliberate deviation from the verbatim spec (which left books without
 -- RLS). With RLS off, the anon key could WRITE to books, not just read. Instead
--- we enable RLS and grant PUBLIC READ ONLY. Inserts/updates happen only inside
--- the ISBN-lookup Edge Function via the service-role key, which bypasses RLS —
--- so clients never need write access. (June 14, 2026)
+-- we enable RLS and grant PUBLIC READ. (June 14, 2026)
+-- Writes: anon cannot write. Authenticated users may INSERT (Step 2, June 15) so
+-- the browser sell flow can add a catalog book for a new ISBN before the
+-- isbn-lookup Edge Function exists — a documented Phase-1 simplification, to be
+-- moved server-side later. UPDATE/DELETE on books remain unavailable to clients.
 ALTER TABLE books ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Anyone can read books"
   ON books FOR SELECT
   USING (true);
+
+CREATE POLICY "Authenticated users can add books"
+  ON books FOR INSERT
+  TO authenticated
+  WITH CHECK (true);
 
 CREATE POLICY "Users can insert their own listings"
   ON listings FOR INSERT

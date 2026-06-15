@@ -172,7 +172,8 @@ function fallbackPricing(bookData, condition) {
     'like_new': 0.75,
     'very_good': 0.55,
     'good': 0.35,
-    'acceptable': 0.20
+    'fair': 0.20,
+    'poor': 0.10
   };
   
   const estimated = basePrice * multipliers[condition];

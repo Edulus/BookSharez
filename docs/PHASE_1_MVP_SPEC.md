@@ -32,23 +32,24 @@ incrementally from the existing prototype)
 
 ## ðŸ“š BOOK CONDITION SYSTEM (Simplified)
 
-### Four Condition Grades
-1. **Like New** (95-100%)
-   - Appears unread or barely used
-   - No visible defects
+### Five Condition Grades
+1. **Like New** — Looks almost unread: clean, crisp, no visible wear, writing,
+   bent corners, or damage; dust jacket (if any) clean and intact.
 
-2. **Very Good** (80-94%)
-   - Minor wear only
-   - Clean, fully readable
+2. **Very Good** — Clearly used but still strong: light shelf wear, slight corner
+   rubbing, a small crease, or a previous owner's name; no major tears, missing
+   pages, or structural damage.
 
-3. **Good** (60-79%)
-   - Average used book
-   - May have highlighting or writing
-   - All pages intact
+3. **Good** — A normal worn used book: complete and readable, with obvious
+   handling (edge wear, creasing, fading, small marks, a slightly cracked spine,
+   or minor writing/underlining).
 
-4. **Acceptable** (Below 60%)
-   - Heavy wear but readable
-   - May have damage or missing dust jacket
+4. **Fair** — A rougher reading copy: still usable, but heavy wear, stains,
+   loosened binding, damaged covers, notes/highlighting, possibly missing
+   nonessential parts (e.g. endpapers).
+
+5. **Poor** — Very damaged: missing pages, broken binding, detached covers, heavy
+   staining, or water damage; sold only as a reading copy or because it's rare.
 
 ### Photo Requirements
 
@@ -72,7 +73,7 @@ incrementally from the existing prototype)
 
 ### Condition Input Form
 ```
-- Condition dropdown: [Like New | Very Good | Good | Acceptable]
+- Condition dropdown: [Like New | Very Good | Good | Fair | Poor]
 - Optional text description (500 char max)
 - Photo upload (3 minimum, 5 maximum)
 ```
@@ -118,7 +119,7 @@ incrementally from the existing prototype)
 ### Core Listing Creation
 - [x] Barcode scanner (camera + manual ISBN entry)
 - [x] ISBNdb API lookup (with Google Books fallback)
-- [x] 4-grade condition selector
+- [x] 5-grade condition selector
 - [x] Optional text description (500 char)
 - [x] Photo upload (3-5 photos)
 - [x] AI price suggestion
@@ -179,7 +180,7 @@ CREATE TABLE listings (
   user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
   book_id UUID REFERENCES books(id) ON DELETE CASCADE NOT NULL,
   price DECIMAL(10,2) NOT NULL CHECK (price >= 0.01),
-  condition TEXT NOT NULL CHECK (condition IN ('like_new', 'very_good', 'good', 'acceptable')),
+  condition TEXT NOT NULL CHECK (condition IN ('like_new', 'very_good', 'good', 'fair', 'poor')),
   description TEXT CHECK (char_length(description) <= 500),
   status TEXT DEFAULT 'active' CHECK (status IN ('active', 'sold', 'removed')),
   created_at TIMESTAMP DEFAULT NOW(),
@@ -316,7 +317,8 @@ function estimatePrice(bookData, condition) {
   //    - Like New: 0.7-0.8x list price
   //    - Very Good: 0.5-0.6x list price
   //    - Good: 0.3-0.4x list price
-  //    - Acceptable: 0.15-0.25x list price
+  //    - Fair: 0.15-0.25x list price
+  //    - Poor: 0.05-0.15x list price
   // 3. Round to nearest $0.50
   // 4. Minimum price: $2.00
   // 5. Return price + confidence level

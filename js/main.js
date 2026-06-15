@@ -45,7 +45,7 @@ const sampleBooks = [
     title: "The Catcher in the Rye",
     author: "J.D. Salinger",
     price: 11.99,
-    condition: "acceptable",
+    condition: "fair",
     image:
       "https://images.unsplash.com/photo-1543002588-bfa74002ed7e?w=300&h=400&fit=crop",
     seller: "VintageBooks",
@@ -304,7 +304,8 @@ function formatCondition(condition) {
     like_new: "Like New",
     very_good: "Very Good",
     good: "Good",
-    acceptable: "Acceptable",
+    fair: "Fair",
+    poor: "Poor",
   };
   return conditions[condition] || condition;
 }
@@ -549,38 +550,95 @@ function showDashboardTab(tabName) {
 }
 
 // Handle sell book form
-function handleSellBook(e) {
+// Persist a new listing to Supabase (Step 2). Ensures the catalog book row
+// exists (by ISBN), then inserts the listing under the logged-in user. Photos
+// are a later step; the grid uses the book's cover (fallback image for now).
+async function handleSellBook(e) {
   e.preventDefault();
 
   const formData = new FormData(e.target);
-  const bookData = {
-    id: Date.now(), // Simple ID generation
-    title: formData.get("bookTitle"),
-    author: formData.get("bookAuthor"),
-    isbn: formData.get("bookISBN"),
-    condition: formData.get("bookCondition"),
-    price: parseFloat(formData.get("bookPrice")),
-    description: formData.get("bookDescription"),
-    seller: currentUser,
-    image:
-      "https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=300&h=400&fit=crop", // Default image
-  };
+  const title = (formData.get("bookTitle") || "").trim();
+  const author = (formData.get("bookAuthor") || "").trim();
+  const isbn = (formData.get("bookISBN") || "").replace(/[\s-]/g, "");
+  const condition = formData.get("bookCondition");
+  const price = parseFloat(formData.get("bookPrice"));
+  const description = (formData.get("bookDescription") || "").trim();
 
-  // Add to user's books
-  userBooks.push(bookData);
+  // Validate (DB also enforces these via CHECK constraints).
+  if (!/^(\d{13}|\d{9}[\dXx])$/.test(isbn)) {
+    alert("Please enter a valid ISBN — 10 or 13 digits.");
+    return;
+  }
+  if (!(price >= 0.01 && price <= 9999.99)) {
+    alert("Please enter a price between $0.01 and $9999.99.");
+    return;
+  }
+  if (description.length > 500) {
+    alert("Description must be 500 characters or fewer.");
+    return;
+  }
 
-  // Add to sample books for display
-  sampleBooks.unshift(bookData);
+  const submitBtn = e.target.querySelector('button[type="submit"]');
+  if (submitBtn) submitBtn.disabled = true;
 
-  // Close modal and refresh displays
-  closeModal("sellModal");
-  loadFeaturedBooks();
-  loadUserListings();
+  try {
+    const bookId = await ensureBook({ isbn, title, author });
+    const {
+      data: { user },
+    } = await supabaseClient.auth.getUser();
 
-  // Reset form
-  e.target.reset();
+    const { error } = await supabaseClient.from("listings").insert({
+      user_id: user.id,
+      book_id: bookId,
+      price,
+      condition,
+      description: description || null,
+      status: "active",
+    });
+    if (error) throw error;
 
-  alert("Book listed successfully!");
+    closeModal("sellModal");
+    e.target.reset();
+    alert("Book listed successfully!");
+    showBuyBooks(); // back to the homepage...
+    loadFeaturedBooks(); // ...where the new listing now appears
+  } catch (err) {
+    console.error("Failed to list book:", err);
+    alert("Sorry, something went wrong listing your book. Please try again.");
+  } finally {
+    if (submitBtn) submitBtn.disabled = false;
+  }
+}
+
+// Ensure a catalog book row exists for this ISBN; return its book_id. Reuses an
+// existing row (so multiple sellers share one canonical book) and only inserts
+// when the ISBN is new.
+async function ensureBook({ isbn, title, author }) {
+  const { data: existing, error: selErr } = await supabaseClient
+    .from("books")
+    .select("id")
+    .eq("isbn", isbn)
+    .maybeSingle();
+  if (selErr) throw selErr;
+  if (existing) return existing.id;
+
+  const { data: created, error: insErr } = await supabaseClient
+    .from("books")
+    .insert({ isbn, title, author })
+    .select("id")
+    .single();
+  if (!insErr) return created.id;
+
+  // Race: another insert won the UNIQUE(isbn) between our select and insert.
+  if (insErr.code === "23505") {
+    const { data: again } = await supabaseClient
+      .from("books")
+      .select("id")
+      .eq("isbn", isbn)
+      .maybeSingle();
+    if (again) return again.id;
+  }
+  throw insErr;
 }
 
 // Load user listings

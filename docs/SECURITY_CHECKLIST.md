@@ -167,7 +167,7 @@ Deno.serve(async (req) => {
 **Validation (plain JS — no Zod/TypeScript in this stack):**
 ```javascript
 // Returns an array of error strings; empty array means valid.
-const ALLOWED_CONDITIONS = ['like_new', 'very_good', 'good', 'acceptable'];
+const ALLOWED_CONDITIONS = ['like_new', 'very_good', 'good', 'fair', 'poor'];
 
 function validateListing({ isbn, price, condition, description }) {
   const errors = [];
