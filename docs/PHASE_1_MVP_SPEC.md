@@ -2,7 +2,11 @@
 **Version:** 1.1  
 **Date:** January 23, 2026 (architecture revision June 14, 2026)  
 **Updated:** June 14, 2026 — Reflects vanilla JS + Supabase Edge Functions stack (pivoted from Next.js).  
-**Status:** AUTHORITATIVE - Overrides conflicting information in other documents
+**Status:** AUTHORITATIVE for **Phase 1 implementation scope** — overrides
+conflicting information about *what we build now*. The full product is defined by
+[BOOKSHAREZ_PRODUCT_VISION.md](BOOKSHAREZ_PRODUCT_VISION.md) (why/what) and
+[BOOKSHAREZ_ARCHITECTURE.md](BOOKSHAREZ_ARCHITECTURE.md) (full target design);
+this spec is the slice of that product shipping in Phase 1.
 
 > ### Architecture Decision Record
 > **June 12, 2026: Vanilla JS + Supabase Edge Functions chosen over Next.js.**
@@ -240,6 +244,13 @@ CREATE POLICY "Users can insert photos for their listings"
 ---
 
 ## ðŸš« EXPLICITLY DEFERRED TO LATER PHASES
+
+> **Canonical phase roadmap:** the deferral list below predates the product
+> vision. For the authoritative, up-to-date phasing of the *full* product (shelf
+> system, social graph, discussions, reviews, affiliate, recommendations, SHAREZ
+> credits), see **§11 Phase Alignment** in
+> [BOOKSHAREZ_ARCHITECTURE.md](BOOKSHAREZ_ARCHITECTURE.md). The list here remains
+> accurate for what is *out* of Phase 1; week numbers are illustrative only.
 
 ### Phase 2 (Weeks 3-4)
 - Advanced search/filters

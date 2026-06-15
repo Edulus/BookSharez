@@ -85,20 +85,27 @@ and local-only, consistent with this design — it simply has no real data yet.
 
 ---
 
-## Affiliate fallback strategy — DEFERRED (not Phase 1)
+## Affiliate fallback — core product invariant, later phase
 
-Documented for awareness only. **Do NOT implement any affiliate functionality in
-Phase 1.**
+**Status update (June 15):** affiliate is no longer just a "discussed idea." The
+Product Vision elevates it to a **core invariant — "No Dead Ends"**: if a book
+exists anywhere (community *or* a partner retailer), the user must be able to
+find it. See [BOOKSHAREZ_PRODUCT_VISION.md](BOOKSHAREZ_PRODUCT_VISION.md) and the
+**Dead-End Prevention** algorithm + **Affiliate Offer** entity in
+[BOOKSHAREZ_ARCHITECTURE.md](BOOKSHAREZ_ARCHITECTURE.md) (§4.3, §2.6).
 
-An affiliate strategy was discussed for when buyer search returns no local
-inventory (to keep early users engaged while inventory is thin):
-- Show local inventory first.
-- If no results → a "Not finding what you need?" section with affiliate links to
-  Bookshop.org (~10%), Amazon Associates (up to 10%), Better World Books (~5%).
-- Requires separate affiliate account signups + integrations.
+How it works (target design):
+- Show community listings first; affiliate offers below, or promoted when the
+  affiliate price is much lower, or as primary when community inventory is empty.
+- When nothing is available anywhere → offer "Add to Books I Want" + a
+  back-in-stock alert (never an empty results page).
+- Partner retailers discussed: Bookshop.org (~10%), Amazon Associates (up to
+  10%), Better World Books (~5%). Requires affiliate account signups + integration.
 
-This is **not in [PHASE_1_MVP_SPEC.md](PHASE_1_MVP_SPEC.md)** and is deferred to a
-later phase.
+**Phasing:** still **NOT in Phase 1** — `db/schema.sql` has no `affiliate_offer`
+table and the buyer search remains community/local-only for now. Per
+ARCHITECTURE §11, affiliate integration lands in **Phase 3-4**. Do not implement
+it in Phase 1.
 
 ---
 

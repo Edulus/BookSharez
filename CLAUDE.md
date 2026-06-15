@@ -4,23 +4,27 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project State
 
-BookSharez is a used-books marketplace. The repository currently contains two distinct things:
+BookSharez is a **community-first book marketplace**: a peer-to-peer used-book marketplace combined with a reader-identity system (per-user "Books I Have / Books I Want" shelves) and per-book discussion. The full product is defined in [docs/BOOKSHAREZ_PRODUCT_VISION.md](docs/BOOKSHAREZ_PRODUCT_VISION.md) (why/what/who) and [docs/BOOKSHAREZ_ARCHITECTURE.md](docs/BOOKSHAREZ_ARCHITECTURE.md) (full target design, phased). **Phase 1 ships only the marketplace foundation** — shelves, social graph, discussions, affiliate, and recommendations are later phases.
 
-1. **A static HTML/CSS/JS prototype** ([index.html](index.html), [js/main.js](js/main.js), [css/style.css](css/style.css)) — a client-side demo with hardcoded sample books, fake login (any email/password works), and in-memory state that resets on refresh. No backend, no build step, no package.json, no tests. Run it by opening `index.html` in a browser or serving the directory with any static server.
+The repository contains:
 
-2. **Planning docs for the real Phase 1 build** ([docs/](docs/)) — the intended product is a **Next.js + Supabase** app deployed to Vercel. None of that code exists yet; the prototype does not implement the spec.
+1. **A static HTML/CSS/JS prototype** ([index.html](index.html), [js/main.js](js/main.js), [css/style.css](css/style.css)) — originally a hardcoded demo; now wired to **real Supabase auth** (signup/login/logout/session) via [js/supabase-config.js](js/supabase-config.js). Sample books and most flows are still in-memory. No build step, no package.json, no frontend tests. Run by opening `index.html` or serving the directory with any static server.
 
-This is not a git repository.
+2. **Spec + design docs** ([docs/](docs/)) — the intended product is a **vanilla HTML/CSS/JS frontend + Supabase (Postgres, Auth, Storage, Edge Functions)** app (June 12 ADR; **Next.js is only a post-validation graduation target**, see [docs/GRADUATION_CRITERIA.md](docs/GRADUATION_CRITERIA.md)). The backend foundation exists — schema, indexes, and RLS are live in Supabase ([db/schema.sql](db/schema.sql), RLS verified) — but most Phase 1 *features* are not built yet.
 
-## Authoritative Spec
+This **is** a git repository (initialized June 2026). Completed work is logged in [CHANGELOG.md](CHANGELOG.md); upcoming work in [ToDo.md](ToDo.md).
 
-[docs/PHASE_1_MVP_SPEC.md](docs/PHASE_1_MVP_SPEC.md) is explicitly authoritative and **overrides conflicting information in any other document**. Key Phase 1 boundaries:
+## Authoritative Docs
+
+**Hierarchy:** [docs/BOOKSHAREZ_PRODUCT_VISION.md](docs/BOOKSHAREZ_PRODUCT_VISION.md) (*why/what*) → [docs/BOOKSHAREZ_ARCHITECTURE.md](docs/BOOKSHAREZ_ARCHITECTURE.md) (*full target design, phased*) → [docs/PHASE_1_MVP_SPEC.md](docs/PHASE_1_MVP_SPEC.md) (*authoritative for what we build now*).
+
+[docs/PHASE_1_MVP_SPEC.md](docs/PHASE_1_MVP_SPEC.md) is authoritative **for Phase 1 implementation scope** and **overrides conflicting information about what we build now**. Key Phase 1 boundaries:
 
 - **In scope:** ISBN scan/entry with ISBNdb lookup (Google Books fallback), 4-grade condition system (Like New / Very Good / Good / Acceptable), 3–5 photo upload, AI price suggestion with manual override, Supabase email/password auth, "My Shelf" dashboard, browse/search/filter listings, book detail page.
 - **Explicitly NOT in Phase 1:** payments (Stripe is Phase 3), shipping, messaging, SHAREZ credits, transaction fees, reputation system, detailed condition verification.
 - The full Postgres schema (books, listings, listing_photos) with indexes and RLS policies is in the spec — use it verbatim rather than redesigning.
 
-Note: the prototype's condition values (`like-new`, `very-good`, `good`, `fair`, `poor`) do **not** match the spec's four grades (`like_new`, `very_good`, `good`, `acceptable`). The spec wins for new work.
+Note: the prototype's condition values were aligned to the spec's four grades (`like_new`, `very_good`, `good`, `acceptable`) on June 14 — `fair`/`poor` and the hyphen format are gone. The spec wins for any new work.
 
 ## Other Docs
 

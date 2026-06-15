@@ -40,6 +40,15 @@ _Phase 1 backend foundation + documentation. Work to date: 2026-06-14 – 2026-0
     ISBN lookup vs. buyer-side local browse); affiliate fallback marked
     deferred. (`31919bd`)
 - **This `CHANGELOG.md`.**
+- **Product Vision + Architecture docs:** `docs/BOOKSHAREZ_PRODUCT_VISION.md`
+  (non-technical "what/why/who" — the authoritative product conception) and
+  `docs/BOOKSHAREZ_ARCHITECTURE.md` (full target design, phased). Establishes
+  BookSharez as a community-first marketplace (peer-to-peer trade + reader-
+  identity shelves + per-book discussion), of which Phase 1 ships only the
+  marketplace foundation.
+- **Document authority hierarchy:** PRODUCT_VISION (why) → ARCHITECTURE (full
+  target, phased) → PHASE_1_MVP_SPEC (current Phase-1 build). Authority headers
+  added to each.
 
 ### Changed
 - **Architecture pivot recorded:** vanilla HTML/CSS/JS + Supabase Edge Functions
@@ -55,6 +64,13 @@ _Phase 1 backend foundation + documentation. Work to date: 2026-06-14 – 2026-0
   underscores — so listing inserts pass the DB CHECK constraint. (`96e90ab`)
 - **Buyer-side search heading** toggles to "Search Results" during a query and
   back to "Featured Books" when cleared. (`31919bd`)
+- **Harmonized docs to the new vision:** scoped `PHASE_1_MVP_SPEC.md`'s
+  authority to "Phase 1 implementation"; pointed its deferral list at
+  ARCHITECTURE §11 as the canonical phase roadmap; updated `SEARCH_SYSTEMS.md`
+  (affiliate is now the "No Dead Ends" core invariant, still post-Phase-1);
+  refreshed `CLAUDE.md` (community-first definition, doc hierarchy, corrected
+  stale Next.js/Vercel/not-a-git-repo/condition-mismatch lines). Resolved an
+  internal "seller rating" vs. no-ratings inconsistency in ARCHITECTURE §7.4.
 
 ### Fixed
 - **Hero search appeared broken:** results render in the Featured section below
@@ -64,6 +80,9 @@ _Phase 1 backend foundation + documentation. Work to date: 2026-06-14 – 2026-0
 ### Removed
 - Stray root duplicate of `PHASE_1_OPERATIONS.md` (pre-conversion copy) and
   `claude-project-files.zip`.
+- `docs/VISION.md` — a redundant engineering spec (~90% overlap with
+  BOOKSHAREZ_ARCHITECTURE.md, which fully supersedes it) and a misleading name
+  (its content was a spec, not the vision). Nothing unique was lost.
 
 ### Deferred (decisions pending)
 - **AI pricing provider** (Anthropic vs OpenAI) — decide at pricing-function
