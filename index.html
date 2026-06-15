@@ -92,6 +92,25 @@
       <section class="featured">
         <div class="container">
           <h2 class="section-title" id="featuredTitle">Featured Books</h2>
+          <div class="browse-controls">
+            <label>Condition:
+              <select id="conditionFilter" onchange="applyControls()">
+                <option value="all">All</option>
+                <option value="like_new">Like New</option>
+                <option value="very_good">Very Good</option>
+                <option value="good">Good</option>
+                <option value="fair">Fair</option>
+                <option value="poor">Poor</option>
+              </select>
+            </label>
+            <label>Sort:
+              <select id="sortSelect" onchange="applyControls()">
+                <option value="newest">Newest</option>
+                <option value="price_asc">Price: Low to High</option>
+                <option value="price_desc">Price: High to Low</option>
+              </select>
+            </label>
+          </div>
           <div class="books-grid" id="booksGrid">
             <!-- Books will be dynamically loaded here -->
           </div>

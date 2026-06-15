@@ -76,10 +76,11 @@ The hero/browse search in [js/main.js](../js/main.js) (`searchBooks()` +
 `loadFeaturedBooks()`) now **reads from Supabase** (active `listings` joined to
 `books`, `status = 'active'`) — local DB only, never external sources, with
 XSS-safe rendering. Search uses `ilike` on title/author (an interim; the GIN
-full-text indexes are the eventual refinement). Demo data comes from
-[db/seed.sql](../db/seed.sql) until the sell flow persists real listings (Step 2).
-The old in-memory `sampleBooks` array is now used only by the not-yet-persisted
-sell flow.
+full-text indexes are the eventual refinement). **Condition filter** (the 5
+grades) and **sort** (newest / price low→high / high→low) are wired via a shared
+query builder and applied server-side to both browse and search. Demo data comes
+from [db/seed.sql](../db/seed.sql) until the sell flow persists real listings.
+The old in-memory `sampleBooks` array is now unused.
 
 > Stack translation: the briefing's `src/app/(main)/browse/page.tsx` is, for us,
 > the homepage search UI in `index.html` + `searchBooks()` in `js/main.js`,

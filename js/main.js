@@ -157,15 +157,44 @@ function renderListings(rows) {
   );
 }
 
-// Shared query: active listings, newest first, joined to their book.
-function activeListingsQuery() {
-  return supabaseClient
+// Read the current browse controls (condition filter + sort).
+function currentCondition() {
+  const el = document.getElementById("conditionFilter");
+  return el ? el.value : "all";
+}
+function currentSort() {
+  const el = document.getElementById("sortSelect");
+  return el ? el.value : "newest";
+}
+
+// Base query: active listings joined to their book, with the condition filter
+// applied. Sort is added separately via applySort() (so search can compose it).
+function baseListingsQuery() {
+  let query = supabaseClient
     .from("listings")
     .select(
       "id, price, condition, created_at, books!inner(title, author, cover_url, isbn)"
     )
-    .eq("status", "active")
-    .order("created_at", { ascending: false });
+    .eq("status", "active");
+  const condition = currentCondition();
+  if (condition !== "all") query = query.eq("condition", condition);
+  return query;
+}
+
+function applySort(query, sort) {
+  if (sort === "price_asc") return query.order("price", { ascending: true });
+  if (sort === "price_desc") return query.order("price", { ascending: false });
+  return query.order("created_at", { ascending: false }); // newest (default)
+}
+
+// Re-run whichever view is active (browse or search) when a control changes.
+function applyControls() {
+  const term = document.getElementById("searchInput").value.trim();
+  if (term) {
+    searchBooks();
+  } else {
+    loadFeaturedBooks();
+  }
 }
 
 // Load active listings into the homepage grid.
@@ -174,7 +203,10 @@ async function loadFeaturedBooks() {
   if (sectionTitle) sectionTitle.textContent = "Featured Books";
   showGridMessage("Loading books…");
 
-  const { data, error } = await activeListingsQuery().limit(24);
+  const { data, error } = await applySort(
+    baseListingsQuery(),
+    currentSort()
+  ).limit(24);
   if (error) {
     console.error("Failed to load listings:", error);
     showGridMessage("Couldn't load books. Please try again.");
@@ -330,11 +362,12 @@ async function searchBooks() {
   const safe = searchTerm.replace(/[,()%*]/g, " ").trim();
   const pattern = `%${safe}%`;
 
-  const { data, error } = await activeListingsQuery()
-    .or(`title.ilike.${pattern},author.ilike.${pattern}`, {
+  const { data, error } = await applySort(
+    baseListingsQuery().or(`title.ilike.${pattern},author.ilike.${pattern}`, {
       referencedTable: "books",
-    })
-    .limit(48);
+    }),
+    currentSort()
+  ).limit(48);
 
   if (error) {
     console.error("Search failed:", error);

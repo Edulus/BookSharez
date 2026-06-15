@@ -499,3 +499,24 @@ footer {
     width: 95%;
   }
 }
+
+/* Browse controls: condition filter + sort (homepage book grid) */
+.browse-controls {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-bottom: 1.5rem;
+}
+
+.browse-controls label {
+  color: #555;
+  font-size: 0.95rem;
+}
+
+.browse-controls select {
+  margin-left: 0.4rem;
+  padding: 0.3rem 0.5rem;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+}
