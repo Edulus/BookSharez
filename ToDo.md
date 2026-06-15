@@ -9,6 +9,22 @@
 
 ---
 
+## ⏳ PENDING SUPABASE STEPS (apply when DB access is available)
+
+Code is written and committed, but these SQL files are **not yet applied** in
+Supabase, so the matching features are **not live**. Run in this order in the
+Supabase SQL editor:
+
+- [ ] **1. [db/condition_5grade.sql](db/condition_5grade.sql)** — switch the DB to the 5 grades (`like_new`, `very_good`, `good`, `fair`, `poor`). Until this runs, the DB still rejects `fair`/`poor`. *(Run before the seed below, which uses `fair`.)*
+- [ ] **2. [db/books_insert_policy.sql](db/books_insert_policy.sql)** — let logged-in users add catalog books, so the **sell flow can save** (Step 2). Until this runs, listing a book fails.
+- [ ] **3. [db/seed.sql](db/seed.sql)** — optional demo listings so browse/search shows data. (Idempotent; safe to re-run.)
+- [ ] **4. (optional) RLS test cleanup** — remove the 2 leftover test users from the RLS test: see the CLEANUP block at the bottom of [db/rls_test.sql](db/rls_test.sql).
+
+**Status assumption:** schema + RLS + the `listing-photos` bucket are applied
+(confirmed earlier). Everything above is pending. Nothing here is verified live.
+
+---
+
 ## 🔴 IMMEDIATE (before any code changes)
 
 - [x] **1. Initialize git** in `W:\Coding Projects\booksharez\` and commit prototype as-is
