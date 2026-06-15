@@ -149,7 +149,7 @@ Deno.serve(async (req) => {
 ### Third-Party API Keys
 - [ ] ISBNdb key never exposed to client
 - [ ] Google Books key never exposed to client
-- [ ] OpenAI/Claude key never exposed to client
+- [ ] DeepSeek (AI pricing) key never exposed to client
 - [ ] All external API calls from Supabase Edge Functions only
 
 ---

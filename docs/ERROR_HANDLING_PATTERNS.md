@@ -127,7 +127,7 @@ async function lookupGoogleBooks(isbn) {
 ## AI Pricing Errors
 
 **Common Errors:**
-- OpenAI/Claude API timeout
+- DeepSeek API timeout
 - Rate limit exceeded
 - Invalid response format
 - API key invalid

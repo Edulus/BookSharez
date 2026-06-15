@@ -338,7 +338,7 @@ _Sequence is tracked in ToDo.md; grouping below is logical, not time-boxed._
 - [x] Keep the vanilla HTML/CSS/JS prototype as the baseline (committed to git)
 - [x] Initialize Supabase client (js/supabase-config.js — URL + publishable key)
 - [ ] Set up Supabase (database + auth)
-- [ ] Get API keys (ISBNdb, Google Books, Anthropic) — stored as Edge Function secrets
+- [ ] Get API keys (ISBNdb, Google Books, DeepSeek) — stored as Edge Function secrets
 - [ ] Create database schema with indexes (run the SQL in this spec, verbatim)
 - [x] Implement real auth (login, signup, logout) — replaces fake login
 - [ ] Build Scanner (camera barcode + manual ISBN entry)
@@ -347,7 +347,7 @@ _Sequence is tracked in ToDo.md; grouping below is logical, not time-boxed._
 
 ### Stage 2: Listing & Dashboard
 - [ ] Build listing form with validation
-- [ ] AI pricing Edge Function (Anthropic) + fallback algorithm
+- [ ] AI pricing Edge Function (DeepSeek) + fallback algorithm
 - [ ] Photo upload to Supabase Storage (3-5 photos)
 - [ ] Build out "My Shelf" dashboard
 - [ ] Edit / delete / mark-as-sold listing functionality
