@@ -89,7 +89,8 @@ _Phase 1 backend foundation + documentation. Work to date: 2026-06-14 – 2026-0
   `claude-project-files.zip`.
 - `docs/VISION.md` — a redundant engineering spec (~90% overlap with
   BOOKSHAREZ_ARCHITECTURE.md, which fully supersedes it) and a misleading name
-  (its content was a spec, not the vision). Nothing unique was lost.
+  (its content was a spec, not the vision). **Moved to `ARCHIVE/VISION.md`**
+  (kept for reference, marked superseded) rather than deleted outright.
 
 ### Deferred (decisions pending)
 - **AI pricing provider** (Anthropic vs OpenAI) — decide at pricing-function
