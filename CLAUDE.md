@@ -8,11 +8,13 @@ BookSharez is a **community-first book marketplace**: a peer-to-peer used-book m
 
 The repository contains:
 
-1. **A static HTML/CSS/JS prototype** ([index.html](index.html), [js/main.js](js/main.js), [css/style.css](css/style.css)) — originally a hardcoded demo; now wired to **real Supabase auth** (signup/login/logout/session) via [js/supabase-config.js](js/supabase-config.js). Sample books and most flows are still in-memory. No build step, no package.json, no frontend tests. Run by opening `index.html` or serving the directory with any static server.
+1. **A vanilla HTML/CSS/JS app** ([index.html](index.html), [js/main.js](js/main.js), [css/style.css](css/style.css)) wired to **Supabase** (auth + Postgres). Working end-to-end and **verified live June 15**: real auth (signup/login/logout/session via [js/supabase-config.js](js/supabase-config.js)); browse/search reads active listings from the DB; **selling persists a real listing** with **ISBN auto-fill** (catalog → Open Library → Google Books, all client-side and keyless); a **My Shelf** dashboard with edit-price / mark-sold / delete; and condition filter + sort. No build step, no package.json, no frontend tests. Run by opening `index.html` or serving the directory statically.
 
-2. **Spec + design docs** ([docs/](docs/)) — the intended product is a **vanilla HTML/CSS/JS frontend + Supabase (Postgres, Auth, Storage, Edge Functions)** app (June 12 ADR; **Next.js is only a post-validation graduation target**, see [docs/GRADUATION_CRITERIA.md](docs/GRADUATION_CRITERIA.md)). The backend foundation exists — schema, indexes, and RLS are live in Supabase ([db/schema.sql](db/schema.sql), RLS verified) — but most Phase 1 *features* are not built yet.
+2. **Spec + design docs** ([docs/](docs/)) — **vanilla HTML/CSS/JS + Supabase (Postgres, Auth, Storage, Edge Functions)** (June 12 ADR; **Next.js is only a post-validation graduation target**, see [docs/GRADUATION_CRITERIA.md](docs/GRADUATION_CRITERIA.md)). Schema, indexes, and RLS are live in Supabase ([db/schema.sql](db/schema.sql), RLS verified). **Not built yet:** book detail page, photo upload (3–5 to Storage), AI price suggestion (DeepSeek), and the *server-side* ISBN lookup (today's lookup is a client-side interim; ISBNdb is deferred). See [ToDo.md](ToDo.md) for next steps.
 
 This **is** a git repository (initialized June 2026). Completed work is logged in [CHANGELOG.md](CHANGELOG.md); upcoming work in [ToDo.md](ToDo.md).
+
+**Working mode / database:** the user applies DB changes by pasting the SQL files in [db/](db/) into the Supabase SQL editor (they confirm with screenshots). When you add a feature needing a schema/policy change, write a runnable `.sql` in `db/` and add it to the "Pending Supabase steps" list in [ToDo.md](ToDo.md) rather than assuming it's applied. Catalog `books` writes are open to authenticated users (a documented Phase-1 RLS simplification); `listings`/`listing_photos` are owner-scoped by RLS.
 
 ## Authoritative Docs
 
@@ -39,7 +41,8 @@ Note: condition uses **5 grades** (`like_new`, `very_good`, `good`, `fair`, `poo
 
 If working on the existing prototype:
 
-- All JS is in [js/main.js](js/main.js): global functions wired via inline `onclick` handlers in `index.html`, state in module-level globals (`sampleBooks`, `userBooks`, `isLoggedIn`, `currentUser`).
+- All JS is in [js/main.js](js/main.js): global functions wired via inline `onclick` handlers in `index.html`. Live data comes from Supabase via `supabaseClient`: browse/search → `loadFeaturedBooks()`/`searchBooks()`; sell → `handleSellBook()` + `ensureBook()`; My Shelf → `loadUserListings()` (+ `editListing`/`markAsSold`/`deleteListing`); ISBN auto-fill → `lookupISBN()` (multi-source). User-supplied text is escaped via `escapeHTML()` before `innerHTML`.
+- The old in-memory `sampleBooks` / `userBooks` arrays are now **vestigial leftovers** (no longer drive the UI) — slated for cleanup.
 - "Pages" (homepage vs. dashboard) are divs toggled with `style.display` — there is no routing.
 - Some CSS is injected at runtime from JS (`#bookCardStyles`, `#listingCardStyles` in `main.js`) rather than living in the stylesheets.
 - [css/style_B.css](css/style_B.css) exists but is **not linked** from `index.html`; only `css/style.css` is loaded.
