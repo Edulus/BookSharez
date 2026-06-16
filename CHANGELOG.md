@@ -93,12 +93,12 @@ _Phase 1 backend foundation + documentation. Work to date: 2026-06-14 – 2026-0
   a condition dropdown (All + the 5 grades) and a sort selector (Newest / Price
   low→high / high→low) above the grid, applied server-side to both browsing and
   search via a shared query builder.
-- **My Shelf reads real listings** (Step 3, **pending live verification**): the
+- **My Shelf reads real listings** (Step 3, **verified live June 15**): the
   dashboard now lists the logged-in user's own listings from Supabase (all
   statuses) with working **delete**, **mark-as-sold**, and a basic **edit price**
   (RLS scopes everything to the owner). Replaces the in-memory placeholder; the
   old `editListing` alert and in-memory delete are gone.
-- **Sell flow persists to Supabase** (Step 2, **pending live verification**):
+- **Sell flow persists to Supabase** (Step 2, **verified live June 15**):
   `handleSellBook()` validates input, ensures the catalog `books` row exists for
   the ISBN, then inserts the listing under the logged-in user. ISBN is now
   required on the form. New RLS policy lets authenticated users add catalog books

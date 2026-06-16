@@ -21,8 +21,9 @@ Supabase SQL editor:
 - [ ] **4. (optional) RLS test cleanup** — remove the 2 leftover test users from the RLS test: see the CLEANUP block at the bottom of [db/rls_test.sql](db/rls_test.sql).
 
 **Status:** schema + RLS + bucket + the three steps above are all applied. The
-persistence features (browse, sell, My Shelf, filter/sort) are now live —
-**pending a browser end-to-end test** to confirm.
+persistence trio — **browse, sell (with ISBN auto-fill), and My Shelf
+(edit/mark-sold/delete) — is verified live (June 15).** Filter/sort controls are
+live too (quick filter/sort behavior not yet explicitly retested).
 
 ---
 
