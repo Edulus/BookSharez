@@ -520,3 +520,20 @@ footer {
   border: 1px solid #ccc;
   border-radius: 6px;
 }
+
+/* ISBN lookup row in the sell form */
+.isbn-row {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.isbn-row input {
+  flex: 1;
+}
+
+.isbn-status {
+  display: block;
+  margin-top: 0.4rem;
+  color: #667eea;
+  font-size: 0.85rem;
+}

@@ -1,9 +1,15 @@
 # ISBN Lookup & Caching — Edge Function Design
 
 **Date:** June 15, 2026
-**Status:** Design (no code yet) — covers ToDo items **9 (ISBN caching)** and
-**10 (Edge Function rate limiting)**. Implementation is deferred until the
+**Status:** Design for the *full* server-side version — covers ToDo items
+**9 (ISBN caching)** and **10 (Edge Function rate limiting)**; deferred until the
 ISBNdb subscription starts (ToDo item 8).
+
+> **Interim version shipped (June 15):** the sell form already auto-fills
+> title/author/cover **client-side** — it checks our `books` catalog first, then
+> the **free Google Books API** (no key, so it's browser-safe). No ISBNdb, no
+> Edge Function yet. This doc remains the target for moving the lookup
+> server-side (add ISBNdb as primary, hide keys, server-side rate limiting).
 **Related:** [PHASE_1_MVP_SPEC.md](PHASE_1_MVP_SPEC.md) ·
 [ERROR_HANDLING_PATTERNS.md](ERROR_HANDLING_PATTERNS.md) ·
 [ISBNdb_API.md](ISBNdb_API.md) · [SECURITY_CHECKLIST.md](SECURITY_CHECKLIST.md)

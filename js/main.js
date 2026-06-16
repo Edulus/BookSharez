@@ -115,6 +115,7 @@ function setupEventListeners() {
 
 let displayedListings = []; // normalized cards currently shown in the grid
 let myListings = []; // the logged-in user's own listings (My Shelf)
+let pendingCover = { isbn: null, url: null }; // cover from the last ISBN lookup
 
 // Vanilla JS has no auto-escaping; escape user text before putting it in HTML.
 function escapeHTML(value) {
@@ -584,6 +585,75 @@ function showDashboardTab(tabName) {
 }
 
 // Handle sell book form
+// ISBN auto-fill: look up title/author/cover so the seller doesn't retype them.
+// Checks our own catalog first (instant), then the free Google Books API (no key,
+// so it's safe to call straight from the browser). Falls back to manual entry.
+// (ISBNdb — better coverage, paid — comes later via a server function.)
+function setLookupStatus(message) {
+  const el = document.getElementById("isbnLookupStatus");
+  if (el) el.textContent = message;
+}
+
+async function lookupISBN() {
+  const titleInput = document.getElementById("bookTitle");
+  const authorInput = document.getElementById("bookAuthor");
+  const isbn = (document.getElementById("bookISBN").value || "").replace(
+    /[\s-]/g,
+    ""
+  );
+
+  if (!/^(\d{13}|\d{9}[\dXx])$/.test(isbn)) {
+    setLookupStatus("Enter a valid ISBN (10 or 13 digits) first.");
+    return;
+  }
+
+  setLookupStatus("Looking up…");
+
+  // 1) Our own catalog (already has title/author/cover for known ISBNs).
+  try {
+    const { data: cached } = await supabaseClient
+      .from("books")
+      .select("title, author, cover_url")
+      .eq("isbn", isbn)
+      .maybeSingle();
+    if (cached) {
+      titleInput.value = cached.title || "";
+      authorInput.value = cached.author || "";
+      pendingCover = { isbn, url: cached.cover_url || null };
+      setLookupStatus("Found in the BookSharez catalog ✓");
+      return;
+    }
+  } catch (e) {
+    /* fall through to Google Books */
+  }
+
+  // 2) Google Books (free, no API key).
+  try {
+    const res = await fetch(
+      `https://www.googleapis.com/books/v1/volumes?q=isbn:${isbn}`
+    );
+    const data = await res.json();
+    if (!data.totalItems || !(data.items && data.items.length)) {
+      setLookupStatus("Not found — please type the details in.");
+      return;
+    }
+    const info = data.items[0].volumeInfo || {};
+    titleInput.value = info.title || "";
+    authorInput.value = (info.authors || []).join(", ");
+    const cover =
+      info.imageLinks &&
+      (info.imageLinks.thumbnail || info.imageLinks.smallThumbnail);
+    pendingCover = {
+      isbn,
+      url: cover ? cover.replace(/^http:/, "https:") : null,
+    };
+    setLookupStatus("Details filled from Google Books ✓ — add condition & price.");
+  } catch (e) {
+    console.error("ISBN lookup failed:", e);
+    setLookupStatus("Lookup failed — please type the details in.");
+  }
+}
+
 // Persist a new listing to Supabase (Step 2). Ensures the catalog book row
 // exists (by ISBN), then inserts the listing under the logged-in user. Photos
 // are a later step; the grid uses the book's cover (fallback image for now).
@@ -616,7 +686,8 @@ async function handleSellBook(e) {
   if (submitBtn) submitBtn.disabled = true;
 
   try {
-    const bookId = await ensureBook({ isbn, title, author });
+    const coverUrl = pendingCover.isbn === isbn ? pendingCover.url : null;
+    const bookId = await ensureBook({ isbn, title, author, coverUrl });
     const {
       data: { user },
     } = await supabaseClient.auth.getUser();
@@ -647,7 +718,7 @@ async function handleSellBook(e) {
 // Ensure a catalog book row exists for this ISBN; return its book_id. Reuses an
 // existing row (so multiple sellers share one canonical book) and only inserts
 // when the ISBN is new.
-async function ensureBook({ isbn, title, author }) {
+async function ensureBook({ isbn, title, author, coverUrl }) {
   const { data: existing, error: selErr } = await supabaseClient
     .from("books")
     .select("id")
@@ -658,7 +729,7 @@ async function ensureBook({ isbn, title, author }) {
 
   const { data: created, error: insErr } = await supabaseClient
     .from("books")
-    .insert({ isbn, title, author })
+    .insert({ isbn, title, author, cover_url: coverUrl || null })
     .select("id")
     .single();
   if (!insErr) return created.id;
