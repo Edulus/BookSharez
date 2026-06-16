@@ -17,6 +17,21 @@ rationale lives inline in the relevant docs (e.g. the ADR in
 _Phase 1 backend foundation + documentation. Work to date: 2026-06-14 – 2026-06-15._
 
 ### Added (continued — June 16)
+- **Server-side ISBN lookup** — `supabase/functions/isbn-lookup/index.ts`: the
+  project's second Edge Function. Cache-first strategy: checks the `books` table
+  first (instant, no quota); falls through to ISBNdb (key stays server-side, 1
+  req/sec in-memory rate gate) then Google Books (optional key, free quota) on a
+  miss; upserts the result via the service-role client so every repeat lookup is a
+  cache hit. Handles ISBN-10 and ISBN-13, normalizes to ISBN-13 for storage,
+  validates check digits, parses dates flexibly. JWT auth prevents anonymous users
+  burning ISBNdb quota. The browser's `lookupISBN()` now calls this function first
+  and falls back to the old client-side pipeline (Open Library → Google Books) only
+  if the Edge Function is unreachable — keys never reach the browser either way.
+  **Paste-ready artifact** (same convention as `db/*.sql` and `pricing`): deploy by
+  pasting into Supabase Dashboard → Edge Functions → New function (name:
+  `isbn-lookup`). Set `ISBNDB_API_KEY` once you subscribe; `GOOGLE_BOOKS_API_KEY`
+  is optional.
+
 - **AI price suggestion (DeepSeek)** — the project's **first Edge Function**,
   `supabase/functions/pricing/index.ts`: validates the caller's JWT
   (`docs/SECURITY_CHECKLIST.md` pattern), prompts DeepSeek for a used-book price

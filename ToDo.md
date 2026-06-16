@@ -37,14 +37,14 @@ live too (quick filter/sort behavior not yet explicitly retested).
 - [x] **Book detail page** — clicking a listing card opens a full view: cover, condition + description, seller, visual-only "Buy Now" (no payment — Stripe is Phase 3). *(Done June 16; client-side, no schema change. See CHANGELOG.)*
 - [x] **Photo upload (3–5 photos)** — to the `listing-photos` Storage bucket, shown as a gallery on the detail page via signed URLs. Sell form requires 3–5 photos. *(Done June 16; client-side, no schema change. See CHANGELOG.)* **Follow-up:** deleting / marking-sold a listing leaves orphaned Storage objects (DB rows cascade, files don't) — add Storage cleanup later. Sold listings stop serving photos (read policy is active-only) — expected.
 - [x] **AI price suggestion (DeepSeek)** — "Suggest price" button on the sell form calls the `pricing` Edge Function (DeepSeek), with automatic fallback to the condition-multiplier algorithm from [docs/ERROR_HANDLING_PATTERNS.md](docs/ERROR_HANDLING_PATTERNS.md) on any failure. **Live and verified June 16** — function deployed, secret set, tested against a real book lookup.
-- [ ] **Server-side ISBN lookup** — move today's client-side multi-source lookup into an Edge Function and add ISBNdb as primary (per [docs/ISBN_LOOKUP_DESIGN.md](docs/ISBN_LOOKUP_DESIGN.md)): hides keys, better coverage, server-side rate limiting. **Needs:** ISBNdb plan decision (below) + the first Edge Function (Supabase CLI / Deno).
+- [x] **Server-side ISBN lookup** — `supabase/functions/isbn-lookup/index.ts`: cache-first (books table) → ISBNdb → Google Books, ISBN-10/13 normalization, in-memory rate gate, JWT auth, service-role upsert. Browser's `lookupISBN()` calls it first and falls back to client-side Open Library → Google Books only if the function is unreachable. *(Done June 16; paste into Supabase Dashboard → Edge Functions, name `isbn-lookup`. Set `ISBNDB_API_KEY` once subscribed; `GOOGLE_BOOKS_API_KEY` optional. See CHANGELOG.)*
 - [x] **Quick filter/sort check** — code-audited June 16 (no browser tool available to click-test live): `loadFeaturedBooks`/`searchBooks` both compose `baseListingsQuery()` (condition filter) + `applySort()` (sort) identically, and `applyControls()` correctly re-dispatches to whichever view is active. No bug found. Live click-through still welcome if you want to eyeball it yourself.
 - [x] **Tidy leftovers** — removed the unused `sampleBooks` / `userBooks` arrays from `js/main.js`. *(Done June 16.)*
 
 ## 🔵 OPEN DECISIONS
 
 - [x] **AI pricing provider** — **DeepSeek** (decided June 15; cheaper, OpenAI-compatible API). Wire up when building price suggestion.
-- [ ] **ISBNdb plan** — Basic $10/mo, 1 req/sec. Still deferred; subscribe when starting the server-side ISBN lookup build.
+- [ ] **ISBNdb plan** — Basic $10/mo, 1 req/sec. Subscribe and set `ISBNDB_API_KEY` in Supabase Edge Function Secrets to activate the primary lookup path; the function works without it (falls through to Google Books).
 
 ## 📌 Doc loose end
 

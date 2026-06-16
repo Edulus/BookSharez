@@ -521,11 +521,9 @@ function showDashboardTab(tabName) {
 }
 
 // Handle sell book form
-// ISBN auto-fill: look up title/author/cover so the seller doesn't retype them.
-// Order: our own catalog (instant) → Open Library → Google Books — all free and
-// keyless, so they're safe to call straight from the browser, and if one is down
-// or rate-limited the next still answers. Falls back to manual entry. (Paid
-// sources like ISBNdb come later via a server function — see ISBN_LOOKUP_DESIGN.)
+// ISBN auto-fill: calls the isbn-lookup Edge Function (cache → ISBNdb →
+// Google Books, all server-side; keys never reach the browser). Falls back to
+// the old client-side pipeline only if the function itself is unreachable.
 function setLookupStatus(message) {
   const el = document.getElementById("isbnLookupStatus");
   if (el) el.textContent = message;
@@ -610,18 +608,20 @@ function fillBookFields(isbn, result) {
   pendingCover = { isbn, url: result.cover || null };
 }
 
-// Our own catalog — known ISBNs already have title/author/cover.
-async function lookupCatalog(isbn) {
-  const { data } = await supabaseClient
-    .from("books")
-    .select("title, author, cover_url")
-    .eq("isbn", isbn)
-    .maybeSingle();
-  if (!data) return null;
-  return { title: data.title, author: data.author, cover: data.cover_url };
+// isbn-lookup Edge Function — primary lookup path. Returns the book if found,
+// null if not found, or throws if the function itself is unreachable.
+async function lookupViaEdgeFunction(isbn) {
+  const { data, error } = await supabaseClient.functions.invoke("isbn-lookup", {
+    body: { isbn },
+  });
+  if (error) throw new Error(`isbn-lookup function error: ${error.message}`);
+  if (!data.found) return null;
+  const b = data.book;
+  return { title: b.title || "", author: b.author || "", cover: b.coverUrl };
 }
 
-// Open Library (Internet Archive) — free, no key, no tight rate limit.
+// Client-side fallback pipeline — used only if the Edge Function is unreachable.
+// These are keyless/free sources, so calling them from the browser is fine.
 async function lookupOpenLibrary(isbn) {
   const res = await fetch(
     `https://openlibrary.org/api/books?bibkeys=ISBN:${isbn}&jscmd=data&format=json`
@@ -640,12 +640,11 @@ async function lookupOpenLibrary(isbn) {
   };
 }
 
-// Google Books — free, no key, but a low anonymous quota (HTTP 429 when hit).
 async function lookupGoogleBooks(isbn) {
   const res = await fetch(
     `https://www.googleapis.com/books/v1/volumes?q=isbn:${isbn}&country=US`
   );
-  if (!res.ok) return null; // e.g. 429 rate limit — let the next source try
+  if (!res.ok) return null;
   const data = await res.json();
   if (!data.totalItems || !(data.items && data.items.length)) return null;
   const info = data.items[0].volumeInfo || {};
@@ -671,24 +670,29 @@ async function lookupISBN() {
 
   setLookupStatus("Looking up…");
 
-  // Catalog first (instant, no external call).
+  // Primary: Edge Function (cache → ISBNdb → Google Books, server-side).
   try {
-    const cached = await lookupCatalog(isbn);
-    if (cached) {
-      fillBookFields(isbn, cached);
-      setLookupStatus("Found in the BookSharez catalog ✓");
+    const result = await lookupViaEdgeFunction(isbn);
+    if (result && result.title) {
+      fillBookFields(isbn, result);
+      setLookupStatus("Details filled ✓ — add condition & price.");
+      return;
+    }
+    if (result === null) {
+      // function responded but book wasn't found in any source
+      setLookupStatus("Not found — please type the details in.");
       return;
     }
   } catch (e) {
-    /* fall through to external sources */
+    console.error("isbn-lookup Edge Function unavailable, trying fallback:", e);
   }
 
-  // Then external free sources, in order.
-  const sources = [
+  // Fallback: client-side Open Library → Google Books (keyless, browser-safe).
+  const fallbacks = [
     { name: "Open Library", fn: lookupOpenLibrary },
     { name: "Google Books", fn: lookupGoogleBooks },
   ];
-  for (const src of sources) {
+  for (const src of fallbacks) {
     try {
       const result = await src.fn(isbn);
       if (result && result.title) {
@@ -703,7 +707,7 @@ async function lookupISBN() {
     }
   }
 
-  setLookupStatus("Not found in our sources — please type the details in.");
+  setLookupStatus("Not found — please type the details in.");
 }
 
 // Persist a new listing to Supabase (Step 2). Ensures the catalog book row
