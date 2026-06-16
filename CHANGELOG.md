@@ -83,11 +83,12 @@ _Phase 1 backend foundation + documentation. Work to date: 2026-06-14 – 2026-0
 
 ### Added
 - **ISBN auto-fill in the sell form**: enter the ISBN and tap "Look up" → title,
-  author, and cover image fill in automatically. Checks the BookSharez catalog
-  first, then the **free Google Books API** (no key — called client-side; a
-  documented interim ahead of the server-side ISBNdb version in
-  ISBN_LOOKUP_DESIGN.md). Falls back to manual entry; ISBN moved to the top of
-  the form; the saved book stores the cover so listings show real covers.
+  author, and cover image fill in automatically. Tries multiple free, keyless
+  sources in order — the BookSharez catalog → **Open Library** → **Google Books**
+  — so a rate-limited/down source doesn't block the lookup (Google's keyless
+  quota 429s easily). Falls back to manual entry; ISBN moved to the top of the
+  form; the saved book stores the cover so listings show real covers. Interim
+  ahead of the server-side ISBNdb version (ISBN_LOOKUP_DESIGN.md).
 - **Condition filter + sort on browse/search** (**pending live verification**):
   a condition dropdown (All + the 5 grades) and a sort selector (Newest / Price
   low→high / high→low) above the grid, applied server-side to both browsing and

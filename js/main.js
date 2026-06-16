@@ -586,22 +586,75 @@ function showDashboardTab(tabName) {
 
 // Handle sell book form
 // ISBN auto-fill: look up title/author/cover so the seller doesn't retype them.
-// Checks our own catalog first (instant), then the free Google Books API (no key,
-// so it's safe to call straight from the browser). Falls back to manual entry.
-// (ISBNdb — better coverage, paid — comes later via a server function.)
+// Order: our own catalog (instant) → Open Library → Google Books — all free and
+// keyless, so they're safe to call straight from the browser, and if one is down
+// or rate-limited the next still answers. Falls back to manual entry. (Paid
+// sources like ISBNdb come later via a server function — see ISBN_LOOKUP_DESIGN.)
 function setLookupStatus(message) {
   const el = document.getElementById("isbnLookupStatus");
   if (el) el.textContent = message;
 }
 
+function fillBookFields(isbn, result) {
+  document.getElementById("bookTitle").value = result.title || "";
+  document.getElementById("bookAuthor").value = result.author || "";
+  pendingCover = { isbn, url: result.cover || null };
+}
+
+// Our own catalog — known ISBNs already have title/author/cover.
+async function lookupCatalog(isbn) {
+  const { data } = await supabaseClient
+    .from("books")
+    .select("title, author, cover_url")
+    .eq("isbn", isbn)
+    .maybeSingle();
+  if (!data) return null;
+  return { title: data.title, author: data.author, cover: data.cover_url };
+}
+
+// Open Library (Internet Archive) — free, no key, no tight rate limit.
+async function lookupOpenLibrary(isbn) {
+  const res = await fetch(
+    `https://openlibrary.org/api/books?bibkeys=ISBN:${isbn}&jscmd=data&format=json`
+  );
+  if (!res.ok) return null;
+  const data = await res.json();
+  const entry = data[`ISBN:${isbn}`];
+  if (!entry) return null;
+  return {
+    title: entry.title || "",
+    author: (entry.authors || []).map((a) => a.name).join(", "),
+    cover:
+      (entry.cover &&
+        (entry.cover.medium || entry.cover.large || entry.cover.small)) ||
+      null,
+  };
+}
+
+// Google Books — free, no key, but a low anonymous quota (HTTP 429 when hit).
+async function lookupGoogleBooks(isbn) {
+  const res = await fetch(
+    `https://www.googleapis.com/books/v1/volumes?q=isbn:${isbn}&country=US`
+  );
+  if (!res.ok) return null; // e.g. 429 rate limit — let the next source try
+  const data = await res.json();
+  if (!data.totalItems || !(data.items && data.items.length)) return null;
+  const info = data.items[0].volumeInfo || {};
+  const cover =
+    info.imageLinks &&
+    (info.imageLinks.thumbnail || info.imageLinks.smallThumbnail);
+  return {
+    title: info.title || "",
+    author: (info.authors || []).join(", "),
+    cover: cover ? cover.replace(/^http:/, "https:") : null,
+  };
+}
+
 async function lookupISBN() {
-  const titleInput = document.getElementById("bookTitle");
-  const authorInput = document.getElementById("bookAuthor");
   const isbn = (document.getElementById("bookISBN").value || "").replace(
     /[\s-]/g,
     ""
   );
-
   if (!/^(\d{13}|\d{9}[\dXx])$/.test(isbn)) {
     setLookupStatus("Enter a valid ISBN (10 or 13 digits) first.");
     return;
@@ -609,58 +662,39 @@ async function lookupISBN() {
 
   setLookupStatus("Looking up…");
 
-  // 1) Our own catalog (already has title/author/cover for known ISBNs).
+  // Catalog first (instant, no external call).
   try {
-    const { data: cached } = await supabaseClient
-      .from("books")
-      .select("title, author, cover_url")
-      .eq("isbn", isbn)
-      .maybeSingle();
+    const cached = await lookupCatalog(isbn);
     if (cached) {
-      titleInput.value = cached.title || "";
-      authorInput.value = cached.author || "";
-      pendingCover = { isbn, url: cached.cover_url || null };
+      fillBookFields(isbn, cached);
       setLookupStatus("Found in the BookSharez catalog ✓");
       return;
     }
   } catch (e) {
-    /* fall through to Google Books */
+    /* fall through to external sources */
   }
 
-  // 2) Google Books (free, no API key).
-  try {
-    const res = await fetch(
-      `https://www.googleapis.com/books/v1/volumes?q=isbn:${isbn}&country=US`
-    );
-    if (!res.ok) {
-      console.error("Google Books HTTP error:", res.status);
-      setLookupStatus(
-        res.status === 429
-          ? "Too many free lookups right now — wait a minute and retry, or type the details in."
-          : "Lookup unavailable right now — please type the details in."
-      );
-      return;
+  // Then external free sources, in order.
+  const sources = [
+    { name: "Open Library", fn: lookupOpenLibrary },
+    { name: "Google Books", fn: lookupGoogleBooks },
+  ];
+  for (const src of sources) {
+    try {
+      const result = await src.fn(isbn);
+      if (result && result.title) {
+        fillBookFields(isbn, result);
+        setLookupStatus(
+          `Details filled from ${src.name} ✓ — add condition & price.`
+        );
+        return;
+      }
+    } catch (e) {
+      console.error(src.name, "lookup error:", e);
     }
-    const data = await res.json();
-    if (!data.totalItems || !(data.items && data.items.length)) {
-      setLookupStatus("Not found — please type the details in.");
-      return;
-    }
-    const info = data.items[0].volumeInfo || {};
-    titleInput.value = info.title || "";
-    authorInput.value = (info.authors || []).join(", ");
-    const cover =
-      info.imageLinks &&
-      (info.imageLinks.thumbnail || info.imageLinks.smallThumbnail);
-    pendingCover = {
-      isbn,
-      url: cover ? cover.replace(/^http:/, "https:") : null,
-    };
-    setLookupStatus("Details filled from Google Books ✓ — add condition & price.");
-  } catch (e) {
-    console.error("ISBN lookup failed:", e);
-    setLookupStatus("Lookup failed — please type the details in.");
   }
+
+  setLookupStatus("Not found in our sources — please type the details in.");
 }
 
 // Persist a new listing to Supabase (Step 2). Ensures the catalog book row

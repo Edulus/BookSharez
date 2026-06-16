@@ -6,10 +6,12 @@
 ISBNdb subscription starts (ToDo item 8).
 
 > **Interim version shipped (June 15):** the sell form already auto-fills
-> title/author/cover **client-side** — it checks our `books` catalog first, then
-> the **free Google Books API** (no key, so it's browser-safe). No ISBNdb, no
-> Edge Function yet. This doc remains the target for moving the lookup
-> server-side (add ISBNdb as primary, hide keys, server-side rate limiting).
+> title/author/cover **client-side**, trying sources in order: our `books`
+> catalog → **Open Library** → **Google Books** (both free + keyless, so
+> browser-safe; multi-source so a rate-limited or down source doesn't block the
+> lookup — Google's keyless quota is low and 429s easily). No ISBNdb, no Edge
+> Function yet. This doc remains the target for moving the lookup server-side
+> (add ISBNdb as primary, hide keys, server-side rate limiting).
 **Related:** [PHASE_1_MVP_SPEC.md](PHASE_1_MVP_SPEC.md) ·
 [ERROR_HANDLING_PATTERNS.md](ERROR_HANDLING_PATTERNS.md) ·
 [ISBNdb_API.md](ISBNdb_API.md) · [SECURITY_CHECKLIST.md](SECURITY_CHECKLIST.md)
