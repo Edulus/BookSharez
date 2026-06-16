@@ -634,7 +634,11 @@ async function lookupISBN() {
     );
     if (!res.ok) {
       console.error("Google Books HTTP error:", res.status);
-      setLookupStatus("Lookup unavailable right now — please type the details in.");
+      setLookupStatus(
+        res.status === 429
+          ? "Too many free lookups right now — wait a minute and retry, or type the details in."
+          : "Lookup unavailable right now — please type the details in."
+      );
       return;
     }
     const data = await res.json();
