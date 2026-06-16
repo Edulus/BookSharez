@@ -531,6 +531,20 @@ footer {
   flex: 1;
 }
 
+/* The shared .btn-secondary is white-on-transparent (for the dark header), which
+   is invisible on the white modal — give the Look up button a visible color. */
+.isbn-row .btn {
+  background: #667eea;
+  color: #fff;
+  border: none;
+  white-space: nowrap;
+  padding: 0.5rem 1rem;
+}
+
+.isbn-row .btn:hover {
+  background: #5568d3;
+}
+
 .isbn-status {
   display: block;
   margin-top: 0.4rem;
