@@ -545,6 +545,20 @@ footer {
   background: #5568d3;
 }
 
+/* My Shelf action buttons: .btn-secondary is white-on-transparent (for the dark
+   header) and invisible on the white listing cards — give Edit / Mark sold a
+   visible outlined style, distinct from the solid Delete button. */
+.listing-actions .btn-secondary {
+  background: #fff;
+  color: #667eea;
+  border: 1px solid #667eea;
+}
+
+.listing-actions .btn-secondary:hover {
+  background: #667eea;
+  color: #fff;
+}
+
 .isbn-status {
   display: block;
   margin-top: 0.4rem;
