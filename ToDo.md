@@ -20,6 +20,10 @@ Supabase SQL editor:
 - [x] **2. [db/books_insert_policy.sql](db/books_insert_policy.sql)** — let logged-in users add catalog books, so the **sell flow can save**. *(Applied June 15.)*
 - [x] **3. [db/seed.sql](db/seed.sql)** — demo listings so browse/search shows data. *(Applied June 15.)*
 - [ ] **4. (optional) RLS test cleanup** — remove the 2 leftover test users from the RLS test: see the CLEANUP block at the bottom of [db/rls_test.sql](db/rls_test.sql).
+- [x] **5. Deploy the `pricing` Edge Function** — pasted into Supabase Dashboard → Edge Functions (name `pricing`). *(Applied June 16.)*
+- [x] **6. Set the `DEEPSEEK_API_KEY` secret** — set in Supabase Edge Function Secrets. *(Applied June 16.)*
+
+**Status:** the `pricing` function is live — tested successfully against a real book lookup. "Suggest price" now calls DeepSeek for real, with the local fallback algorithm kicking in automatically only if the Edge Function fails.
 
 **Status:** schema + RLS + bucket + the three steps above are all applied. The
 persistence trio — **browse, sell (with ISBN auto-fill), and My Shelf
@@ -30,12 +34,12 @@ live too (quick filter/sort behavior not yet explicitly retested).
 
 ## 🎯 NEXT UP (independent — pick any; none blocks another)
 
-- [ ] **Book detail page** — clicking a listing card currently does nothing. Build a full view: cover, condition + description, seller, visual-only "Buy Now" (no payment — Stripe is Phase 3).
-- [ ] **Photo upload (3–5 photos)** — to the `listing-photos` Storage bucket (already created), shown as a gallery. The sell form's photo input is currently ignored. UX nudge: "more photos of your actual book → more likely to sell." (Cover image is separate — auto-fetched during ISBN lookup.)
-- [ ] **AI price suggestion (DeepSeek)** — suggest a price from condition + book data, user can override. Needs the AI key server-side → pairs with an Edge Function. Fallback algorithm is in [docs/ERROR_HANDLING_PATTERNS.md](docs/ERROR_HANDLING_PATTERNS.md).
+- [x] **Book detail page** — clicking a listing card opens a full view: cover, condition + description, seller, visual-only "Buy Now" (no payment — Stripe is Phase 3). *(Done June 16; client-side, no schema change. See CHANGELOG.)*
+- [x] **Photo upload (3–5 photos)** — to the `listing-photos` Storage bucket, shown as a gallery on the detail page via signed URLs. Sell form requires 3–5 photos. *(Done June 16; client-side, no schema change. See CHANGELOG.)* **Follow-up:** deleting / marking-sold a listing leaves orphaned Storage objects (DB rows cascade, files don't) — add Storage cleanup later. Sold listings stop serving photos (read policy is active-only) — expected.
+- [x] **AI price suggestion (DeepSeek)** — "Suggest price" button on the sell form calls the `pricing` Edge Function (DeepSeek), with automatic fallback to the condition-multiplier algorithm from [docs/ERROR_HANDLING_PATTERNS.md](docs/ERROR_HANDLING_PATTERNS.md) on any failure. **Live and verified June 16** — function deployed, secret set, tested against a real book lookup.
 - [ ] **Server-side ISBN lookup** — move today's client-side multi-source lookup into an Edge Function and add ISBNdb as primary (per [docs/ISBN_LOOKUP_DESIGN.md](docs/ISBN_LOOKUP_DESIGN.md)): hides keys, better coverage, server-side rate limiting. **Needs:** ISBNdb plan decision (below) + the first Edge Function (Supabase CLI / Deno).
-- [ ] **Quick filter/sort check** — confirm the homepage condition filter + sort re-query as expected (controls are live; not explicitly retested live).
-- [ ] **Tidy leftovers** — remove the now-unused `sampleBooks` / `userBooks` arrays from `js/main.js`.
+- [x] **Quick filter/sort check** — code-audited June 16 (no browser tool available to click-test live): `loadFeaturedBooks`/`searchBooks` both compose `baseListingsQuery()` (condition filter) + `applySort()` (sort) identically, and `applyControls()` correctly re-dispatches to whichever view is active. No bug found. Live click-through still welcome if you want to eyeball it yourself.
+- [x] **Tidy leftovers** — removed the unused `sampleBooks` / `userBooks` arrays from `js/main.js`. *(Done June 16.)*
 
 ## 🔵 OPEN DECISIONS
 

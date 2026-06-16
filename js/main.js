@@ -1,69 +1,3 @@
-// Sample book data
-const sampleBooks = [
-  {
-    id: 1,
-    title: "The Great Gatsby",
-    author: "F. Scott Fitzgerald",
-    price: 12.99,
-    condition: "very_good",
-    image:
-      "https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=300&h=400&fit=crop",
-    seller: "BookLover123",
-  },
-  {
-    id: 2,
-    title: "To Kill a Mockingbird",
-    author: "Harper Lee",
-    price: 15.5,
-    condition: "good",
-    image:
-      "https://images.unsplash.com/photo-1481627834876-b7833e8f5570?w=300&h=400&fit=crop",
-    seller: "ReadingFan",
-  },
-  {
-    id: 3,
-    title: "1984",
-    author: "George Orwell",
-    price: 10.75,
-    condition: "like_new",
-    image:
-      "https://images.unsplash.com/photo-1512820790803-83ca734da794?w=300&h=400&fit=crop",
-    seller: "BookCollector",
-  },
-  {
-    id: 4,
-    title: "Pride and Prejudice",
-    author: "Jane Austen",
-    price: 14.25,
-    condition: "good",
-    image:
-      "https://images.unsplash.com/photo-1524995997946-a1c2e315a42f?w=300&h=400&fit=crop",
-    seller: "ClassicReader",
-  },
-  {
-    id: 5,
-    title: "The Catcher in the Rye",
-    author: "J.D. Salinger",
-    price: 11.99,
-    condition: "fair",
-    image:
-      "https://images.unsplash.com/photo-1543002588-bfa74002ed7e?w=300&h=400&fit=crop",
-    seller: "VintageBooks",
-  },
-  {
-    id: 6,
-    title: "Harry Potter and the Sorcerer's Stone",
-    author: "J.K. Rowling",
-    price: 18.0,
-    condition: "very_good",
-    image:
-      "https://images.unsplash.com/photo-1621351183012-e2f9972dd9bf?w=300&h=400&fit=crop",
-    seller: "MagicReader",
-  },
-];
-
-// User's books (for demonstration)
-let userBooks = [];
 let isLoggedIn = false;
 let currentUser = null;
 
@@ -109,13 +43,12 @@ function setupEventListeners() {
 // Load featured books
 // --- Buyer-side browse/search (Supabase-backed, Phase 1) --------------------
 // Reads ACTIVE listings joined to their book from Supabase (local DB only,
-// never external sources) — see docs/SEARCH_SYSTEMS.md §2. Replaces the old
-// in-memory sampleBooks filter. (sampleBooks remains only for the not-yet-
-// persisted in-memory sell flow, which is replaced in Step 2.)
+// never external sources) — see docs/SEARCH_SYSTEMS.md §2.
 
 let displayedListings = []; // normalized cards currently shown in the grid
 let myListings = []; // the logged-in user's own listings (My Shelf)
 let pendingCover = { isbn: null, url: null }; // cover from the last ISBN lookup
+let currentDetailId = null; // listing id shown on the book detail page
 
 // Vanilla JS has no auto-escaping; escape user text before putting it in HTML.
 function escapeHTML(value) {
@@ -220,6 +153,7 @@ async function loadFeaturedBooks() {
 function createBookCard(book) {
   const card = document.createElement("div");
   card.className = "book-card";
+  card.onclick = () => viewListing(book.id);
   const priceNum = Number(book.price);
   const priceLabel = Number.isFinite(priceNum) ? `$${priceNum.toFixed(2)}` : "";
   card.innerHTML = `
@@ -234,7 +168,7 @@ function createBookCard(book) {
       <p class="book-author">by ${escapeHTML(book.author)}</p>
       <div class="book-footer">
         <span class="book-price">${priceLabel}</span>
-        <button class="btn btn-primary btn-small" onclick="buyBook('${book.id}')">
+        <button class="btn btn-primary btn-small" onclick="event.stopPropagation(); buyBook('${book.id}')">
           <i class="fas fa-cart-plus"></i> Buy Now
         </button>
       </div>
@@ -389,6 +323,7 @@ async function searchBooks() {
 function showBuyBooks() {
   document.getElementById("homepage").style.display = "block";
   document.getElementById("dashboard").style.display = "none";
+  document.getElementById("bookDetail").style.display = "none";
   document.querySelector(".hero").scrollIntoView({ behavior: "smooth" });
 }
 
@@ -561,6 +496,7 @@ function showDashboard() {
   }
 
   document.getElementById("homepage").style.display = "none";
+  document.getElementById("bookDetail").style.display = "none";
   document.getElementById("dashboard").style.display = "block";
   loadUserListings();
 }
@@ -593,6 +529,79 @@ function showDashboardTab(tabName) {
 function setLookupStatus(message) {
   const el = document.getElementById("isbnLookupStatus");
   if (el) el.textContent = message;
+}
+
+function setPriceSuggestStatus(message) {
+  const el = document.getElementById("priceSuggestStatus");
+  if (el) el.textContent = message;
+}
+
+// AI price suggestion: calls the `pricing` Edge Function (holds the DeepSeek
+// key server-side), falling back to a simple condition-multiplier algorithm
+// if the AI call fails for any reason. See docs/ERROR_HANDLING_PATTERNS.md
+// "AI Pricing Errors" — this mirrors that pattern.
+async function estimatePrice(bookData, condition) {
+  try {
+    const { data, error } = await supabaseClient.functions.invoke("pricing", {
+      body: { bookData, condition },
+    });
+    if (error) throw new Error(`Pricing function error: ${error.message}`);
+
+    const { price, confidence } = data;
+    if (!(price >= 0.5 && price <= 1000)) {
+      throw new Error("Invalid price estimate");
+    }
+    return { price, confidence, source: "ai" };
+  } catch (err) {
+    console.error("AI pricing failed:", err);
+    return { ...fallbackPricing(bookData, condition), source: "fallback" };
+  }
+}
+
+function fallbackPricing(bookData, condition) {
+  const basePrice = bookData.listPrice || 20; // no list-price source yet; default $20
+  const multipliers = {
+    like_new: 0.75,
+    very_good: 0.55,
+    good: 0.35,
+    fair: 0.2,
+    poor: 0.1,
+  };
+  const estimated = basePrice * (multipliers[condition] || 0.35);
+  return {
+    price: Math.max(2, Math.round(estimated * 2) / 2), // min $2, round to $0.50
+    confidence: "low",
+  };
+}
+
+// Wired to the sell form's "Suggest price" button.
+async function suggestPrice() {
+  const title = document.getElementById("bookTitle").value.trim();
+  const author = document.getElementById("bookAuthor").value.trim();
+  const isbn = document.getElementById("bookISBN").value.trim();
+  const condition = document.getElementById("bookCondition").value;
+
+  if (!title) {
+    setPriceSuggestStatus("Enter a title (or look up the ISBN) first.");
+    return;
+  }
+  if (!condition) {
+    setPriceSuggestStatus("Select a condition first.");
+    return;
+  }
+
+  setPriceSuggestStatus("Estimating price…");
+  const { price, confidence, source } = await estimatePrice(
+    { title, author, isbn },
+    condition
+  );
+
+  document.getElementById("bookPrice").value = price.toFixed(2);
+  setPriceSuggestStatus(
+    source === "ai"
+      ? `Suggested price: $${price.toFixed(2)} (based on condition and market data) — feel free to adjust.`
+      : `Estimated price: $${price.toFixed(2)} (you can adjust this).`
+  );
 }
 
 function fillBookFields(isbn, result) {
@@ -710,6 +719,9 @@ async function handleSellBook(e) {
   const condition = formData.get("bookCondition");
   const price = parseFloat(formData.get("bookPrice"));
   const description = (formData.get("bookDescription") || "").trim();
+  const photos = Array.from(formData.getAll("bookPhoto")).filter(
+    (f) => f instanceof File && f.size > 0
+  );
 
   // Validate (DB also enforces these via CHECK constraints).
   if (!/^(\d{13}|\d{9}[\dXx])$/.test(isbn)) {
@@ -724,6 +736,20 @@ async function handleSellBook(e) {
     alert("Description must be 500 characters or fewer.");
     return;
   }
+  if (photos.length < 3 || photos.length > 5) {
+    alert("Please add between 3 and 5 photos of your book.");
+    return;
+  }
+  const MAX_PHOTO_BYTES = 5 * 1024 * 1024; // matches the bucket's 5 MB cap
+  const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp"];
+  if (photos.some((f) => !ALLOWED_TYPES.includes(f.type))) {
+    alert("Photos must be JPEG, PNG, or WebP images.");
+    return;
+  }
+  if (photos.some((f) => f.size > MAX_PHOTO_BYTES)) {
+    alert("Each photo must be 5 MB or smaller.");
+    return;
+  }
 
   const submitBtn = e.target.querySelector('button[type="submit"]');
   if (submitBtn) submitBtn.disabled = true;
@@ -735,19 +761,31 @@ async function handleSellBook(e) {
       data: { user },
     } = await supabaseClient.auth.getUser();
 
-    const { error } = await supabaseClient.from("listings").insert({
-      user_id: user.id,
-      book_id: bookId,
-      price,
-      condition,
-      description: description || null,
-      status: "active",
-    });
+    const { data: listing, error } = await supabaseClient
+      .from("listings")
+      .insert({
+        user_id: user.id,
+        book_id: bookId,
+        price,
+        condition,
+        description: description || null,
+        status: "active",
+      })
+      .select("id")
+      .single();
     if (error) throw error;
+
+    // Photos must be uploaded AFTER the listing exists: the Storage + table RLS
+    // policies require the path's first folder to be a listing the user owns.
+    const photoWarning = await uploadListingPhotos(listing.id, photos);
 
     closeModal("sellModal");
     e.target.reset();
-    alert("Book listed successfully!");
+    alert(
+      photoWarning
+        ? "Book listed, but some photos didn't upload. You can edit the listing later."
+        : "Book listed successfully!"
+    );
     showBuyBooks(); // back to the homepage...
     loadFeaturedBooks(); // ...where the new listing now appears
   } catch (err) {
@@ -787,6 +825,40 @@ async function ensureBook({ isbn, title, author, coverUrl }) {
     if (again) return again.id;
   }
   throw insErr;
+}
+
+// Upload listing photos to the private `listing-photos` bucket under
+// `<listingId>/...` (the path the RLS policies key off), then record one
+// listing_photos row per file. The listing already exists, so we never throw —
+// we return true if anything failed so the caller can soften its message.
+async function uploadListingPhotos(listingId, photos) {
+  let hadFailure = false;
+
+  for (let i = 0; i < photos.length; i++) {
+    const file = photos[i];
+    const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
+    const path = `${listingId}/${i}-${Date.now()}.${ext}`;
+
+    const { error: upErr } = await supabaseClient.storage
+      .from("listing-photos")
+      .upload(path, file, { contentType: file.type, upsert: false });
+    if (upErr) {
+      console.error("Photo upload failed:", upErr);
+      hadFailure = true;
+      continue;
+    }
+
+    // Store the storage PATH (bucket is private; reads use signed URLs).
+    const { error: rowErr } = await supabaseClient
+      .from("listing_photos")
+      .insert({ listing_id: listingId, photo_url: path, display_order: i });
+    if (rowErr) {
+      console.error("Photo record insert failed:", rowErr);
+      hadFailure = true;
+    }
+  }
+
+  return hadFailure;
 }
 
 // Load user listings
@@ -902,6 +974,212 @@ async function loadUserListings() {
 }
 
 // Buy book functionality (Phase 1: visual only — no real payment; Stripe is Phase 3)
+// Inject the detail-page CSS once, lazily (matches the #bookCardStyles pattern).
+function ensureDetailStyles() {
+  if (document.querySelector("#bookDetailStyles")) return;
+  const style = document.createElement("style");
+  style.id = "bookDetailStyles";
+  style.textContent = `
+    #bookDetail {
+      padding: 2rem 0 4rem;
+    }
+    #bookDetail .container {
+      max-width: 1000px;
+    }
+    .detail-layout {
+      display: grid;
+      grid-template-columns: 320px 1fr;
+      gap: 2.5rem;
+      margin-top: 1.5rem;
+    }
+    .detail-cover {
+      position: relative;
+    }
+    .detail-cover img {
+      width: 100%;
+      border-radius: 15px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+      object-fit: cover;
+    }
+    .detail-condition {
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      background: rgba(102, 126, 234, 0.9);
+      color: white;
+      padding: 0.3rem 0.6rem;
+      border-radius: 12px;
+      font-size: 0.85rem;
+      font-weight: 500;
+    }
+    .detail-title {
+      font-size: 2rem;
+      color: #333;
+      margin-bottom: 0.5rem;
+    }
+    .detail-author {
+      color: #666;
+      font-style: italic;
+      font-size: 1.1rem;
+      margin-bottom: 0.5rem;
+    }
+    .detail-isbn {
+      color: #888;
+      font-size: 0.9rem;
+      margin-bottom: 1rem;
+    }
+    .detail-price {
+      font-size: 2rem;
+      font-weight: bold;
+      color: #667eea;
+      margin-bottom: 1.5rem;
+    }
+    .detail-description {
+      color: #444;
+      line-height: 1.6;
+      margin-bottom: 1.5rem;
+      white-space: pre-wrap;
+    }
+    .detail-seller {
+      color: #888;
+      font-size: 0.9rem;
+      margin-bottom: 1.5rem;
+    }
+    .detail-gallery {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      margin-bottom: 1.5rem;
+    }
+    .detail-thumb {
+      width: 110px;
+      height: 110px;
+      object-fit: cover;
+      border-radius: 10px;
+      box-shadow: 0 3px 10px rgba(0,0,0,0.12);
+    }
+    @media (max-width: 700px) {
+      .detail-layout {
+        grid-template-columns: 1fr;
+      }
+      .detail-cover {
+        max-width: 280px;
+        margin: 0 auto;
+      }
+    }
+  `;
+  document.head.appendChild(style);
+}
+
+// Book detail page: fetch the full listing by id and show it as a toggled
+// "page" (same display-toggle approach as homepage/dashboard; no routing).
+async function viewListing(listingId) {
+  ensureDetailStyles();
+  const detail = document.getElementById("bookDetail");
+  const fallbackCover =
+    "https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=400&h=600&fit=crop";
+
+  // Show the detail page immediately with a loading state.
+  document.getElementById("homepage").style.display = "none";
+  document.getElementById("dashboard").style.display = "none";
+  detail.style.display = "block";
+  window.scrollTo({ top: 0, behavior: "smooth" });
+
+  const { data, error } = await supabaseClient
+    .from("listings")
+    .select(
+      "id, price, condition, created_at, description, books!inner(title, author, cover_url, isbn)"
+    )
+    .eq("id", listingId)
+    .single();
+
+  if (error || !data) {
+    console.error("Failed to load listing:", error);
+    document.getElementById("detailTitle").textContent =
+      "Sorry, we couldn't load this book.";
+    document.getElementById("detailAuthor").textContent = "";
+    document.getElementById("detailIsbn").textContent = "";
+    document.getElementById("detailPrice").textContent = "";
+    document.getElementById("detailDescription").textContent = "";
+    document.getElementById("detailCondition").textContent = "";
+    document.getElementById("detailGallery").innerHTML = "";
+    document.getElementById("detailBuyBtn").style.display = "none";
+    return;
+  }
+
+  currentDetailId = data.id;
+  const book = data.books || {};
+  const priceNum = Number(data.price);
+
+  const cover = document.getElementById("detailCover");
+  cover.src = book.cover_url || fallbackCover;
+  cover.onerror = () => {
+    cover.src = fallbackCover;
+  };
+
+  document.getElementById("detailTitle").textContent = book.title || "Untitled";
+  document.getElementById("detailAuthor").textContent = book.author
+    ? "by " + book.author
+    : "";
+  document.getElementById("detailIsbn").textContent = book.isbn
+    ? "ISBN: " + book.isbn
+    : "";
+  document.getElementById("detailCondition").textContent = formatCondition(
+    data.condition
+  );
+  document.getElementById("detailPrice").textContent = Number.isFinite(priceNum)
+    ? "$" + priceNum.toFixed(2)
+    : "";
+  document.getElementById("detailDescription").textContent =
+    data.description || "No description provided.";
+  document.getElementById("detailBuyBtn").style.display = "inline-flex";
+
+  renderDetailGallery(data.id);
+}
+
+// Fetch this listing's photos and render them as a gallery. The bucket is
+// private, so each stored path is turned into a short-lived signed URL.
+async function renderDetailGallery(listingId) {
+  const gallery = document.getElementById("detailGallery");
+  gallery.innerHTML = "";
+
+  const { data: rows, error } = await supabaseClient
+    .from("listing_photos")
+    .select("photo_url, display_order")
+    .eq("listing_id", listingId)
+    .order("display_order", { ascending: true });
+  if (error || !rows || rows.length === 0) return; // cover alone is fine
+
+  const paths = rows.map((r) => r.photo_url);
+  const { data: signed, error: signErr } = await supabaseClient.storage
+    .from("listing-photos")
+    .createSignedUrls(paths, 3600);
+  if (signErr || !signed) {
+    console.error("Failed to sign photo URLs:", signErr);
+    return;
+  }
+
+  // Bail if the user navigated away while we were fetching.
+  if (currentDetailId !== listingId) return;
+
+  signed.forEach((item) => {
+    if (!item.signedUrl) return;
+    const img = document.createElement("img");
+    img.className = "detail-thumb";
+    img.src = item.signedUrl;
+    img.alt = "Book photo";
+    gallery.appendChild(img);
+  });
+}
+
+// Return from the detail page to the browse grid.
+function backToBrowse() {
+  document.getElementById("bookDetail").style.display = "none";
+  document.getElementById("dashboard").style.display = "none";
+  document.getElementById("homepage").style.display = "block";
+  currentDetailId = null;
+}
+
 function buyBook(listingId) {
   if (!isLoggedIn) {
     alert("Please login first to buy books");

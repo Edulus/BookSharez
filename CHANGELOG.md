@@ -16,7 +16,45 @@ rationale lives inline in the relevant docs (e.g. the ADR in
 
 _Phase 1 backend foundation + documentation. Work to date: 2026-06-14 – 2026-06-15._
 
+### Added (continued — June 16)
+- **AI price suggestion (DeepSeek)** — the project's **first Edge Function**,
+  `supabase/functions/pricing/index.ts`: validates the caller's JWT
+  (`docs/SECURITY_CHECKLIST.md` pattern), prompts DeepSeek for a used-book price
+  estimate given title/author/condition, validates the response, and returns
+  `{price, confidence}`. The browser's new `estimatePrice()` calls it via
+  `supabaseClient.functions.invoke('pricing', …)` and falls back to the
+  condition-multiplier algorithm from `docs/ERROR_HANDLING_PATTERNS.md` on any
+  failure (timeout, bad key, invalid response) — mirrors that doc's pattern
+  exactly. Wired to a new "Suggest price" button on the sell form
+  (`suggestPrice()`); the price field stays editable so the user can override.
+  **Deployed and verified live June 16** — pasted into the Supabase Dashboard's
+  Edge Function editor (no CLI in this dev environment, so the function source
+  doubled as a paste-ready artifact, same convention as `db/*.sql`); the
+  `DEEPSEEK_API_KEY` secret is set; tested successfully against a real book
+  lookup.
+
+### Removed
+- **Vestigial in-memory arrays** `sampleBooks` / `userBooks` from `js/main.js` —
+  dead since browse/search and the sell flow moved to live Supabase data; no
+  remaining references.
+
 ### Added
+- **Listing photo upload (3–5 photos)** — the sell form now takes 3–5 photos
+  (required; JPEG/PNG/WebP, ≤5 MB each, validated client-side to match the
+  bucket caps). On submit the listing is created first, then photos upload to
+  the private `listing-photos` bucket under `<listingId>/…` (the path the
+  Storage + `listing_photos` RLS policies key off) and a `listing_photos` row is
+  recorded per file (storing the storage **path**, not a URL). The book detail
+  page renders them as a gallery via short-lived **signed URLs** (private
+  bucket). Photo upload failures don't lose the listing — the user is told some
+  photos didn't upload. No schema change (table/bucket/policies already applied).
+- **Book detail page** — clicking a listing card opens a full detail view
+  (cover, condition badge, title/author/ISBN, price, description, seller) as a
+  toggled "page" (same display-toggle approach as homepage/dashboard; no
+  routing). Fetches the full listing by id (incl. `description`) on click; all
+  fields rendered via `.textContent`. "Buy Now" is visual-only (reuses
+  `buyBook`; Stripe is Phase 3). Photo gallery has a marked mount point for a
+  later step. Purely client-side — no schema/key/Edge-Function change.
 - **Real Supabase authentication** — sign up, login, logout, and session
   persistence, replacing the prototype's fake login. (`aa89912`)
 - **Supabase browser client** in `js/supabase-config.js` (project URL +

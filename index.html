@@ -171,6 +171,37 @@
       </section>
     </div>
 
+    <!-- Book Detail page (toggled like homepage/dashboard; no routing) -->
+    <div id="bookDetail" style="display: none;">
+      <div class="container">
+        <button class="btn btn-secondary btn-small" onclick="backToBrowse()">
+          <i class="fas fa-arrow-left"></i> Back to browse
+        </button>
+        <div class="detail-layout">
+          <div class="detail-cover">
+            <img id="detailCover" src="" alt="Book cover" />
+            <div class="detail-condition" id="detailCondition"></div>
+          </div>
+          <div class="detail-info">
+            <h1 class="detail-title" id="detailTitle"></h1>
+            <p class="detail-author" id="detailAuthor"></p>
+            <p class="detail-isbn" id="detailIsbn"></p>
+            <div class="detail-price" id="detailPrice"></div>
+            <div class="detail-description" id="detailDescription"></div>
+            <p class="detail-seller">Sold by a BookSharez seller</p>
+            <div class="detail-gallery" id="detailGallery"></div>
+            <button
+              class="btn btn-primary"
+              id="detailBuyBtn"
+              onclick="buyBook(currentDetailId)"
+            >
+              <i class="fas fa-cart-plus"></i> Buy Now
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- User Dashboard -->
     <div id="dashboard" class="dashboard">
       <div class="container">
@@ -337,14 +368,19 @@
             </div>
             <div class="form-group">
               <label for="bookPrice">Price ($):</label>
-              <input
-                type="number"
-                id="bookPrice"
-                name="bookPrice"
-                step="0.01"
-                min="0.01"
-                required
-              />
+              <div class="isbn-row">
+                <input
+                  type="number"
+                  id="bookPrice"
+                  name="bookPrice"
+                  step="0.01"
+                  min="0.01"
+                  required
+                />
+                <button type="button" class="btn btn-secondary btn-small"
+                  onclick="suggestPrice()">Suggest price</button>
+              </div>
+              <small id="priceSuggestStatus" class="isbn-status"></small>
             </div>
             <div class="form-group">
               <label for="bookDescription">Description:</label>
@@ -356,13 +392,19 @@
               ></textarea>
             </div>
             <div class="form-group">
-              <label for="bookPhoto">Book Photo:</label>
+              <label for="bookPhoto">Book Photos (3–5):</label>
               <input
                 type="file"
                 id="bookPhoto"
                 name="bookPhoto"
-                accept="image/*"
+                accept="image/jpeg,image/png,image/webp"
+                multiple
+                required
               />
+              <small style="display: block; margin-top: 0.35rem; color: #888;">
+                Add 3–5 photos of your actual book — more photos make it more
+                likely to sell.
+              </small>
             </div>
             <button type="submit" class="btn btn-primary" style="width: 100%">
               List Book
