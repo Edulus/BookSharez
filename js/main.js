@@ -630,8 +630,13 @@ async function lookupISBN() {
   // 2) Google Books (free, no API key).
   try {
     const res = await fetch(
-      `https://www.googleapis.com/books/v1/volumes?q=isbn:${isbn}`
+      `https://www.googleapis.com/books/v1/volumes?q=isbn:${isbn}&country=US`
     );
+    if (!res.ok) {
+      console.error("Google Books HTTP error:", res.status);
+      setLookupStatus("Lookup unavailable right now — please type the details in.");
+      return;
+    }
     const data = await res.json();
     if (!data.totalItems || !(data.items && data.items.length)) {
       setLookupStatus("Not found — please type the details in.");
