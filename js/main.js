@@ -909,9 +909,17 @@ function showSellCoverPreview(coverUrl, title) {
 // isbn-lookup Edge Function — primary lookup path. Returns the book if found,
 // null if not found, or throws if the function itself is unreachable.
 async function lookupViaEdgeFunction(isbn) {
-  const { data, error } = await supabaseClient.functions.invoke("isbn-lookup", {
-    body: { isbn },
-  });
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 6000);
+  let data, error;
+  try {
+    ({ data, error } = await supabaseClient.functions.invoke("isbn-lookup", {
+      body: { isbn },
+      signal: controller.signal,
+    }));
+  } finally {
+    clearTimeout(timer);
+  }
   if (error) throw new Error(`isbn-lookup function error: ${error.message}`);
   if (!data.found) return null;
   const b = data.book;
@@ -921,9 +929,15 @@ async function lookupViaEdgeFunction(isbn) {
 // Client-side fallback pipeline — used only if the Edge Function is unreachable.
 // These are keyless/free sources, so calling them from the browser is fine.
 async function lookupOpenLibrary(isbn) {
-  const res = await fetch(
-    `https://openlibrary.org/api/books?bibkeys=ISBN:${isbn}&jscmd=data&format=json`
-  );
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 5000);
+  let res;
+  try {
+    res = await fetch(
+      `https://openlibrary.org/api/books?bibkeys=ISBN:${isbn}&jscmd=data&format=json`,
+      { signal: controller.signal }
+    );
+  } finally { clearTimeout(timer); }
   if (!res.ok) return null;
   const data = await res.json();
   const entry = data[`ISBN:${isbn}`];
@@ -939,9 +953,15 @@ async function lookupOpenLibrary(isbn) {
 }
 
 async function lookupGoogleBooks(isbn) {
-  const res = await fetch(
-    `https://www.googleapis.com/books/v1/volumes?q=isbn:${isbn}&key=${GOOGLE_BOOKS_API_KEY}&country=US`
-  );
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 5000);
+  let res;
+  try {
+    res = await fetch(
+      `https://www.googleapis.com/books/v1/volumes?q=isbn:${isbn}&key=${GOOGLE_BOOKS_API_KEY}&country=US`,
+      { signal: controller.signal }
+    );
+  } finally { clearTimeout(timer); }
   if (!res.ok) return null;
   const data = await res.json();
   if (!data.totalItems || !(data.items && data.items.length)) return null;
@@ -2564,17 +2584,16 @@ async function _fetchBookByISBN(isbn) {
     setTimeout(() => reject(new Error("timeout")), ms));
 
   try {
-    // Check our DB cache first
     const { data } = await Promise.race([
       supabaseClient.from("books").select("id, isbn, title, author, cover_url")
         .eq("isbn", isbn).maybeSingle(),
-      timeout(5000),
+      timeout(2000),
     ]);
     if (data) return data;
   } catch (e) { /* timeout or error — fall through */ }
 
   try {
-    const results = await Promise.race([searchBooksAPI(isbn), timeout(8000)]);
+    const results = await Promise.race([searchBooksAPI(isbn), timeout(5000)]);
     if (results && results.length > 0) {
       const b = results[0];
       return { isbn, title: b.title, author: b.author, cover_url: b.cover };
