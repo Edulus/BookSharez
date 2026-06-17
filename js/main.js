@@ -167,6 +167,8 @@ function applyControls() {
 async function loadFeaturedBooks() {
   const sectionTitle = document.getElementById("featuredTitle");
   if (sectionTitle) sectionTitle.textContent = "Featured Books";
+  const sub = document.querySelector(".search-subtitle");
+  if (sub) sub.remove();
   showGridMessage("Loading books…");
   setViewMoreBtn(false);
 
@@ -331,9 +333,13 @@ async function searchBooks() {
   setViewMoreBtn(false);
 
   // Run both in parallel; API failure is non-fatal.
-  const [localData, apiBooks] = await Promise.all([
+  let apiBooks = [];
+  let apiOk = true;
+  const [localData] = await Promise.all([
     searchLocalListings(searchTerm),
-    searchBooksAPI(searchTerm).catch(() => []),
+    searchBooksAPI(searchTerm)
+      .then((r) => { apiBooks = r; })
+      .catch((e) => { console.error("Google Books search failed:", e); apiOk = false; }),
   ]);
 
   // Local results first, normalised.
@@ -342,7 +348,7 @@ async function searchBooks() {
 
   // External: only books not already represented by a local listing.
   const localISBNs = new Set(localNormalized.map((r) => r.isbn).filter(Boolean));
-  const externalNormalized = (apiBooks || [])
+  const externalNormalized = apiBooks
     .filter((b) => !localISBNs.has(b.isbn))
     .map((b) => ({
       type: "external",
@@ -357,6 +363,27 @@ async function searchBooks() {
 
   allSearchResults = [...localNormalized, ...externalNormalized];
   searchResultsLoaded = 0;
+
+  // Update the section title with a source breakdown.
+  const subtitle = localNormalized.length > 0
+    ? `${localNormalized.length} on BookSharez · ${externalNormalized.length} online`
+    : externalNormalized.length > 0
+      ? `${externalNormalized.length} results online`
+      : "";
+  const apiNote = !apiOk ? " (online sources unavailable)" : "";
+  if (sectionTitle) {
+    sectionTitle.textContent = `Results for "${searchTerm}"`;
+    sectionTitle.nextElementSibling &&
+    sectionTitle.nextElementSibling.classList.contains("search-subtitle")
+      ? (sectionTitle.nextElementSibling.textContent = subtitle + apiNote)
+      : (() => {
+          const sub = document.createElement("p");
+          sub.className = "search-subtitle";
+          sub.style.cssText = "color:#888;font-size:0.9rem;margin:-0.75rem 0 1rem;";
+          sub.textContent = subtitle + apiNote;
+          sectionTitle.insertAdjacentElement("afterend", sub);
+        })();
+  }
 
   const grid = document.getElementById("booksGrid");
   grid.innerHTML = "";
@@ -1470,9 +1497,15 @@ function isbn10to13Client(s) {
 
 // Search Google Books by any query; returns up to 12 results that have an ISBN.
 async function searchBooksAPI(query) {
-  const url =
-    `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(query)}&maxResults=12&country=US`;
-  const res = await fetch(url, { signal: AbortSignal.timeout(6000) });
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 8000);
+  let res;
+  try {
+    const url = `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(query)}&maxResults=12&country=US`;
+    res = await fetch(url, { signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
   if (!res.ok) return [];
   const json = await res.json();
   if (!json.items) return [];
