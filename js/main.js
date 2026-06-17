@@ -1331,6 +1331,17 @@ function handleResize() {
 window.addEventListener("resize", handleResize);
 handleResize(); // Call on load
 
+// Navigate from a shelf card to the browse grid, searching by ISBN (exact) or
+// title (fallback). ISBN gives the cleanest single-book result.
+function browseBook(isbn, title) {
+  const term = isbn || title;
+  document.getElementById("homepage").style.display = "block";
+  document.getElementById("dashboard").style.display = "none";
+  document.getElementById("profilePage").style.display = "none";
+  document.getElementById("searchInput").value = term;
+  searchBooks();
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Phase 2: Shelf system
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1487,7 +1498,8 @@ async function loadShelfHave() {
     const card = document.createElement("div");
     card.className = "listing-card";
     card.innerHTML = `
-      <div style="display:flex;gap:1rem;align-items:center;">
+      <div style="display:flex;gap:1rem;align-items:center;cursor:pointer;"
+        onclick="browseBook(${JSON.stringify(escapeHTML(book.isbn))}, ${JSON.stringify(escapeHTML(book.title))})">
         <img src="${escapeHTML(book.cover_url || "")}" alt="${escapeHTML(book.title)}"
           onerror="this.src='https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=60&h=80&fit=crop'"
           style="width:50px;height:70px;object-fit:cover;border-radius:6px;flex-shrink:0;" />
@@ -1547,7 +1559,8 @@ async function loadShelfWant() {
     const card = document.createElement("div");
     card.className = "listing-card";
     card.innerHTML = `
-      <div style="display:flex;gap:1rem;align-items:center;">
+      <div style="display:flex;gap:1rem;align-items:center;cursor:pointer;"
+        onclick="browseBook(${JSON.stringify(escapeHTML(book.isbn))}, ${JSON.stringify(escapeHTML(book.title))})">
         <img src="${escapeHTML(book.cover_url || "")}" alt="${escapeHTML(book.title)}"
           onerror="this.src='https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=60&h=80&fit=crop'"
           style="width:50px;height:70px;object-fit:cover;border-radius:6px;flex-shrink:0;" />
