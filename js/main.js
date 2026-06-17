@@ -77,7 +77,7 @@ let pendingCover = { isbn: null, url: null }; // cover from the last ISBN lookup
 let currentDetailId = null; // listing id shown on the book detail page
 
 // Search results pagination
-const SEARCH_PAGE_SIZE = 6;
+const SEARCH_PAGE_SIZE = 9;
 let allSearchResults = []; // full merged result set (local + external)
 let searchResultsLoaded = 0; // how many cards are currently rendered
 
@@ -1503,7 +1503,7 @@ async function searchGoogleBooks(query) {
   let res;
   try {
     res = await fetch(
-      `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(query)}&maxResults=12&country=US`,
+      `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(query)}&maxResults=20&country=US`,
       { signal: controller.signal }
     );
   } finally {
@@ -1543,7 +1543,7 @@ async function searchOpenLibrary(query) {
   let res;
   try {
     res = await fetch(
-      `https://openlibrary.org/search.json?q=${encodeURIComponent(query)}&limit=12&fields=title,author_name,isbn,cover_i,first_publish_year`,
+      `https://openlibrary.org/search.json?q=${encodeURIComponent(query)}&limit=20&fields=title,author_name,isbn,cover_i,first_publish_year`,
       { signal: controller.signal }
     );
   } finally {
