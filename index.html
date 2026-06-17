@@ -15,7 +15,7 @@
     <header>
       <div class="container">
         <div class="header-content">
-          <div class="logo">
+          <div class="logo" onclick="showHomePage()">
             <i class="fas fa-book"></i>
             <span>BookSharez</span>
           </div>
@@ -69,29 +69,29 @@
         <div class="stats">
           <div class="stats-grid">
             <div class="stat-item">
-              <h3>15,247</h3>
-              <p>Books Available</p>
+              <h3 id="statListings">…</h3>
+              <p>Books for Sale</p>
             </div>
             <div class="stat-item">
-              <h3>3,891</h3>
-              <p>Happy Sellers</p>
+              <h3 id="statMembers">…</h3>
+              <p>Members</p>
             </div>
             <div class="stat-item">
-              <h3>12,456</h3>
-              <p>Books Sold</p>
+              <h3 id="statShelfEntries">…</h3>
+              <p>Books on Shelves</p>
             </div>
             <div class="stat-item">
-              <h3>4.8★</h3>
-              <p>Average Rating</p>
+              <h3 id="statTitles">…</h3>
+              <p>Titles in Catalog</p>
             </div>
           </div>
         </div>
       </section>
 
-      <!-- Featured Books -->
+      <!-- Books Our Members Are Selling -->
       <section class="featured">
         <div class="container">
-          <h2 class="section-title" id="featuredTitle">Featured Books</h2>
+          <h2 class="section-title" id="featuredTitle">Books Our Members Are Selling</h2>
           <div class="browse-controls">
             <label>Condition:
               <select id="conditionFilter" onchange="applyControls()">
@@ -123,6 +123,22 @@
         </div>
       </section>
 
+      <!-- Books Our Members Want -->
+      <section class="community-shelf-section" id="communityWantSection">
+        <div class="container">
+          <h2 class="section-title">Books Our Members Want</h2>
+          <div class="books-grid" id="communityWantGrid"></div>
+        </div>
+      </section>
+
+      <!-- Books Our Members Have -->
+      <section class="community-shelf-section" id="communityHaveSection">
+        <div class="container">
+          <h2 class="section-title">Books Our Members Have</h2>
+          <div class="books-grid" id="communityHaveGrid"></div>
+        </div>
+      </section>
+
       <!-- How It Works -->
       <section class="how-it-works">
         <div class="container">
@@ -130,47 +146,51 @@
           <div class="steps-grid">
             <div class="step-card">
               <div class="step-icon">
-                <i class="fas fa-book-open"></i>
+                <i class="fas fa-user-plus"></i>
                 <div class="step-number">1</div>
               </div>
-              <h3>List Your Books</h3>
-              <p>
-                Upload photos and details of books you want to sell. Set your
-                price and condition.
-              </p>
+              <h3>Sign Up Free</h3>
+              <p>Create your account in seconds and join a growing community of book lovers.</p>
+            </div>
+            <div class="step-card">
+              <div class="step-icon">
+                <i class="fas fa-bookmark"></i>
+                <div class="step-number">2</div>
+              </div>
+              <h3>Curate Your Shelf</h3>
+              <p>Track books you own and books you're looking for on your personal shelf.</p>
+            </div>
+            <div class="step-card">
+              <div class="step-icon">
+                <i class="fas fa-tag"></i>
+                <div class="step-number">3</div>
+              </div>
+              <h3>List for Sale</h3>
+              <p>Set your condition and price — our AI suggests a fair value — and add up to 5 photos.</p>
             </div>
             <div class="step-card">
               <div class="step-icon">
                 <i class="fas fa-search"></i>
-                <div class="step-number">2</div>
-              </div>
-              <h3>Buyers Find You</h3>
-              <p>
-                Buyers discover your books through our smart search and
-                recommendation system.
-              </p>
-            </div>
-            <div class="step-card">
-              <div class="step-icon">
-                <i class="fas fa-handshake"></i>
-                <div class="step-number">3</div>
-              </div>
-              <h3>Secure Transaction</h3>
-              <p>
-                We handle payments securely and provide shipping labels for
-                direct delivery.
-              </p>
-            </div>
-            <div class="step-card">
-              <div class="step-icon">
-                <i class="fas fa-shipping-fast"></i>
                 <div class="step-number">4</div>
               </div>
-              <h3>Ship & Get Paid</h3>
-              <p>
-                Ship directly to buyer, get tracking, and receive payment once
-                delivered.
-              </p>
+              <h3>Browse &amp; Search</h3>
+              <p>Find books by title, author, or ISBN and see what your community is selling.</p>
+            </div>
+            <div class="step-card">
+              <div class="step-icon">
+                <i class="fas fa-users"></i>
+                <div class="step-number">5</div>
+              </div>
+              <h3>Explore Profiles</h3>
+              <p>Browse member shelves, see what fellow readers have and want, and follow them.</p>
+            </div>
+            <div class="step-card">
+              <div class="step-icon">
+                <i class="fas fa-heart"></i>
+                <div class="step-number">6</div>
+              </div>
+              <h3>Books Find New Homes</h3>
+              <p>Every book sold is a book loved again — keeping stories alive and readers connected.</p>
             </div>
           </div>
         </div>
@@ -237,6 +257,9 @@
           </button>
         </div>
         <div class="dashboard-content">
+          <button type="button" class="btn-scan-prominent" onclick="openBookScanner()">
+            <i class="fas fa-camera"></i> Scan a Book to Add to Shelf
+          </button>
           <div id="shelf-have-tab">
             <h3>Books I Have</h3>
             <div id="shelfHaveList"></div>
@@ -401,14 +424,18 @@
             </div>
             <div id="shelfSearchResults" style="display:none;"></div>
 
-            <!-- Fallback: direct ISBN entry -->
+            <!-- Fallback: direct ISBN entry or scan -->
             <div class="form-group" style="border-top:1px solid #e9ecef;padding-top:1rem;margin-top:0.25rem;">
-              <label style="font-size:0.85rem;color:#888;">Or enter ISBN directly:</label>
+              <label style="font-size:0.85rem;color:#888;">Or enter ISBN / scan barcode:</label>
               <div class="isbn-row">
                 <input type="text" id="shelfISBN" name="shelfISBN"
                   placeholder="10 or 13 digits" />
                 <button type="button" class="btn btn-secondary btn-small"
                   onclick="lookupShelfISBN()">Look up</button>
+                <button type="button" class="btn-scan"
+                  onclick="openBarcodeScanner('shelf')">
+                  <i class="fas fa-camera"></i> Scan
+                </button>
               </div>
               <small id="shelfIsbnStatus" class="isbn-status"></small>
             </div>
@@ -441,7 +468,7 @@
       <div class="modal-content">
         <div class="modal-header">
           <h3>List Your Book</h3>
-          <span class="close" onclick="closeModal('sellModal')">&times;</span>
+          <span class="close" onclick="closeModal('sellModal');hideSellCoverPreview()">&times;</span>
         </div>
         <div class="modal-body">
           <form id="sellForm">
@@ -458,14 +485,18 @@
             </div>
             <div id="sellSearchResults" style="display:none;"></div>
 
-            <!-- Fallback: direct ISBN entry -->
+            <!-- Fallback: direct ISBN entry or scan -->
             <div class="form-group" style="border-top:1px solid #e9ecef;padding-top:1rem;margin-top:0.25rem;">
-              <label for="bookISBN" style="font-size:0.85rem;color:#888;">Or enter ISBN directly:</label>
+              <label for="bookISBN" style="font-size:0.85rem;color:#888;">Or enter ISBN / scan barcode:</label>
               <div class="isbn-row">
                 <input type="text" id="bookISBN" name="bookISBN"
                   placeholder="10 or 13 digits (e.g. 9780743273565)" />
                 <button type="button" class="btn btn-secondary btn-small"
                   onclick="lookupISBN()">Look up</button>
+                <button type="button" class="btn-scan"
+                  onclick="openBarcodeScanner('sell')">
+                  <i class="fas fa-camera"></i> Scan
+                </button>
               </div>
               <small id="isbnLookupStatus" class="isbn-status"></small>
             </div>
@@ -477,9 +508,19 @@
               <label for="bookAuthor">Author:</label>
               <input type="text" id="bookAuthor" name="bookAuthor" required />
             </div>
+            <!-- Cover preview — shown once a book is selected -->
+            <div id="sellCoverPreviewBox" style="display:none; margin-bottom:1rem;">
+              <div style="display:flex; gap:1rem; align-items:center; background:#f8f9fa; border-radius:8px; padding:0.75rem;">
+                <img id="sellCoverPreview" src="" alt="Cover"
+                  style="width:48px; height:66px; object-fit:cover; border-radius:6px; flex-shrink:0;" />
+                <p id="sellCoverNote" style="margin:0; font-size:0.85rem; color:#555;"></p>
+              </div>
+            </div>
+
             <div class="form-group">
               <label for="bookCondition">Condition:</label>
-              <select id="bookCondition" name="bookCondition" required>
+              <select id="bookCondition" name="bookCondition" required
+                onchange="suggestPrice()">
                 <option value="">Select condition</option>
                 <option value="like_new">Like New</option>
                 <option value="very_good">Very Good</option>
@@ -514,24 +555,79 @@
               ></textarea>
             </div>
             <div class="form-group">
-              <label for="bookPhoto">Book Photos (3–5):</label>
+              <label for="bookPhoto">Photos of your actual copy (optional):</label>
               <input
                 type="file"
                 id="bookPhoto"
                 name="bookPhoto"
                 accept="image/jpeg,image/png,image/webp"
                 multiple
-                required
               />
               <small style="display: block; margin-top: 0.35rem; color: #888;">
-                Add 3–5 photos of your actual book — more photos make it more
-                likely to sell.
+                Buyers trust listings with photos. Upload 1–5 photos of your
+                exact copy — cover, spine, any highlights or wear.
               </small>
             </div>
             <button type="submit" class="btn btn-primary" style="width: 100%">
               List Book
             </button>
           </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- Barcode / Cover Scanner Modal -->
+    <div id="barcodeScannerModal" class="modal">
+      <div class="modal-content scanner-modal-content">
+        <div class="modal-header">
+          <h3 id="scannerModalTitle"><i class="fas fa-camera"></i> Scan a Book</h3>
+          <span class="close" onclick="closeBarcodeScanner()">&times;</span>
+        </div>
+        <div class="modal-body">
+
+          <!-- State 1: scanning -->
+          <div id="scannerStateScanning">
+            <p class="scanner-hint">Point at the <strong>barcode on the back cover</strong> — or take a photo of either side.</p>
+            <div id="barcodeScannerView"></div>
+            <p id="scannerStatus" class="scanner-status">Starting camera…</p>
+            <div class="scanner-divider"><span>or</span></div>
+            <div class="scanner-photo-options">
+              <label class="scanner-photo-label">
+                <i class="fas fa-camera"></i> Take a Photo
+                <input type="file" id="scannerPhotoInput" accept="image/*" capture="environment"
+                  onchange="scanFromPhoto(this)" class="scanner-file-input">
+              </label>
+              <label class="scanner-photo-label">
+                <i class="fas fa-image"></i> Choose from Gallery
+                <input type="file" id="scannerGalleryInput" accept="image/*"
+                  onchange="scanFromPhoto(this)" class="scanner-file-input">
+              </label>
+            </div>
+          </div>
+
+          <!-- State 2: book found -->
+          <div id="scannerStateFound" class="scanner-state-found">
+            <div class="scanner-book-card">
+              <img id="scannerBookCover" src="" alt="Book cover" class="scanner-book-cover">
+              <div class="scanner-book-info">
+                <h3 id="scannerBookTitle"></h3>
+                <p id="scannerBookAuthor"></p>
+              </div>
+            </div>
+            <p class="scanner-shelf-prompt">Add this book to your shelf:</p>
+            <div class="scanner-actions">
+              <button type="button" class="btn btn-primary" onclick="addScannedBook('have')">
+                <i class="fas fa-book"></i> Books I Have
+              </button>
+              <button type="button" class="btn btn-secondary" onclick="addScannedBook('want')">
+                <i class="fas fa-heart"></i> Books I Want
+              </button>
+            </div>
+            <button type="button" class="btn-scan scanner-rescan-btn" onclick="scannerReset()">
+              <i class="fas fa-redo"></i> Scan another book
+            </button>
+          </div>
+
         </div>
       </div>
     </div>
@@ -547,6 +643,8 @@
 
     <!-- Supabase JS library (must load before supabase-config.js) -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <!-- Barcode / QR scanner -->
+    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
     <script src="js/supabase-config.js"></script>
     <script src="js/main.js"></script>
   </body>

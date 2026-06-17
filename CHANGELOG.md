@@ -16,6 +16,49 @@ rationale lives inline in the relevant docs (e.g. the ADR in
 
 _Phase 1 backend foundation + documentation. Work to date: 2026-06-14 – 2026-06-15._
 
+### Added (June 17 — continued: Google Books API, sell modal polish, clickable books, UI fixes)
+
+- **Google Books API key wired in** — authenticated API key added to `js/supabase-config.js`
+  (`GOOGLE_BOOKS_API_KEY`) and appended to both client-side call sites: `lookupGoogleBooks`
+  (ISBN lookup fallback) and `searchGoogleBooks` (title/author search). Supabase Edge Function
+  secret set so the `isbn-lookup` function also uses the key. Open Library remains the automatic
+  fallback on any error. Previous sessions were hitting a 0/day anonymous quota.
+
+- **Sell modal: cover preview** — when a book is selected (via search, ISBN lookup, or "List for
+  Sale" from shelf), the API cover image now appears in the modal with a note encouraging the
+  seller to upload photos of their actual copy. Preview resets when the modal closes.
+
+- **Sell modal: photos now optional** — removed the "3–5 photos required" gate; 0–5 photos
+  accepted. The upload path, per-file validation (type/size), and Storage upload are unchanged.
+
+- **External book cards clickable** — search results for books not yet listed on BookSharez
+  ("Not listed locally") now open the Add to Shelf modal pre-filled when clicked. CTA changed
+  from "Find online" link to "Be the first to list this!" The `shelfIsbnStatus` ID case bug
+  (was `shelfISBNStatus`) that silently prevented the modal from opening is fixed.
+
+- **Cover images no longer cropped** — switched from `object-fit: cover` to
+  `object-fit: contain` + `background: #f5f5f5` on all book card images so portrait covers
+  display in full without cropping.
+
+- **"For Sale" badge on shelf covers** — dashboard "Books I Have" and public profile shelf
+  both show a purple "For Sale" badge in the top-right corner of any book cover that has an
+  active listing. Profile page fetches active listing ISBNs in the same `Promise.all` as the
+  other profile data.
+
+- **Shelf books clickable everywhere** — "Books I Have", "Books I Want", and public profile
+  shelf covers all navigate to search results for that book on click. Converted inline
+  `onclick` + `JSON.stringify` (which broke on titles with special characters) to
+  `addEventListener` across both dashboard shelf renderers.
+
+- **Cover images in For Sale listing cards** — dashboard "For Sale" tab now shows the book
+  cover thumbnail to the left of the listing info. Query updated to fetch `cover_url` from
+  the joined `books` row.
+
+- **CSS architecture fix** — `.listing-card`, `.listing-main`, `.listing-cover`, and related
+  rules moved from a lazy JS-injected `<style>` block (only applied when the "For Sale" tab
+  was visited) to `css/style.css`. Shelf tabs were broken because the styles weren't in the
+  DOM on first load. Shelf headings centered; item gap increased to `1.5rem`.
+
 ### Added (June 17 — Phase 2: shelf system, profiles, follow graph)
 - **Shelf system** — two new dashboard tabs: "Books I Have" and "Books I Want".
   Each tab shows the logged-in user's `shelf_entries` with book cover thumbnails.

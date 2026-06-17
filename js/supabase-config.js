@@ -11,6 +11,7 @@
 
 const SUPABASE_URL = "https://kkmxdemnbuyuxnrezxmn.supabase.co";
 const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_EDLFcVTYmQwuRKc-Ia6yrQ_KVgZWYQK";
+const GOOGLE_BOOKS_API_KEY = "AIzaSyB7D1S8Lcej-6M9UjL1MU-GU1j89yXCkkc";
 
 // The CDN library exposes a global `supabase` object with createClient().
 // Expose our initialised client as `supabaseClient` to avoid shadowing it.

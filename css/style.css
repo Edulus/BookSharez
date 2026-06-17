@@ -1,3 +1,13 @@
+/* Clickable author names (used in book cards, detail page, shelf cards) */
+.author-link {
+  color: #667eea;
+  cursor: pointer;
+  text-decoration: none;
+}
+.author-link:hover {
+  text-decoration: underline;
+}
+
 /* Reset and Base Styles */
 * {
   margin: 0;
@@ -42,6 +52,7 @@ header {
   font-weight: bold;
   color: white;
   text-decoration: none;
+  cursor: pointer;
 }
 
 .logo i {
@@ -209,6 +220,12 @@ header {
   background: white;
 }
 
+.community-shelf-section {
+  padding: 3rem 0;
+  background: #f8f9ff;
+  border-top: 1px solid #e8ecff;
+}
+
 .section-title {
   text-align: center;
   font-size: 2.5rem;
@@ -262,18 +279,18 @@ header {
 
 .step-number {
   position: absolute;
-  top: -10px;
-  right: -10px;
+  top: -12px;
+  right: -12px;
   background: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%);
   color: white;
-  width: 30px;
-  height: 30px;
+  width: 44px;
+  height: 44px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
   font-weight: bold;
-  font-size: 0.9rem;
+  font-size: 1.3rem;
 }
 
 .step-card h3 {
@@ -345,13 +362,25 @@ header {
 
 .modal-content {
   background-color: white;
-  margin: 5% auto;
+  margin: 2vh auto;
   padding: 0;
   border-radius: 15px;
   width: 90%;
   max-width: 500px;
+  max-height: 96vh;
+  display: flex;
+  flex-direction: column;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
   animation: modalSlideIn 0.3s ease;
+}
+
+.modal-header {
+  flex-shrink: 0;
+}
+
+.modal-body {
+  overflow-y: auto;
+  flex: 1;
 }
 
 @keyframes modalSlideIn {
@@ -363,6 +392,192 @@ header {
     opacity: 1;
     transform: translateY(0);
   }
+}
+
+/* Barcode scanner modal */
+.scanner-modal-content {
+  max-width: 480px;
+  z-index: 3000;
+}
+
+#barcodeScannerModal {
+  z-index: 2500;
+}
+
+#barcodeScannerView {
+  width: 100%;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #000;
+  min-height: 220px;
+}
+
+.scanner-hint {
+  text-align: center;
+  color: #555;
+  margin-bottom: 1rem;
+  font-size: 0.95rem;
+}
+
+.scanner-status {
+  text-align: center;
+  color: #888;
+  font-size: 0.9rem;
+  margin: 0.75rem 0;
+  min-height: 1.3em;
+}
+
+.scanner-divider {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin: 1rem 0;
+  color: #aaa;
+  font-size: 0.85rem;
+}
+
+.scanner-divider::before,
+.scanner-divider::after {
+  content: "";
+  flex: 1;
+  border-top: 1px solid #e9ecef;
+}
+
+.scanner-photo-label {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.5rem;
+  background: #f8f9ff;
+  border: 2px dashed #667eea;
+  border-radius: 10px;
+  color: #667eea;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+  width: 100%;
+}
+
+.scanner-photo-label:hover {
+  background: #eef0ff;
+}
+
+.scanner-file-input {
+  display: none;
+}
+
+.scanner-photo-hint {
+  text-align: center;
+  color: #aaa;
+  font-size: 0.8rem;
+  margin-top: 0.5rem;
+}
+
+.scanner-state-found {
+  display: none;
+}
+
+.scanner-shelf-prompt {
+  text-align: center;
+  color: #555;
+  margin: 1.25rem 0 0.75rem;
+  font-size: 0.95rem;
+}
+
+.scanner-book-card {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  background: #f8f9ff;
+  border-radius: 12px;
+  padding: 1rem;
+  margin-top: 0.5rem;
+}
+
+.scanner-book-cover {
+  width: 70px;
+  height: 95px;
+  object-fit: contain;
+  border-radius: 6px;
+  background: #e9ecef;
+  flex-shrink: 0;
+}
+
+.scanner-book-info h3 {
+  font-size: 1rem;
+  margin: 0 0 0.3rem;
+  color: #333;
+}
+
+.scanner-book-info p {
+  font-size: 0.9rem;
+  color: #666;
+  margin: 0;
+  font-style: italic;
+}
+
+.scanner-actions {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.scanner-actions .btn {
+  flex: 1;
+  justify-content: center;
+}
+
+.scanner-rescan-btn {
+  width: 100%;
+  margin-top: 1rem;
+  padding: 0.6rem;
+  text-align: center;
+}
+
+/* Prominent scan button on dashboard */
+.btn-scan-prominent {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  width: 100%;
+  padding: 1rem;
+  margin-bottom: 1.5rem;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  border-radius: 14px;
+  font-size: 1.1rem;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.btn-scan-prominent:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.5);
+}
+
+.btn-scan-prominent i {
+  font-size: 1.3rem;
+}
+
+.btn-scan {
+  background: transparent;
+  border: 1px solid #667eea;
+  color: #667eea;
+  padding: 0.35rem 0.75rem;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.2s, color 0.2s;
+}
+
+.btn-scan:hover {
+  background: #667eea;
+  color: white;
 }
 
 .modal-header {
@@ -564,4 +779,65 @@ footer {
   margin-top: 0.4rem;
   color: #667eea;
   font-size: 0.85rem;
+}
+
+/* Listing cards — shared across For Sale, Books I Have, Books I Want tabs */
+.listing-card {
+  background: white;
+  border: 1px solid #e9ecef;
+  border-radius: 10px;
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+}
+
+.listing-main {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.listing-cover {
+  width: 70px;
+  height: 95px;
+  object-fit: contain;
+  background: #f5f5f5;
+  border-radius: 6px;
+  flex-shrink: 0;
+  display: block;
+}
+
+.listing-info h4 {
+  margin-bottom: 0.5rem;
+  color: #333;
+}
+
+.listing-info p {
+  margin: 0.25rem 0;
+  color: #666;
+}
+
+.listing-price {
+  font-weight: bold;
+  color: #667eea !important;
+  font-size: 1.2rem;
+}
+
+.listing-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+/* Shelf tab headings */
+#shelf-have-tab h3,
+#shelf-want-tab h3 {
+  text-align: center;
+  margin-bottom: 1.5rem;
+  color: #333;
 }
