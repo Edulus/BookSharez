@@ -56,6 +56,14 @@ function setupEventListeners() {
       e.target.style.display = "none";
     }
   });
+
+  // Enter key on book search inputs
+  document.getElementById("shelfSearchQuery").addEventListener("keypress", (e) => {
+    if (e.key === "Enter") { e.preventDefault(); searchShelfBooks(); }
+  });
+  document.getElementById("sellSearchQuery").addEventListener("keypress", (e) => {
+    if (e.key === "Enter") { e.preventDefault(); searchSellBooks(); }
+  });
 }
 
 // Load featured books
@@ -1343,6 +1351,160 @@ function browseBook(isbn, title) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Book search via Google Books API (title/author — both modals share this)
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Convert ISBN-10 to ISBN-13 (for Google Books results that only carry ISBN-10)
+function isbn10to13Client(s) {
+  if (!/^\d{9}[\dX]$/.test(s)) return null;
+  const base = "978" + s.slice(0, 9);
+  const digits = base.split("").map(Number);
+  const sum = digits.reduce((acc, d, i) => acc + d * (i % 2 === 0 ? 1 : 3), 0);
+  return base + (10 - (sum % 10)) % 10;
+}
+
+// Search Google Books by any query; returns up to 8 results that have an ISBN.
+async function searchBooksAPI(query) {
+  const url =
+    `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(query)}&maxResults=8&country=US`;
+  const res = await fetch(url, { signal: AbortSignal.timeout(6000) });
+  if (!res.ok) return [];
+  const json = await res.json();
+  if (!json.items) return [];
+
+  return json.items
+    .map((item) => {
+      const info = item.volumeInfo || {};
+      const ids = info.industryIdentifiers || [];
+      const isbn13raw = ids.find((i) => i.type === "ISBN_13")?.identifier;
+      const isbn10raw = ids.find((i) => i.type === "ISBN_10")?.identifier;
+      const isbn = isbn13raw || (isbn10raw ? isbn10to13Client(isbn10raw) : null);
+      if (!isbn || !info.title) return null;
+      const cover = (
+        info.imageLinks?.thumbnail || info.imageLinks?.smallThumbnail || ""
+      ).replace(/^http:/, "https:");
+      return {
+        isbn,
+        title: info.title,
+        author: (info.authors || []).join(", "),
+        year: (info.publishedDate || "").slice(0, 4),
+        cover,
+      };
+    })
+    .filter(Boolean);
+}
+
+// Render search results into a container div; onSelect(book) is called on click.
+function renderBookSearchResults(results, container, onSelect) {
+  container.innerHTML = "";
+  results.forEach((book) => {
+    const item = document.createElement("div");
+    item.style.cssText =
+      "display:flex;gap:0.75rem;align-items:center;padding:0.5rem 0.75rem;" +
+      "cursor:pointer;border-bottom:1px solid #f0f0f0;";
+    item.onmouseenter = () => { item.style.background = "#f8f9fa"; };
+    item.onmouseleave = () => { item.style.background = ""; };
+    const img = document.createElement("img");
+    img.src = book.cover || "";
+    img.alt = "";
+    img.style.cssText = "width:36px;height:50px;object-fit:cover;border-radius:4px;flex-shrink:0;";
+    img.onerror = () => { img.style.display = "none"; };
+    const meta = document.createElement("div");
+    meta.style.minWidth = "0";
+    const titleEl = document.createElement("div");
+    titleEl.style.cssText = "font-weight:600;font-size:0.9rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;";
+    titleEl.textContent = book.title;
+    const subEl = document.createElement("div");
+    subEl.style.cssText = "color:#666;font-size:0.8rem;";
+    subEl.textContent = book.author + (book.year ? " · " + book.year : "");
+    meta.appendChild(titleEl);
+    meta.appendChild(subEl);
+    item.appendChild(img);
+    item.appendChild(meta);
+    item.onclick = () => onSelect(book);
+    container.appendChild(item);
+  });
+}
+
+// ── Shelf modal search ────────────────────────────────────────────────────────
+
+async function searchShelfBooks() {
+  const query = document.getElementById("shelfSearchQuery").value.trim();
+  if (!query) return;
+  const statusEl = document.getElementById("shelfSearchStatus");
+  const resultsDiv = document.getElementById("shelfSearchResults");
+  statusEl.textContent = "Searching…";
+  resultsDiv.style.display = "none";
+  try {
+    const results = await searchBooksAPI(query);
+    if (!results.length) {
+      statusEl.textContent = "No results found — try different terms or enter the ISBN directly.";
+      return;
+    }
+    statusEl.textContent = "";
+    resultsDiv.style.cssText =
+      "display:block;max-height:240px;overflow-y:auto;" +
+      "border:1px solid #e9ecef;border-radius:8px;margin-bottom:0.75rem;";
+    renderBookSearchResults(results, resultsDiv, (book) => {
+      selectShelfBook(book.isbn, book.title, book.author, book.cover);
+    });
+  } catch (e) {
+    console.error("Shelf book search failed:", e);
+    statusEl.textContent = "Search failed. Please try again.";
+  }
+}
+
+function selectShelfBook(isbn, title, author, coverUrl) {
+  document.getElementById("shelfISBN").value = isbn;
+  document.getElementById("shelfTitle").value = title;
+  document.getElementById("shelfAuthor").value = author || "";
+  pendingCover = { isbn, url: coverUrl || null };
+  document.getElementById("shelfSearchResults").style.display = "none";
+  document.getElementById("shelfSearchQuery").value = title;
+  document.getElementById("shelfSearchStatus").textContent = `"${title}" selected ✓`;
+  document.getElementById("shelfIsbnStatus").textContent = "";
+}
+
+// ── Sell modal search ─────────────────────────────────────────────────────────
+
+async function searchSellBooks() {
+  const query = document.getElementById("sellSearchQuery").value.trim();
+  if (!query) return;
+  const statusEl = document.getElementById("sellSearchStatus");
+  const resultsDiv = document.getElementById("sellSearchResults");
+  statusEl.textContent = "Searching…";
+  resultsDiv.style.display = "none";
+  try {
+    const results = await searchBooksAPI(query);
+    if (!results.length) {
+      statusEl.textContent = "No results found — try different terms or enter the ISBN directly.";
+      return;
+    }
+    statusEl.textContent = "";
+    resultsDiv.style.cssText =
+      "display:block;max-height:240px;overflow-y:auto;" +
+      "border:1px solid #e9ecef;border-radius:8px;margin-bottom:0.75rem;";
+    renderBookSearchResults(results, resultsDiv, (book) => {
+      selectSellBook(book.isbn, book.title, book.author, book.cover);
+    });
+  } catch (e) {
+    console.error("Sell book search failed:", e);
+    statusEl.textContent = "Search failed. Please try again.";
+  }
+}
+
+function selectSellBook(isbn, title, author, coverUrl) {
+  document.getElementById("bookISBN").value = isbn;
+  document.getElementById("bookTitle").value = title;
+  document.getElementById("bookAuthor").value = author || "";
+  pendingCover = { isbn, url: coverUrl || null };
+  document.getElementById("sellSearchResults").style.display = "none";
+  document.getElementById("sellSearchQuery").value = title;
+  document.getElementById("sellSearchStatus").textContent = `"${title}" selected ✓`;
+  setLookupStatus("");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Phase 2: Shelf system
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -1353,6 +1515,10 @@ function showAddToShelfModal(defaultType = "have") {
   document.getElementById("shelfTitle").value = "";
   document.getElementById("shelfAuthor").value = "";
   document.getElementById("shelfIsbnStatus").textContent = "";
+  document.getElementById("shelfSearchQuery").value = "";
+  document.getElementById("shelfSearchStatus").textContent = "";
+  document.getElementById("shelfSearchResults").style.display = "none";
+  document.getElementById("shelfSearchResults").innerHTML = "";
   document.getElementById("addToShelfModal").style.display = "block";
 }
 
@@ -1609,7 +1775,11 @@ function listShelfItemForSale(shelfEntryId) {
   document.getElementById("bookDescription").value = "";
   pendingCover = { isbn: book.isbn, url: book.cover_url || null };
 
-  setLookupStatus("Book details pre-filled from your shelf ✓ — add condition, price, and photos.");
+  document.getElementById("sellSearchQuery").value = book.title || "";
+  document.getElementById("sellSearchStatus").textContent = "Book pre-filled from shelf ✓";
+  document.getElementById("sellSearchResults").style.display = "none";
+  document.getElementById("sellSearchResults").innerHTML = "";
+  setLookupStatus("");
   setPriceSuggestStatus("");
   document.getElementById("sellModal").style.display = "block";
 }

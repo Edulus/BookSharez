@@ -382,18 +382,33 @@
         </div>
         <div class="modal-body">
           <form id="addToShelfForm">
+            <!-- Primary: search by title or author -->
             <div class="form-group">
-              <label for="shelfISBN">ISBN (enter this first):</label>
+              <label for="shelfSearchQuery">Search by title or author:</label>
               <div class="isbn-row">
-                <input type="text" id="shelfISBN" name="shelfISBN" required
+                <input type="text" id="shelfSearchQuery"
+                  placeholder="e.g. Dune, Frank Herbert…" />
+                <button type="button" class="btn btn-secondary btn-small"
+                  onclick="searchShelfBooks()">Search</button>
+              </div>
+              <small id="shelfSearchStatus" class="isbn-status"></small>
+            </div>
+            <div id="shelfSearchResults" style="display:none;"></div>
+
+            <!-- Fallback: direct ISBN entry -->
+            <div class="form-group" style="border-top:1px solid #e9ecef;padding-top:1rem;margin-top:0.25rem;">
+              <label style="font-size:0.85rem;color:#888;">Or enter ISBN directly:</label>
+              <div class="isbn-row">
+                <input type="text" id="shelfISBN" name="shelfISBN"
                   placeholder="10 or 13 digits" />
                 <button type="button" class="btn btn-secondary btn-small"
                   onclick="lookupShelfISBN()">Look up</button>
               </div>
               <small id="shelfIsbnStatus" class="isbn-status"></small>
             </div>
+
             <div class="form-group">
-              <label for="shelfTitle">Book Title:</label>
+              <label for="shelfTitle">Title:</label>
               <input type="text" id="shelfTitle" name="shelfTitle" required />
             </div>
             <div class="form-group">
@@ -424,10 +439,24 @@
         </div>
         <div class="modal-body">
           <form id="sellForm">
+            <!-- Primary: search by title or author -->
             <div class="form-group">
-              <label for="bookISBN">ISBN (enter this first):</label>
+              <label for="sellSearchQuery">Search by title or author:</label>
               <div class="isbn-row">
-                <input type="text" id="bookISBN" name="bookISBN" required
+                <input type="text" id="sellSearchQuery"
+                  placeholder="e.g. The Great Gatsby, Fitzgerald…" />
+                <button type="button" class="btn btn-secondary btn-small"
+                  onclick="searchSellBooks()">Search</button>
+              </div>
+              <small id="sellSearchStatus" class="isbn-status"></small>
+            </div>
+            <div id="sellSearchResults" style="display:none;"></div>
+
+            <!-- Fallback: direct ISBN entry -->
+            <div class="form-group" style="border-top:1px solid #e9ecef;padding-top:1rem;margin-top:0.25rem;">
+              <label for="bookISBN" style="font-size:0.85rem;color:#888;">Or enter ISBN directly:</label>
+              <div class="isbn-row">
+                <input type="text" id="bookISBN" name="bookISBN"
                   placeholder="10 or 13 digits (e.g. 9780743273565)" />
                 <button type="button" class="btn btn-secondary btn-small"
                   onclick="lookupISBN()">Look up</button>
