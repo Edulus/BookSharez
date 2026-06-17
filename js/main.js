@@ -76,6 +76,11 @@ let myListings = []; // the logged-in user's own listings (My Shelf)
 let pendingCover = { isbn: null, url: null }; // cover from the last ISBN lookup
 let currentDetailId = null; // listing id shown on the book detail page
 
+// Search results pagination
+const SEARCH_PAGE_SIZE = 6;
+let allSearchResults = []; // full merged result set (local + external)
+let searchResultsLoaded = 0; // how many cards are currently rendered
+
 // Vanilla JS has no auto-escaping; escape user text before putting it in HTML.
 function escapeHTML(value) {
   const div = document.createElement("div");
@@ -87,7 +92,8 @@ function escapeHTML(value) {
 function normalizeListing(row) {
   const book = row.books || {};
   return {
-    id: row.id, // listing UUID
+    type: "local",
+    id: row.id,
     title: book.title,
     author: book.author,
     price: row.price,
@@ -162,6 +168,7 @@ async function loadFeaturedBooks() {
   const sectionTitle = document.getElementById("featuredTitle");
   if (sectionTitle) sectionTitle.textContent = "Featured Books";
   showGridMessage("Loading books…");
+  setViewMoreBtn(false);
 
   const { data, error } = await applySort(
     baseListingsQuery(),
@@ -198,7 +205,10 @@ function createBookCard(book) {
           <i class="fas fa-cart-plus"></i> Buy Now
         </button>
       </div>
-      <p class="book-seller">Sold by a BookSharez seller</p>
+      <p class="book-seller">
+        <i class="fas fa-check-circle" style="color:#28a745;"></i>
+        Available from a BookSharez seller
+      </p>
     </div>
   `;
 
@@ -304,9 +314,9 @@ function formatCondition(condition) {
   return conditions[condition] || condition;
 }
 
-// Search functionality
-// Buyer search: title/author match against ACTIVE listings (local DB only,
-// never external sources). See docs/SEARCH_SYSTEMS.md §2.
+// Search: queries local DB listings AND Google Books in parallel.
+// Local results (BookSharez sellers) appear first and are highlighted;
+// API results fill the remainder. Results are paginated 6 at a time.
 async function searchBooks() {
   const searchTerm = document.getElementById("searchInput").value.trim();
   const sectionTitle = document.getElementById("featuredTitle");
@@ -316,33 +326,128 @@ async function searchBooks() {
     return;
   }
 
-  if (sectionTitle) sectionTitle.textContent = "Search Results";
+  if (sectionTitle) sectionTitle.textContent = `Results for "${searchTerm}"`;
   showGridMessage("Searching…");
+  setViewMoreBtn(false);
 
-  // Strip characters that would break the PostgREST or() filter syntax.
-  const safe = searchTerm.replace(/[,()%*]/g, " ").trim();
+  // Run both in parallel; API failure is non-fatal.
+  const [localData, apiBooks] = await Promise.all([
+    searchLocalListings(searchTerm),
+    searchBooksAPI(searchTerm).catch(() => []),
+  ]);
+
+  // Local results first, normalised.
+  const localNormalized = (localData || []).map(normalizeListing);
+  displayedListings = localNormalized; // keeps buyBook() working
+
+  // External: only books not already represented by a local listing.
+  const localISBNs = new Set(localNormalized.map((r) => r.isbn).filter(Boolean));
+  const externalNormalized = (apiBooks || [])
+    .filter((b) => !localISBNs.has(b.isbn))
+    .map((b) => ({
+      type: "external",
+      id: b.isbn,
+      isbn: b.isbn,
+      title: b.title,
+      author: b.author,
+      image: b.cover,
+      year: b.year,
+      buyLink: b.buyLink,
+    }));
+
+  allSearchResults = [...localNormalized, ...externalNormalized];
+  searchResultsLoaded = 0;
+
+  const grid = document.getElementById("booksGrid");
+  grid.innerHTML = "";
+
+  if (allSearchResults.length === 0) {
+    showGridMessage("No books found.");
+    return;
+  }
+
+  showNextSearchResults();
+
+  const resultsSection = document.querySelector(".featured");
+  if (resultsSection) {
+    resultsSection.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+}
+
+// Query local DB for active listings matching title or author.
+async function searchLocalListings(term) {
+  const safe = term.replace(/[,()%*]/g, " ").trim();
   const pattern = `%${safe}%`;
-
-  const { data, error } = await applySort(
+  const { data } = await applySort(
     baseListingsQuery().or(`title.ilike.${pattern},author.ilike.${pattern}`, {
       referencedTable: "books",
     }),
     currentSort()
   ).limit(48);
+  return data || [];
+}
 
-  if (error) {
-    console.error("Search failed:", error);
-    showGridMessage("Search failed. Please try again.");
-  } else {
-    renderListings(data);
-  }
+// Append the next page of search results to the grid.
+function showNextSearchResults() {
+  const grid = document.getElementById("booksGrid");
+  const page = allSearchResults.slice(
+    searchResultsLoaded,
+    searchResultsLoaded + SEARCH_PAGE_SIZE
+  );
+  page.forEach((result) => {
+    grid.appendChild(
+      result.type === "local"
+        ? createBookCard(result)
+        : createExternalBookCard(result)
+    );
+  });
+  searchResultsLoaded += page.length;
+  const remaining = allSearchResults.length - searchResultsLoaded;
+  setViewMoreBtn(remaining > 0, remaining);
+}
 
-  // The search bar lives in the hero; results render in the Featured section
-  // below the fold — scroll there so the search feels responsive.
-  const resultsSection = document.querySelector(".featured");
-  if (resultsSection) {
-    resultsSection.scrollIntoView({ behavior: "smooth", block: "start" });
-  }
+// Called by the "View more" button.
+function showMoreSearchResults() {
+  showNextSearchResults();
+}
+
+// Show or hide the "View more" button.
+function setViewMoreBtn(show, remaining) {
+  const btn = document.getElementById("viewMoreBtn");
+  if (!btn) return;
+  btn.style.display = show ? "inline-flex" : "none";
+  if (show) btn.textContent = `View ${Math.min(remaining, SEARCH_PAGE_SIZE)} more`;
+}
+
+// Card for a book that has no local listing — links out to an external source.
+function createExternalBookCard(book) {
+  const card = document.createElement("div");
+  card.className = "book-card";
+  card.style.opacity = "0.85";
+  card.innerHTML = `
+    <div class="book-image">
+      <img src="${escapeHTML(book.image || "")}" alt="${escapeHTML(book.title)}"
+        onerror="this.src='https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=300&h=400&fit=crop'">
+      <div class="book-condition" style="background:rgba(108,117,125,0.85);">Not listed locally</div>
+    </div>
+    <div class="book-info">
+      <h3 class="book-title">${escapeHTML(book.title)}</h3>
+      <p class="book-author">by ${escapeHTML(book.author || "")}${book.year ? " <span style='color:#aaa;font-size:0.85em;'>(" + escapeHTML(book.year) + ")</span>" : ""}</p>
+      <div class="book-footer" style="margin-bottom:0.5rem;">
+        <span class="book-price" style="font-size:1rem;color:#aaa;">No local seller yet</span>
+        ${book.buyLink
+          ? `<a href="${escapeHTML(book.buyLink)}" target="_blank" rel="noopener noreferrer"
+               class="btn btn-secondary btn-small">
+               <i class="fas fa-external-link-alt"></i> Find online
+             </a>`
+          : ""}
+      </div>
+      <p class="book-seller" style="color:#bbb;font-size:0.8rem;">
+        <i class="fas fa-info-circle"></i> Not yet available on BookSharez
+      </p>
+    </div>
+  `;
+  return card;
 }
 
 // Show buy books page
@@ -1363,10 +1468,10 @@ function isbn10to13Client(s) {
   return base + (10 - (sum % 10)) % 10;
 }
 
-// Search Google Books by any query; returns up to 8 results that have an ISBN.
+// Search Google Books by any query; returns up to 12 results that have an ISBN.
 async function searchBooksAPI(query) {
   const url =
-    `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(query)}&maxResults=8&country=US`;
+    `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(query)}&maxResults=12&country=US`;
   const res = await fetch(url, { signal: AbortSignal.timeout(6000) });
   if (!res.ok) return [];
   const json = await res.json();
@@ -1375,6 +1480,7 @@ async function searchBooksAPI(query) {
   return json.items
     .map((item) => {
       const info = item.volumeInfo || {};
+      const sale = item.saleInfo || {};
       const ids = info.industryIdentifiers || [];
       const isbn13raw = ids.find((i) => i.type === "ISBN_13")?.identifier;
       const isbn10raw = ids.find((i) => i.type === "ISBN_10")?.identifier;
@@ -1383,12 +1489,15 @@ async function searchBooksAPI(query) {
       const cover = (
         info.imageLinks?.thumbnail || info.imageLinks?.smallThumbnail || ""
       ).replace(/^http:/, "https:");
+      // Prefer a direct buy link; fall back to the Google Books info page.
+      const buyLink = sale.buyLink || info.infoLink || null;
       return {
         isbn,
         title: info.title,
         author: (info.authors || []).join(", "),
         year: (info.publishedDate || "").slice(0, 4),
         cover,
+        buyLink,
       };
     })
     .filter(Boolean);
