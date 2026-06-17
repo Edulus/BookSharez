@@ -40,7 +40,7 @@ live too (quick filter/sort behavior not yet explicitly retested).
 - [x] **Profile settings** — username + bio form in dashboard Profile tab; upsert to `profiles`.
 
 **Pending Supabase step:**
-- [ ] **7. Apply [db/phase2_schema.sql](db/phase2_schema.sql)** — paste into Supabase SQL Editor. Creates `profiles`, `shelf_entries`, `follows`, adds `listings.shelf_entry_id`, enables RLS on all three, backfills profile rows for existing users.
+- [x] **7. Apply [db/phase2_schema.sql](db/phase2_schema.sql)** — paste into Supabase SQL Editor. Creates `profiles`, `shelf_entries`, `follows`, adds `listings.shelf_entry_id`, enables RLS on all three, backfills profile rows for existing users. *(Applied June 17.)*
 
 ---
 
