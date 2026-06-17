@@ -587,12 +587,9 @@
 
           <!-- State 1: scanning -->
           <div id="scannerStateScanning">
-            <p class="scanner-hint">Point at the <strong>barcode on the back cover</strong> — or take a photo of either side.</p>
-            <div id="barcodeScannerView"></div>
-            <p id="scannerStatus" class="scanner-status">Starting camera…</p>
-            <div class="scanner-divider"><span>or</span></div>
+            <p class="scanner-hint">Take a photo of the barcode, or use live camera scanning.</p>
             <div class="scanner-photo-options">
-              <label class="scanner-photo-label">
+              <label class="scanner-photo-label scanner-photo-primary">
                 <i class="fas fa-camera"></i> Take a Photo
                 <input type="file" id="scannerPhotoInput" accept="image/*" capture="environment"
                   onchange="scanFromPhoto(this)" class="scanner-file-input">
@@ -603,6 +600,12 @@
                   onchange="scanFromPhoto(this)" class="scanner-file-input">
               </label>
             </div>
+            <div class="scanner-divider"><span>or</span></div>
+            <button type="button" class="btn-live-camera" id="btnLiveCamera" onclick="startLiveCamera()">
+              <i class="fas fa-video"></i> Use Live Camera
+            </button>
+            <div id="barcodeScannerView" style="display:none"></div>
+            <p id="scannerStatus" class="scanner-status" style="display:none"></p>
           </div>
 
           <!-- State 2: book found -->

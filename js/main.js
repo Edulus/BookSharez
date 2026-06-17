@@ -2455,10 +2455,31 @@ function openBarcodeScanner(target) {
 function _openScannerModal() {
   _scannedBookData = null;
   _showScannerState("scanning");
-  document.getElementById("scannerStatus").textContent = "Starting camera…";
+  _resetCameraView();
   document.getElementById("scannerPhotoInput").value = "";
   document.getElementById("scannerGalleryInput").value = "";
   document.getElementById("barcodeScannerModal").style.display = "block";
+}
+
+function _resetCameraView() {
+  const view = document.getElementById("barcodeScannerView");
+  const statusEl = document.getElementById("scannerStatus");
+  const btn = document.getElementById("btnLiveCamera");
+  view.style.display = "none";
+  view.innerHTML = "";
+  statusEl.style.display = "none";
+  statusEl.textContent = "";
+  if (btn) btn.style.display = "";
+}
+
+function startLiveCamera() {
+  const view = document.getElementById("barcodeScannerView");
+  const statusEl = document.getElementById("scannerStatus");
+  const btn = document.getElementById("btnLiveCamera");
+  view.style.display = "";
+  statusEl.style.display = "";
+  statusEl.textContent = "Starting camera…";
+  if (btn) btn.style.display = "none";
   _startLiveScanner();
 }
 
@@ -2639,10 +2660,9 @@ async function scannerReset() {
   await _stopLiveScanner();
   _scannedBookData = null;
   _showScannerState("scanning");
-  document.getElementById("scannerStatus").textContent = "Starting camera…";
+  _resetCameraView();
   document.getElementById("scannerPhotoInput").value = "";
   document.getElementById("scannerGalleryInput").value = "";
-  _startLiveScanner();
 }
 
 async function closeBarcodeScanner() {

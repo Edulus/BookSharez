@@ -459,6 +459,20 @@ header {
   width: 100%;
 }
 
+.scanner-photo-label.scanner-photo-primary {
+  padding: 1rem 1.5rem;
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  border: none;
+  color: white;
+  font-size: 1.05rem;
+  border-radius: 12px;
+}
+
+.scanner-photo-label.scanner-photo-primary:hover {
+  opacity: 0.92;
+  background: linear-gradient(135deg, #667eea, #764ba2);
+}
+
 .scanner-photo-label:hover {
   background: #eef0ff;
 }
@@ -467,11 +481,26 @@ header {
   display: none;
 }
 
-.scanner-photo-hint {
-  text-align: center;
-  color: #aaa;
-  font-size: 0.8rem;
-  margin-top: 0.5rem;
+.btn-live-camera {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.65rem 1rem;
+  background: transparent;
+  border: 1.5px solid #ccc;
+  border-radius: 10px;
+  color: #666;
+  font-size: 0.95rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: border-color 0.2s, color 0.2s;
+}
+
+.btn-live-camera:hover {
+  border-color: #667eea;
+  color: #667eea;
 }
 
 .scanner-state-found {
