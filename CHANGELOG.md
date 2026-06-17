@@ -16,6 +16,31 @@ rationale lives inline in the relevant docs (e.g. the ADR in
 
 _Phase 1 backend foundation + documentation. Work to date: 2026-06-14 – 2026-06-15._
 
+### Added (June 17 — Phase 2: shelf system, profiles, follow graph)
+- **Shelf system** — two new dashboard tabs: "Books I Have" and "Books I Want".
+  Each tab shows the logged-in user's `shelf_entries` with book cover thumbnails.
+  "Add Book" (header button or in-tab link) opens a new modal: ISBN lookup (same
+  Edge Function + client fallback pipeline) → adds a `shelf_entries` row and
+  navigates to the relevant tab. "Remove" deletes the row. "List for Sale" on a
+  "Books I Have" item opens the sell modal pre-filled with that book's data,
+  passing `shelf_entry_id` through to the new `listings.shelf_entry_id` FK — the
+  architecture invariant ("selling always flows through the shelf") is now
+  enforced in the UI. The "Sell Books" header button was rewired to
+  `showAddToShelfModal('have')` accordingly.
+- **Profile page** — clicking a seller name on the book detail page opens their
+  public profile: username, bio, follower/following counts, and their public
+  "Books I Have" / "Books I Want" shelves rendered as a cover-art grid.
+  Follow/unfollow button (authenticated users only; hidden when viewing your own
+  profile). Seller name on the detail page is now fetched from `profiles` and
+  linked.
+- **Profile settings** — new "Profile" tab in the dashboard: username (3–30
+  chars, letters/numbers/underscores; unique) + bio (≤300 chars). Upserted to
+  `profiles` on save; duplicate-username error surfaced inline.
+- **`db/phase2_schema.sql`** — paste-ready SQL creating `profiles` (with
+  signup trigger + backfill for existing users), `shelf_entries` (UNIQUE on
+  user+book+type), `follows` (no self-follows), and the nullable
+  `listings.shelf_entry_id` FK. Full RLS on all three new tables.
+
 ### Added (continued — June 16)
 - **Server-side ISBN lookup** — `supabase/functions/isbn-lookup/index.ts`: the
   project's second Edge Function. Cache-first strategy: checks the `books` table

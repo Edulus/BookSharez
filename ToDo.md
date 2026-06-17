@@ -32,6 +32,18 @@ live too (quick filter/sort behavior not yet explicitly retested).
 
 ---
 
+## 🟢 PHASE 2 — in progress (June 17)
+
+- [x] **Schema** — `profiles` + `shelf_entries` + `follows` tables, RLS, trigger, `listings.shelf_entry_id` FK. SQL in [db/phase2_schema.sql](db/phase2_schema.sql). **Pending Supabase apply** (paste in SQL Editor — see below).
+- [x] **Shelf UI** — "Books I Have" and "Books I Want" tabs in the dashboard; "Add Book" button; shelf-item cards with "List for Sale" / "Remove". Sell flow now routes through the shelf (architecture §5.3).
+- [x] **Profile page** — public shelf view for any user; follow/unfollow button; follower/following counts; clickable seller name on the book detail page.
+- [x] **Profile settings** — username + bio form in dashboard Profile tab; upsert to `profiles`.
+
+**Pending Supabase step:**
+- [ ] **7. Apply [db/phase2_schema.sql](db/phase2_schema.sql)** — paste into Supabase SQL Editor. Creates `profiles`, `shelf_entries`, `follows`, adds `listings.shelf_entry_id`, enables RLS on all three, backfills profile rows for existing users.
+
+---
+
 ## 🎯 NEXT UP (independent — pick any; none blocks another)
 
 - [x] **Book detail page** — clicking a listing card opens a full view: cover, condition + description, seller, visual-only "Buy Now" (no payment — Stripe is Phase 3). *(Done June 16; client-side, no schema change. See CHANGELOG.)*

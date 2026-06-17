@@ -1,5 +1,13 @@
 let isLoggedIn = false;
 let currentUser = null;
+let currentUserId = null;
+
+// Phase 2 state
+let myShelfHave = [];
+let myShelfWant = [];
+let currentListingShelfEntryId = null;
+let currentProfileUserId = null;
+let currentProfileIsFollowed = false;
 
 // Initialize the app
 document.addEventListener("DOMContentLoaded", function () {
@@ -22,6 +30,16 @@ function setupEventListeners() {
   document
     .getElementById("sellForm")
     .addEventListener("submit", handleSellBook);
+
+  // Add to shelf form
+  document
+    .getElementById("addToShelfForm")
+    .addEventListener("submit", handleAddToShelf);
+
+  // Profile settings form
+  document
+    .getElementById("profileSettingsForm")
+    .addEventListener("submit", handleSaveProfile);
 
   // Search functionality
   document
@@ -324,6 +342,7 @@ function showBuyBooks() {
   document.getElementById("homepage").style.display = "block";
   document.getElementById("dashboard").style.display = "none";
   document.getElementById("bookDetail").style.display = "none";
+  document.getElementById("profilePage").style.display = "none";
   document.querySelector(".hero").scrollIntoView({ behavior: "smooth" });
 }
 
@@ -341,14 +360,16 @@ function showSignup() {
   document.getElementById("signupModal").style.display = "block";
 }
 
-// Show sell modal
+// Show sell modal — selling flows through the shelf (Phase 2 architecture).
+// "Sell Books" opens "Add to Books I Have"; from there the user taps
+// "List for Sale" on a shelf item to open the actual listing form.
 function showSellModal() {
   if (!isLoggedIn) {
     alert("Please login first to sell books");
     showLogin();
     return;
   }
-  document.getElementById("sellModal").style.display = "block";
+  showAddToShelfModal("have");
 }
 
 // ---------------------------------------------------------------------------
@@ -372,18 +393,21 @@ function applyAuthState(session) {
   if (session && session.user) {
     isLoggedIn = true;
     currentUser = session.user.email;
+    currentUserId = session.user.id;
     loginBtn.innerHTML = '<i class="fas fa-user-circle"></i> Dashboard';
     loginBtn.onclick = showDashboard;
     logoutBtn.style.display = "inline-flex";
   } else {
     isLoggedIn = false;
     currentUser = null;
+    currentUserId = null;
     loginBtn.innerHTML = '<i class="fas fa-user"></i> Login';
     loginBtn.onclick = showLogin;
     logoutBtn.style.display = "none";
-    // If the user was viewing the dashboard, send them back to the homepage.
+    // If the user was viewing the dashboard or profile, send them back to homepage.
     document.getElementById("homepage").style.display = "block";
     document.getElementById("dashboard").style.display = "none";
+    document.getElementById("profilePage").style.display = "none";
   }
 }
 
@@ -488,36 +512,38 @@ function clearAuthMessage(elId) {
   el.className = "form-message";
 }
 
-// Show dashboard
+// Show dashboard — defaults to Books I Have tab
 function showDashboard() {
   if (!isLoggedIn) {
     showLogin();
     return;
   }
-
   document.getElementById("homepage").style.display = "none";
   document.getElementById("bookDetail").style.display = "none";
+  document.getElementById("profilePage").style.display = "none";
   document.getElementById("dashboard").style.display = "block";
-  loadUserListings();
+  activateDashboardTab("shelf-have");
+  loadShelfHave();
 }
 
-// Show dashboard tab
-function showDashboardTab(tabName) {
-  // Hide all tabs
+function activateDashboardTab(tabName) {
   document.querySelectorAll('[id$="-tab"]').forEach((tab) => {
     tab.style.display = "none";
   });
-
-  // Remove active class from all buttons
   document.querySelectorAll(".tab-btn").forEach((btn) => {
     btn.classList.remove("active");
   });
-
-  // Show selected tab
   document.getElementById(tabName + "-tab").style.display = "block";
+  const btn = document.querySelector(`.tab-btn[data-tab="${tabName}"]`);
+  if (btn) btn.classList.add("active");
+}
 
-  // Add active class to clicked button
-  event.target.classList.add("active");
+function showDashboardTab(tabName) {
+  activateDashboardTab(tabName);
+  if (tabName === "shelf-have") loadShelfHave();
+  else if (tabName === "shelf-want") loadShelfWant();
+  else if (tabName === "listings") loadUserListings();
+  else if (tabName === "profile") loadProfileSettings();
 }
 
 // Handle sell book form
@@ -774,6 +800,7 @@ async function handleSellBook(e) {
         condition,
         description: description || null,
         status: "active",
+        shelf_entry_id: currentListingShelfEntryId || null,
       })
       .select("id")
       .single();
@@ -785,6 +812,7 @@ async function handleSellBook(e) {
 
     closeModal("sellModal");
     e.target.reset();
+    currentListingShelfEntryId = null;
     alert(
       photoWarning
         ? "Book listed, but some photos didn't upload. You can edit the listing later."
@@ -1092,7 +1120,7 @@ async function viewListing(listingId) {
   const { data, error } = await supabaseClient
     .from("listings")
     .select(
-      "id, price, condition, created_at, description, books!inner(title, author, cover_url, isbn)"
+      "id, user_id, price, condition, created_at, description, books!inner(title, author, cover_url, isbn)"
     )
     .eq("id", listingId)
     .single();
@@ -1138,6 +1166,24 @@ async function viewListing(listingId) {
     data.description || "No description provided.";
   document.getElementById("detailBuyBtn").style.display = "inline-flex";
 
+  // Show seller name with profile link (async; page is already visible)
+  const sellerEl = document.getElementById("detailSeller");
+  if (sellerEl && data.user_id) {
+    sellerEl.textContent = "Sold by a BookSharez seller";
+    supabaseClient
+      .from("profiles")
+      .select("username")
+      .eq("id", data.user_id)
+      .maybeSingle()
+      .then(({ data: profile }) => {
+        if (!profile) return;
+        const name = profile.username || "BookSharez seller";
+        sellerEl.innerHTML =
+          `Sold by <a href="#" onclick="viewProfile('${data.user_id}'); return false;"
+            style="color:#667eea;">${escapeHTML(name)}</a>`;
+      });
+  }
+
   renderDetailGallery(data.id);
 }
 
@@ -1180,6 +1226,7 @@ async function renderDetailGallery(listingId) {
 function backToBrowse() {
   document.getElementById("bookDetail").style.display = "none";
   document.getElementById("dashboard").style.display = "none";
+  document.getElementById("profilePage").style.display = "none";
   document.getElementById("homepage").style.display = "block";
   currentDetailId = null;
 }
@@ -1283,3 +1330,452 @@ function handleResize() {
 
 window.addEventListener("resize", handleResize);
 handleResize(); // Call on load
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Phase 2: Shelf system
+// ─────────────────────────────────────────────────────────────────────────────
+
+function showAddToShelfModal(defaultType = "have") {
+  if (!isLoggedIn) { showLogin(); return; }
+  document.getElementById("shelfType").value = defaultType;
+  document.getElementById("shelfISBN").value = "";
+  document.getElementById("shelfTitle").value = "";
+  document.getElementById("shelfAuthor").value = "";
+  document.getElementById("shelfIsbnStatus").textContent = "";
+  document.getElementById("addToShelfModal").style.display = "block";
+}
+
+function setShelfLookupStatus(msg) {
+  const el = document.getElementById("shelfIsbnStatus");
+  if (el) el.textContent = msg;
+}
+
+async function lookupShelfISBN() {
+  const isbn = (document.getElementById("shelfISBN").value || "").replace(/[\s-]/g, "");
+  if (!/^(\d{13}|\d{9}[\dXx])$/.test(isbn)) {
+    setShelfLookupStatus("Enter a valid ISBN (10 or 13 digits) first.");
+    return;
+  }
+  setShelfLookupStatus("Looking up…");
+
+  try {
+    const result = await lookupViaEdgeFunction(isbn);
+    if (result && result.title) {
+      document.getElementById("shelfTitle").value = result.title;
+      document.getElementById("shelfAuthor").value = result.author || "";
+      pendingCover = { isbn, url: result.cover || null };
+      setShelfLookupStatus("Details filled ✓");
+      return;
+    }
+    if (result === null) {
+      setShelfLookupStatus("Not found — please type the details in.");
+      return;
+    }
+  } catch (e) {
+    console.error("isbn-lookup unavailable, trying fallback:", e);
+  }
+
+  const fallbacks = [
+    { name: "Open Library", fn: lookupOpenLibrary },
+    { name: "Google Books", fn: lookupGoogleBooks },
+  ];
+  for (const src of fallbacks) {
+    try {
+      const result = await src.fn(isbn);
+      if (result && result.title) {
+        document.getElementById("shelfTitle").value = result.title;
+        document.getElementById("shelfAuthor").value = result.author || "";
+        pendingCover = { isbn, url: result.cover || null };
+        setShelfLookupStatus(`Details filled from ${src.name} ✓`);
+        return;
+      }
+    } catch (e) {
+      console.error(src.name, "lookup error:", e);
+    }
+  }
+  setShelfLookupStatus("Not found — please type the details in.");
+}
+
+async function handleAddToShelf(e) {
+  e.preventDefault();
+  const isbn = (document.getElementById("shelfISBN").value || "").replace(/[\s-]/g, "");
+  const title = document.getElementById("shelfTitle").value.trim();
+  const author = document.getElementById("shelfAuthor").value.trim();
+  const shelfType = document.getElementById("shelfType").value;
+
+  if (!/^(\d{13}|\d{9}[\dXx])$/.test(isbn)) {
+    alert("Please enter a valid ISBN.");
+    return;
+  }
+  if (!title) {
+    alert("Please enter a title.");
+    return;
+  }
+
+  const submitBtn = e.target.querySelector('button[type="submit"]');
+  if (submitBtn) submitBtn.disabled = true;
+
+  try {
+    const coverUrl = pendingCover.isbn === isbn ? pendingCover.url : null;
+    const bookId = await ensureBook({ isbn, title, author, coverUrl });
+    const { data: { user } } = await supabaseClient.auth.getUser();
+
+    const { error } = await supabaseClient
+      .from("shelf_entries")
+      .upsert(
+        { user_id: user.id, book_id: bookId, shelf_type: shelfType },
+        { onConflict: "user_id,book_id,shelf_type" }
+      );
+    if (error) throw error;
+
+    closeModal("addToShelfModal");
+    activateDashboardTab(shelfType === "have" ? "shelf-have" : "shelf-want");
+    document.getElementById("homepage").style.display = "none";
+    document.getElementById("bookDetail").style.display = "none";
+    document.getElementById("dashboard").style.display = "block";
+    if (shelfType === "have") loadShelfHave();
+    else loadShelfWant();
+  } catch (err) {
+    console.error("Failed to add to shelf:", err);
+    alert("Sorry, something went wrong. Please try again.");
+  } finally {
+    if (submitBtn) submitBtn.disabled = false;
+  }
+}
+
+async function loadShelfHave() {
+  const container = document.getElementById("shelfHaveList");
+  container.innerHTML = "<p>Loading…</p>";
+
+  const { data: { user } } = await supabaseClient.auth.getUser();
+  if (!user) { container.innerHTML = "<p>Please log in.</p>"; return; }
+
+  const [shelfRes, listingsRes] = await Promise.all([
+    supabaseClient
+      .from("shelf_entries")
+      .select("id, added_at, books!inner(id, isbn, title, author, cover_url)")
+      .eq("user_id", user.id)
+      .eq("shelf_type", "have")
+      .order("added_at", { ascending: false }),
+    supabaseClient
+      .from("listings")
+      .select("book_id")
+      .eq("user_id", user.id)
+      .eq("status", "active"),
+  ]);
+
+  if (shelfRes.error) {
+    console.error("Failed to load Books I Have:", shelfRes.error);
+    container.innerHTML = "<p>Couldn't load your shelf. Please try again.</p>";
+    return;
+  }
+
+  myShelfHave = shelfRes.data || [];
+  const listedBookIds = new Set((listingsRes.data || []).map((l) => l.book_id));
+
+  if (myShelfHave.length === 0) {
+    container.innerHTML =
+      '<p>Your "Books I Have" shelf is empty. ' +
+      '<a href="#" onclick="showAddToShelfModal(\'have\')">Add a book</a></p>';
+    return;
+  }
+
+  container.innerHTML = "";
+  myShelfHave.forEach((entry) => {
+    const book = entry.books || {};
+    const isListed = listedBookIds.has(book.id);
+    const card = document.createElement("div");
+    card.className = "listing-card";
+    card.innerHTML = `
+      <div style="display:flex;gap:1rem;align-items:center;">
+        <img src="${escapeHTML(book.cover_url || "")}" alt="${escapeHTML(book.title)}"
+          onerror="this.src='https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=60&h=80&fit=crop'"
+          style="width:50px;height:70px;object-fit:cover;border-radius:6px;flex-shrink:0;" />
+        <div>
+          <h4 style="margin:0 0 0.2rem;">${escapeHTML(book.title)}</h4>
+          <p style="margin:0;color:#666;font-style:italic;">${escapeHTML(book.author || "")}</p>
+          ${isListed ? '<span style="color:#28a745;font-size:0.85rem;"><i class="fas fa-tag"></i> Listed for sale</span>' : ""}
+        </div>
+      </div>
+      <div class="listing-actions">
+        ${!isListed
+          ? `<button class="btn btn-primary btn-small" onclick="listShelfItemForSale('${entry.id}')">
+               <i class="fas fa-tags"></i> List for Sale
+             </button>`
+          : ""}
+        <button class="btn btn-secondary btn-small" onclick="removeFromShelf('${entry.id}','have')">
+          <i class="fas fa-times"></i> Remove
+        </button>
+      </div>
+    `;
+    container.appendChild(card);
+  });
+}
+
+async function loadShelfWant() {
+  const container = document.getElementById("shelfWantList");
+  container.innerHTML = "<p>Loading…</p>";
+
+  const { data: { user } } = await supabaseClient.auth.getUser();
+  if (!user) { container.innerHTML = "<p>Please log in.</p>"; return; }
+
+  const { data, error } = await supabaseClient
+    .from("shelf_entries")
+    .select("id, added_at, books!inner(id, isbn, title, author, cover_url)")
+    .eq("user_id", user.id)
+    .eq("shelf_type", "want")
+    .order("added_at", { ascending: false });
+
+  if (error) {
+    console.error("Failed to load Books I Want:", error);
+    container.innerHTML = "<p>Couldn't load your shelf. Please try again.</p>";
+    return;
+  }
+
+  myShelfWant = data || [];
+
+  if (myShelfWant.length === 0) {
+    container.innerHTML =
+      '<p>Your "Books I Want" shelf is empty. ' +
+      '<a href="#" onclick="showAddToShelfModal(\'want\')">Add a book</a></p>';
+    return;
+  }
+
+  container.innerHTML = "";
+  myShelfWant.forEach((entry) => {
+    const book = entry.books || {};
+    const card = document.createElement("div");
+    card.className = "listing-card";
+    card.innerHTML = `
+      <div style="display:flex;gap:1rem;align-items:center;">
+        <img src="${escapeHTML(book.cover_url || "")}" alt="${escapeHTML(book.title)}"
+          onerror="this.src='https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=60&h=80&fit=crop'"
+          style="width:50px;height:70px;object-fit:cover;border-radius:6px;flex-shrink:0;" />
+        <div>
+          <h4 style="margin:0 0 0.2rem;">${escapeHTML(book.title)}</h4>
+          <p style="margin:0;color:#666;font-style:italic;">${escapeHTML(book.author || "")}</p>
+        </div>
+      </div>
+      <div class="listing-actions">
+        <button class="btn btn-secondary btn-small" onclick="removeFromShelf('${entry.id}','want')">
+          <i class="fas fa-times"></i> Remove
+        </button>
+      </div>
+    `;
+    container.appendChild(card);
+  });
+}
+
+async function removeFromShelf(entryId, shelfType) {
+  if (!confirm("Remove this book from your shelf?")) return;
+  const { error } = await supabaseClient
+    .from("shelf_entries")
+    .delete()
+    .eq("id", entryId);
+  if (error) {
+    console.error("Remove from shelf failed:", error);
+    alert("Couldn't remove the book. Please try again.");
+    return;
+  }
+  if (shelfType === "have") loadShelfHave();
+  else loadShelfWant();
+}
+
+// Open the sell modal pre-populated from a "Books I Have" shelf entry.
+function listShelfItemForSale(shelfEntryId) {
+  const entry = myShelfHave.find((e) => e.id === shelfEntryId);
+  if (!entry) return;
+  const book = entry.books || {};
+
+  currentListingShelfEntryId = shelfEntryId;
+  document.getElementById("bookISBN").value = book.isbn || "";
+  document.getElementById("bookTitle").value = book.title || "";
+  document.getElementById("bookAuthor").value = book.author || "";
+  document.getElementById("bookCondition").value = "";
+  document.getElementById("bookPrice").value = "";
+  document.getElementById("bookDescription").value = "";
+  pendingCover = { isbn: book.isbn, url: book.cover_url || null };
+
+  setLookupStatus("Book details pre-filled from your shelf ✓ — add condition, price, and photos.");
+  setPriceSuggestStatus("");
+  document.getElementById("sellModal").style.display = "block";
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Phase 2: Profile page (viewing another user's public shelves)
+// ─────────────────────────────────────────────────────────────────────────────
+
+async function viewProfile(userId) {
+  currentProfileUserId = userId;
+  document.getElementById("homepage").style.display = "none";
+  document.getElementById("dashboard").style.display = "none";
+  document.getElementById("bookDetail").style.display = "none";
+  document.getElementById("profilePage").style.display = "block";
+  window.scrollTo({ top: 0, behavior: "smooth" });
+
+  // Reset UI before async loads
+  document.getElementById("profileDisplayName").textContent = "Loading…";
+  document.getElementById("profileDisplayBio").textContent = "";
+  document.getElementById("profileFollowerCount").textContent = "";
+  document.getElementById("profileFollowingCount").textContent = "";
+  document.getElementById("followBtn").style.display = "none";
+  document.getElementById("profileShelfHave").innerHTML = "";
+  document.getElementById("profileShelfWant").innerHTML = "";
+
+  const [profileRes, followerRes, followingRes, haveRes, wantRes] = await Promise.all([
+    supabaseClient.from("profiles").select("username, bio").eq("id", userId).maybeSingle(),
+    supabaseClient.from("follows").select("*", { count: "exact", head: true }).eq("followed_id", userId),
+    supabaseClient.from("follows").select("*", { count: "exact", head: true }).eq("follower_id", userId),
+    supabaseClient
+      .from("shelf_entries")
+      .select("id, books!inner(isbn, title, author, cover_url)")
+      .eq("user_id", userId).eq("shelf_type", "have").eq("visibility", "public")
+      .order("added_at", { ascending: false }).limit(24),
+    supabaseClient
+      .from("shelf_entries")
+      .select("id, books!inner(isbn, title, author, cover_url)")
+      .eq("user_id", userId).eq("shelf_type", "want").eq("visibility", "public")
+      .order("added_at", { ascending: false }).limit(24),
+  ]);
+
+  const profile = profileRes.data;
+  document.getElementById("profileDisplayName").textContent =
+    profile?.username || "BookSharez Reader";
+  document.getElementById("profileDisplayBio").textContent = profile?.bio || "";
+  document.getElementById("profileFollowerCount").textContent =
+    `${followerRes.count || 0} followers`;
+  document.getElementById("profileFollowingCount").textContent =
+    `${followingRes.count || 0} following`;
+
+  // Follow button — only for other users when logged in
+  if (isLoggedIn && currentUserId && currentUserId !== userId) {
+    const { data: existingFollow } = await supabaseClient
+      .from("follows")
+      .select("id")
+      .eq("follower_id", currentUserId)
+      .eq("followed_id", userId)
+      .maybeSingle();
+    currentProfileIsFollowed = !!existingFollow;
+    const followBtn = document.getElementById("followBtn");
+    followBtn.textContent = currentProfileIsFollowed ? "Unfollow" : "Follow";
+    followBtn.style.display = "inline-flex";
+  }
+
+  renderProfileShelf("profileShelfHave", haveRes.data || []);
+  renderProfileShelf("profileShelfWant", wantRes.data || []);
+}
+
+function renderProfileShelf(containerId, entries) {
+  const container = document.getElementById(containerId);
+  if (!entries.length) {
+    container.innerHTML = '<p style="color:#888;">Nothing here yet.</p>';
+    return;
+  }
+  const grid = document.createElement("div");
+  grid.style.cssText = "display:flex;flex-wrap:wrap;gap:1rem;margin-bottom:1.5rem;";
+  entries.forEach((entry) => {
+    const book = entry.books || {};
+    const item = document.createElement("div");
+    item.style.cssText = "text-align:center;width:90px;";
+    item.innerHTML = `
+      <img src="${escapeHTML(book.cover_url || "")}" alt="${escapeHTML(book.title)}"
+        onerror="this.src='https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=90&h=120&fit=crop'"
+        style="width:80px;height:110px;object-fit:cover;border-radius:8px;box-shadow:0 3px 8px rgba(0,0,0,0.12);" />
+      <p style="font-size:0.75rem;margin:0.4rem 0 0;color:#333;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:90px;">
+        ${escapeHTML(book.title)}
+      </p>
+    `;
+    grid.appendChild(item);
+  });
+  container.appendChild(grid);
+}
+
+function backFromProfile() {
+  document.getElementById("profilePage").style.display = "none";
+  document.getElementById("homepage").style.display = "block";
+  currentProfileUserId = null;
+}
+
+async function toggleFollow() {
+  if (!isLoggedIn) { showLogin(); return; }
+  const followBtn = document.getElementById("followBtn");
+  followBtn.disabled = true;
+
+  if (currentProfileIsFollowed) {
+    const { error } = await supabaseClient
+      .from("follows")
+      .delete()
+      .eq("follower_id", currentUserId)
+      .eq("followed_id", currentProfileUserId);
+    if (error) { console.error("Unfollow failed:", error); followBtn.disabled = false; return; }
+    currentProfileIsFollowed = false;
+    followBtn.textContent = "Follow";
+    const el = document.getElementById("profileFollowerCount");
+    el.textContent = `${Math.max(0, parseInt(el.textContent) - 1)} followers`;
+  } else {
+    const { error } = await supabaseClient
+      .from("follows")
+      .insert({ follower_id: currentUserId, followed_id: currentProfileUserId });
+    if (error) { console.error("Follow failed:", error); followBtn.disabled = false; return; }
+    currentProfileIsFollowed = true;
+    followBtn.textContent = "Unfollow";
+    const el = document.getElementById("profileFollowerCount");
+    el.textContent = `${(parseInt(el.textContent) || 0) + 1} followers`;
+  }
+  followBtn.disabled = false;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Phase 2: Profile settings (own account)
+// ─────────────────────────────────────────────────────────────────────────────
+
+async function loadProfileSettings() {
+  const { data: { user } } = await supabaseClient.auth.getUser();
+  if (!user) return;
+
+  const { data: profile } = await supabaseClient
+    .from("profiles")
+    .select("username, bio")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  document.getElementById("profileUsername").value = profile?.username || "";
+  document.getElementById("profileBioInput").value = profile?.bio || "";
+  document.getElementById("profileSaveStatus").textContent = "";
+}
+
+async function handleSaveProfile(e) {
+  e.preventDefault();
+  const username = document.getElementById("profileUsername").value.trim();
+  const bio = document.getElementById("profileBioInput").value.trim();
+  const status = document.getElementById("profileSaveStatus");
+
+  if (username && !/^[a-zA-Z0-9_]{3,30}$/.test(username)) {
+    status.textContent = "Username must be 3–30 characters: letters, numbers, underscores only.";
+    return;
+  }
+  if (bio.length > 300) {
+    status.textContent = "Bio must be 300 characters or fewer.";
+    return;
+  }
+
+  const { data: { user } } = await supabaseClient.auth.getUser();
+  const { error } = await supabaseClient
+    .from("profiles")
+    .upsert(
+      { id: user.id, username: username || null, bio: bio || null },
+      { onConflict: "id" }
+    );
+
+  if (error) {
+    if (error.code === "23505") {
+      status.textContent = "That username is taken. Please choose another.";
+    } else {
+      console.error("Profile save failed:", error);
+      status.textContent = "Couldn't save profile. Please try again.";
+    }
+    return;
+  }
+  status.textContent = "Profile saved ✓";
+  setTimeout(() => { status.textContent = ""; }, 3000);
+}
