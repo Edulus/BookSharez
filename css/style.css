@@ -367,21 +367,13 @@ header {
   border-radius: 15px;
   width: 90%;
   max-width: 500px;
-  max-height: 96vh;
-  display: flex;
-  flex-direction: column;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
   animation: modalSlideIn 0.3s ease;
 }
 
-.modal-header {
-  flex-shrink: 0;
-}
-
 .modal-body {
   overflow-y: auto;
-  flex: 1 1 auto;
-  min-height: 0;
+  max-height: calc(96vh - 80px);
 }
 
 @keyframes modalSlideIn {
