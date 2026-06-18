@@ -958,7 +958,7 @@ async function lookupGoogleBooks(isbn) {
   let res;
   try {
     res = await fetch(
-      `https://www.googleapis.com/books/v1/volumes?q=isbn:${isbn}&key=${GOOGLE_BOOKS_API_KEY}&country=US`,
+      `https://www.googleapis.com/books/v1/volumes?q=isbn:${isbn}&country=US`,
       { signal: controller.signal }
     );
   } finally { clearTimeout(timer); }
@@ -1699,7 +1699,7 @@ async function searchGoogleBooks(query) {
   let res;
   try {
     res = await fetch(
-      `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(query)}&maxResults=20&key=${GOOGLE_BOOKS_API_KEY}&country=US`,
+      `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(query)}&maxResults=20&country=US`,
       { signal: controller.signal }
     );
   } finally {
