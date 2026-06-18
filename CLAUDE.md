@@ -2,6 +2,17 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## SECURITY — NON-NEGOTIABLE RULES
+
+**Never commit API keys or secrets to this repo.** The repo is public. Anything committed is permanently visible in git history.
+
+- ✅ **Allowed in committed JS:** `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY` (anon key — designed to be public, protected by RLS)
+- ❌ **Never in committed files:** Google Books key, ISBNdb key, DeepSeek key, any key with billing exposure, any service-role key
+- All secret keys live **only** in Supabase Edge Function secrets (Dashboard → Edge Functions → Secrets)
+- If a new external API is added and it requires a key, it **must** be proxied through an Edge Function — never called directly from browser JS with a key
+
+**Before making the repo public (or keeping it public):** audit `js/supabase-config.js` and `js/main.js` for any value that isn't a publishable/anon key.
+
 ## Project State
 
 BookSharez is a **community-first book marketplace**: a peer-to-peer used-book marketplace combined with a reader-identity system (per-user "Books I Have / Books I Want" shelves) and per-book discussion. The full product is defined in [docs/BOOKSHAREZ_PRODUCT_VISION.md](docs/BOOKSHAREZ_PRODUCT_VISION.md) (why/what/who) and [docs/BOOKSHAREZ_ARCHITECTURE.md](docs/BOOKSHAREZ_ARCHITECTURE.md) (full target design, phased). **Phase 1 ships only the marketplace foundation** — shelves, social graph, discussions, affiliate, and recommendations are later phases.
