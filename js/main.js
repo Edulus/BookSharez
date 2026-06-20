@@ -87,7 +87,6 @@ function setupEventListeners() {
 // Reads ACTIVE listings joined to their book from Supabase (local DB only,
 // never external sources) — see docs/SEARCH_SYSTEMS.md §2.
 
-let displayedListings = []; // normalized cards currently shown in the grid
 let myListings = []; // the logged-in user's own listings (My Shelf)
 let pendingCover = { isbn: null, url: null }; // cover from the last ISBN lookup
 let currentDetailId = null; // listing id shown on the book detail page
@@ -104,20 +103,206 @@ function escapeHTML(value) {
   return div.innerHTML;
 }
 
-// Map a Supabase {listing + books} row to the shape createBookCard expects.
-function normalizeListing(row) {
-  const book = row.books || {};
+
+// ─── Book object contract §6A ──────────────────────────────────────────────────
+// One normalizer, one renderer. See docs/BOOKSHAREZ_ARCHITECTURE.md §6A.
+
+const FALLBACK_COVER = "https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=400&h=600&fit=crop";
+
+// Accepts a listings row (with books join), a plain books row, or an external
+// API result and returns the canonical Book shape.
+function normalizeBook(raw) {
+  const b = raw.books || raw;
   return {
-    type: "local",
-    id: row.id,
-    title: book.title,
-    author: book.author,
-    price: row.price,
-    condition: row.condition,
-    image: book.cover_url,
-    isbn: book.isbn,
+    bookId: b.id || null,
+    isbn:   b.isbn      || raw.isbn  || null,
+    title:  b.title     || raw.title || "",
+    author: b.author    || raw.author || "",
+    coverUrl: b.cover_url || b.cover || raw.cover_url || raw.cover || raw.image || null,
+    year:   b.year || raw.year || null,
   };
 }
+
+// Returns a DOM element (tile/thumb) or populates the fixed detail DOM (full).
+function renderBook(book, context, density) {
+  if (density === "thumb") return _renderThumb(book, context);
+  if (density === "full")  { _renderFull(book, context); return null; }
+  return _renderTile(book, context);
+}
+
+function _renderTile(book, context) {
+  _ensureBookCardStyles();
+  const card = document.createElement("div");
+  card.className = "book-card";
+
+  if (context.myListingId) {
+    card.onclick = () => viewListing(context.myListingId);
+  } else if (book.bookId) {
+    card.style.cursor = "pointer";
+    card.addEventListener("click", () => browseBookById(book.bookId, book.title));
+  } else {
+    card.style.opacity = "0.85";
+    card.style.cursor = "pointer";
+    card.addEventListener("click", () => openExternalBookOptions(book));
+  }
+
+  let badgeHtml = "";
+  if (context.condition) {
+    badgeHtml = `<div class="book-condition">${formatCondition(context.condition)}</div>`;
+  } else if (context.isListedLocally === false) {
+    badgeHtml = `<div class="book-condition" style="background:rgba(108,117,125,0.85);">Not listed locally</div>`;
+  }
+
+  let footerHtml = "";
+  if (context.price != null) {
+    const priceLabel = `$${Number(context.price).toFixed(2)}`;
+    footerHtml = `
+      <div class="book-footer">
+        <span class="book-price">${priceLabel}</span>
+        <button class="btn btn-primary btn-small" data-action="buy">
+          <i class="fas fa-cart-plus"></i> Buy Now
+        </button>
+      </div>`;
+  } else if (context.isListedLocally === false) {
+    footerHtml = `
+      <div class="book-footer" style="margin-bottom:0.5rem;">
+        <span class="book-price" style="font-size:1rem;color:#667eea;">Be the first to list this!</span>
+      </div>`;
+  }
+
+  let sellerHtml = "";
+  if (context.myListingId) {
+    sellerHtml = `<p class="book-seller"><i class="fas fa-check-circle" style="color:#28a745;"></i> Available from a BookSharez seller</p>`;
+  } else if (context.isListedLocally === false) {
+    sellerHtml = `<p class="book-seller" style="color:#bbb;font-size:0.8rem;"><i class="fas fa-info-circle"></i> Not yet available on BookSharez</p>`;
+  }
+
+  const yearSpan = (context.isListedLocally === false && book.year)
+    ? ` <span style="color:#aaa;font-size:0.85em;">(${escapeHTML(book.year)})</span>`
+    : "";
+
+  card.innerHTML = `
+    <div class="book-image">
+      <img src="${escapeHTML(book.coverUrl || "")}" alt="${escapeHTML(book.title)}"
+        onerror="this.src='${FALLBACK_COVER}'">
+      ${badgeHtml}
+    </div>
+    <div class="book-info">
+      <h3 class="book-title">${escapeHTML(book.title)}</h3>
+      <p class="book-author">by <span class="author-link">${escapeHTML(book.author || "")}</span>${yearSpan}</p>
+      ${footerHtml}
+      ${sellerHtml}
+    </div>
+  `;
+
+  if (book.author) {
+    const span = card.querySelector(".author-link");
+    if (span) span.addEventListener("click", (e) => { e.stopPropagation(); searchByAuthor(book.author); });
+  }
+  if (context.myListingId && context.price != null) {
+    const btn = card.querySelector("[data-action='buy']");
+    if (btn) btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      buyBook(context.myListingId, context.price, book.title);
+    });
+  }
+
+  return card;
+}
+
+function _renderThumb(book, context) {
+  const item = document.createElement("div");
+  item.style.cssText = "text-align:center;width:90px;cursor:pointer;";
+  item.title = book.title || "";
+
+  const imgWrapper = document.createElement("div");
+  imgWrapper.style.cssText = "position:relative;width:80px;height:110px;margin:0 auto;";
+
+  const img = document.createElement("img");
+  img.src = book.coverUrl || "";
+  img.alt = book.title || "";
+  img.style.cssText =
+    "width:80px;height:110px;object-fit:contain;background:#f5f5f5;" +
+    "border-radius:8px;box-shadow:0 3px 8px rgba(0,0,0,0.12);display:block;";
+  img.onerror = () => { img.src = FALLBACK_COVER; };
+  imgWrapper.appendChild(img);
+
+  if (context.isForSale) {
+    const badge = document.createElement("div");
+    badge.textContent = "For Sale";
+    badge.style.cssText =
+      "position:absolute;top:4px;right:4px;background:rgba(102,126,234,0.92);" +
+      "color:#fff;font-size:0.6rem;font-weight:700;padding:2px 5px;" +
+      "border-radius:4px;line-height:1.3;white-space:nowrap;";
+    imgWrapper.appendChild(badge);
+  }
+
+  const titleEl = document.createElement("p");
+  titleEl.style.cssText =
+    "font-size:0.75rem;margin:0.4rem 0 0;color:#333;overflow:hidden;" +
+    "text-overflow:ellipsis;white-space:nowrap;max-width:90px;";
+  titleEl.textContent = book.title || "";
+
+  item.appendChild(imgWrapper);
+  item.appendChild(titleEl);
+  if (book.bookId) {
+    item.addEventListener("click", () => browseBookById(book.bookId, book.title));
+  }
+  return item;
+}
+
+function _renderFull(book, context) {
+  const cover = document.getElementById("detailCover");
+  cover.src = book.coverUrl || FALLBACK_COVER;
+  cover.onerror = () => { cover.src = FALLBACK_COVER; };
+
+  document.getElementById("detailTitle").textContent = book.title || "Untitled";
+
+  const authorEl = document.getElementById("detailAuthor");
+  authorEl.textContent = "";
+  if (book.author) {
+    authorEl.appendChild(document.createTextNode("by "));
+    const span = document.createElement("span");
+    span.className = "author-link";
+    span.textContent = book.author;
+    span.addEventListener("click", () => searchByAuthor(book.author));
+    authorEl.appendChild(span);
+  }
+
+  document.getElementById("detailIsbn").textContent = book.isbn ? "ISBN: " + book.isbn : "";
+  document.getElementById("detailCondition").textContent = formatCondition(context.condition || "");
+  document.getElementById("detailPrice").textContent =
+    context.price != null ? "$" + Number(context.price).toFixed(2) : "";
+  document.getElementById("detailDescription").textContent =
+    context.description || "No description provided.";
+
+  const buyBtn = document.getElementById("detailBuyBtn");
+  buyBtn.style.display = "inline-flex";
+  buyBtn.onclick = () => buyBook(context.myListingId, context.price, book.title);
+}
+
+function _ensureBookCardStyles() {
+  if (document.querySelector("#bookCardStyles")) return;
+  const style = document.createElement("style");
+  style.id = "bookCardStyles";
+  style.textContent = `
+    .book-card { background:white; border-radius:15px; overflow:hidden; box-shadow:0 5px 20px rgba(0,0,0,0.1); transition:transform 0.3s ease,box-shadow 0.3s ease; cursor:pointer; }
+    .book-card:hover { transform:translateY(-5px); box-shadow:0 10px 30px rgba(0,0,0,0.15); }
+    .book-image { position:relative; height:250px; overflow:hidden; }
+    .book-image img { width:100%; height:100%; object-fit:contain; background:#f5f5f5; }
+    .book-condition { position:absolute; top:10px; right:10px; background:rgba(102,126,234,0.9); color:white; padding:0.25rem 0.5rem; border-radius:12px; font-size:0.8rem; font-weight:500; }
+    .book-info { padding:1.5rem; }
+    .book-title { font-size:1.2rem; margin-bottom:0.5rem; color:#333; font-weight:600; }
+    .book-author { color:#666; margin-bottom:1rem; font-style:italic; }
+    .book-footer { display:flex; justify-content:space-between; align-items:center; margin-bottom:0.5rem; }
+    .book-price { font-size:1.4rem; font-weight:bold; color:#667eea; }
+    .btn-small { padding:0.5rem 1rem; font-size:0.9rem; }
+    .book-seller { color:#888; font-size:0.9rem; margin-top:0.5rem; }
+  `;
+  document.head.appendChild(style);
+}
+
+// ─── end §6A contract ──────────────────────────────────────────────────────────
 
 function showGridMessage(message) {
   document.getElementById("booksGrid").innerHTML =
@@ -128,15 +313,13 @@ function showGridMessage(message) {
 
 function renderListings(rows) {
   const booksGrid = document.getElementById("booksGrid");
-  displayedListings = (rows || []).map(normalizeListing);
-  if (displayedListings.length === 0) {
-    showGridMessage("No books found.");
-    return;
-  }
+  if (!rows || rows.length === 0) { showGridMessage("No books found."); return; }
   booksGrid.innerHTML = "";
-  displayedListings.forEach((book) =>
-    booksGrid.appendChild(createBookCard(book))
-  );
+  rows.forEach(row => {
+    const book = normalizeBook(row);
+    const context = { myListingId: row.id, price: row.price, condition: row.condition, isListedLocally: true };
+    booksGrid.appendChild(renderBook(book, context, "tile"));
+  });
 }
 
 // Read the current browse controls (condition filter + sort).
@@ -239,26 +422,8 @@ async function loadCommunityShelfSection(shelfType, gridId) {
   }
 
   grid.innerHTML = "";
-  unique.forEach((book) => {
-    const card = document.createElement("div");
-    card.className = "book-card";
-    card.style.cursor = "pointer";
-    card.addEventListener("click", () => browseBookById(book.id, book.title));
-    card.innerHTML = `
-      <div class="book-image">
-        <img src="${escapeHTML(book.cover_url || "")}" alt="${escapeHTML(book.title)}"
-          onerror="this.src='https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=300&h=400&fit=crop'">
-      </div>
-      <div class="book-info">
-        <h3 class="book-title">${escapeHTML(book.title)}</h3>
-        <p class="book-author">by <span class="author-link">${escapeHTML(book.author || "")}</span></p>
-      </div>
-    `;
-    if (book.author) {
-      const span = card.querySelector(".author-link");
-      if (span) span.addEventListener("click", (e) => { e.stopPropagation(); searchByAuthor(book.author); });
-    }
-    grid.appendChild(card);
+  unique.forEach((bookRow) => {
+    grid.appendChild(renderBook(normalizeBook(bookRow), {}, "tile"));
   });
 }
 
@@ -267,132 +432,6 @@ function loadHomepageSections() {
   loadFeaturedBooks();
   loadCommunityShelfSection("want", "communityWantGrid");
   loadCommunityShelfSection("have", "communityHaveGrid");
-}
-
-// Create book card element
-function createBookCard(book) {
-  const card = document.createElement("div");
-  card.className = "book-card";
-  card.onclick = () => viewListing(book.id);
-  const priceNum = Number(book.price);
-  const priceLabel = Number.isFinite(priceNum) ? `$${priceNum.toFixed(2)}` : "";
-  card.innerHTML = `
-    <div class="book-image">
-      <img src="${escapeHTML(book.image)}" alt="${escapeHTML(
-    book.title
-  )}" onerror="this.src='https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=300&h=400&fit=crop'">
-      <div class="book-condition">${formatCondition(book.condition)}</div>
-    </div>
-    <div class="book-info">
-      <h3 class="book-title">${escapeHTML(book.title)}</h3>
-      <p class="book-author">by <span class="author-link">${escapeHTML(book.author)}</span></p>
-      <div class="book-footer">
-        <span class="book-price">${priceLabel}</span>
-        <button class="btn btn-primary btn-small" onclick="event.stopPropagation(); buyBook('${book.id}')">
-          <i class="fas fa-cart-plus"></i> Buy Now
-        </button>
-      </div>
-      <p class="book-seller">
-        <i class="fas fa-check-circle" style="color:#28a745;"></i>
-        Available from a BookSharez seller
-      </p>
-    </div>
-  `;
-
-  const authorSpan = card.querySelector(".author-link");
-  if (authorSpan && book.author) {
-    authorSpan.addEventListener("click", (e) => { e.stopPropagation(); searchByAuthor(book.author); });
-  }
-
-  // Add CSS for book cards
-  if (!document.querySelector("#bookCardStyles")) {
-    const style = document.createElement("style");
-    style.id = "bookCardStyles";
-    style.textContent = `
-      .book-card {
-        background: white;
-        border-radius: 15px;
-        overflow: hidden;
-        box-shadow: 0 5px 20px rgba(0,0,0,0.1);
-        transition: transform 0.3s ease, box-shadow 0.3s ease;
-        cursor: pointer;
-      }
-      
-      .book-card:hover {
-        transform: translateY(-5px);
-        box-shadow: 0 10px 30px rgba(0,0,0,0.15);
-      }
-      
-      .book-image {
-        position: relative;
-        height: 250px;
-        overflow: hidden;
-      }
-      
-      .book-image img {
-        width: 100%;
-        height: 100%;
-        object-fit: contain;
-        background: #f5f5f5;
-      }
-      
-      .book-condition {
-        position: absolute;
-        top: 10px;
-        right: 10px;
-        background: rgba(102, 126, 234, 0.9);
-        color: white;
-        padding: 0.25rem 0.5rem;
-        border-radius: 12px;
-        font-size: 0.8rem;
-        font-weight: 500;
-      }
-      
-      .book-info {
-        padding: 1.5rem;
-      }
-      
-      .book-title {
-        font-size: 1.2rem;
-        margin-bottom: 0.5rem;
-        color: #333;
-        font-weight: 600;
-      }
-      
-      .book-author {
-        color: #666;
-        margin-bottom: 1rem;
-        font-style: italic;
-      }
-      
-      .book-footer {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 0.5rem;
-      }
-      
-      .book-price {
-        font-size: 1.4rem;
-        font-weight: bold;
-        color: #667eea;
-      }
-      
-      .btn-small {
-        padding: 0.5rem 1rem;
-        font-size: 0.9rem;
-      }
-      
-      .book-seller {
-        color: #888;
-        font-size: 0.9rem;
-        margin-top: 0.5rem;
-      }
-    `;
-    document.head.appendChild(style);
-  }
-
-  return card;
 }
 
 // Format condition for display
@@ -434,33 +473,26 @@ async function searchBooks() {
       .catch((e) => { console.error("Google Books search failed:", e); apiOk = false; }),
   ]);
 
-  // Local results first, normalised.
-  const localNormalized = (localData || []).map(normalizeListing);
-  displayedListings = localNormalized; // keeps buyBook() working
+  // Local results first.
+  const localPairs = (localData || []).map(row => ({
+    book: normalizeBook(row),
+    context: { myListingId: row.id, price: row.price, condition: row.condition, isListedLocally: true },
+  }));
 
   // External: only books not already represented by a local listing.
-  const localISBNs = new Set(localNormalized.map((r) => r.isbn).filter(Boolean));
-  const externalNormalized = apiBooks
-    .filter((b) => !localISBNs.has(b.isbn))
-    .map((b) => ({
-      type: "external",
-      id: b.isbn,
-      isbn: b.isbn,
-      title: b.title,
-      author: b.author,
-      image: b.cover,
-      year: b.year,
-      buyLink: b.buyLink,
-    }));
+  const localISBNs = new Set(localPairs.map(({ book }) => book.isbn).filter(Boolean));
+  const externalPairs = apiBooks
+    .filter(b => !localISBNs.has(b.isbn))
+    .map(b => ({ book: normalizeBook(b), context: { isListedLocally: false } }));
 
-  allSearchResults = [...localNormalized, ...externalNormalized];
+  allSearchResults = [...localPairs, ...externalPairs];
   searchResultsLoaded = 0;
 
   // Update the section title with a source breakdown.
-  const subtitle = localNormalized.length > 0
-    ? `${localNormalized.length} on BookSharez · ${externalNormalized.length} online`
-    : externalNormalized.length > 0
-      ? `${externalNormalized.length} results online`
+  const subtitle = localPairs.length > 0
+    ? `${localPairs.length} on BookSharez · ${externalPairs.length} online`
+    : externalPairs.length > 0
+      ? `${externalPairs.length} results online`
       : "";
   const apiNote = !apiOk ? " (online sources unavailable)" : "";
   if (sectionTitle) {
@@ -513,13 +545,7 @@ function showNextSearchResults() {
     searchResultsLoaded,
     searchResultsLoaded + SEARCH_PAGE_SIZE
   );
-  page.forEach((result) => {
-    grid.appendChild(
-      result.type === "local"
-        ? createBookCard(result)
-        : createExternalBookCard(result)
-    );
-  });
+  page.forEach(({ book, context }) => grid.appendChild(renderBook(book, context, "tile")));
   searchResultsLoaded += page.length;
   const remaining = allSearchResults.length - searchResultsLoaded;
   setViewMoreBtn(remaining > 0, remaining);
@@ -538,33 +564,6 @@ function setViewMoreBtn(show, remaining) {
   if (show) btn.textContent = `View ${Math.min(remaining, SEARCH_PAGE_SIZE)} more`;
 }
 
-// Card for a book that has no local listing — clicking opens the add-to-shelf modal.
-function createExternalBookCard(book) {
-  const card = document.createElement("div");
-  card.className = "book-card";
-  card.style.opacity = "0.85";
-  card.style.cursor = "pointer";
-  card.innerHTML = `
-    <div class="book-image">
-      <img src="${escapeHTML(book.image || "")}" alt="${escapeHTML(book.title)}"
-        onerror="this.src='https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=300&h=400&fit=crop'">
-      <div class="book-condition" style="background:rgba(108,117,125,0.85);">Not listed locally</div>
-    </div>
-    <div class="book-info">
-      <h3 class="book-title">${escapeHTML(book.title)}</h3>
-      <p class="book-author">by ${escapeHTML(book.author || "")}${book.year ? " <span style='color:#aaa;font-size:0.85em;'>(" + escapeHTML(book.year) + ")</span>" : ""}</p>
-      <div class="book-footer" style="margin-bottom:0.5rem;">
-        <span class="book-price" style="font-size:1rem;color:#667eea;">Be the first to list this!</span>
-      </div>
-      <p class="book-seller" style="color:#bbb;font-size:0.8rem;">
-        <i class="fas fa-info-circle"></i> Not yet available on BookSharez
-      </p>
-    </div>
-  `;
-  card.addEventListener("click", () => openExternalBookOptions(book));
-  return card;
-}
-
 // When a user clicks an external (not-yet-listed) book card, open the add-to-shelf
 // modal pre-filled so they can add it to their shelf or list it for sale.
 function openExternalBookOptions(book) {
@@ -578,7 +577,7 @@ function openExternalBookOptions(book) {
   document.getElementById("shelfSearchQuery").value = book.title || "";
   document.getElementById("shelfSearchStatus").textContent = `"${escapeHTML(book.title)}" selected ✓`;
   document.getElementById("shelfSearchResults").style.display = "none";
-  pendingCover = { isbn: book.isbn || null, url: book.image || null };
+  pendingCover = { isbn: book.isbn || null, url: book.coverUrl || null };
   modal.style.display = "block";
 }
 
@@ -1366,8 +1365,6 @@ function ensureDetailStyles() {
 async function viewListing(listingId) {
   ensureDetailStyles();
   const detail = document.getElementById("bookDetail");
-  const fallbackCover =
-    "https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=400&h=600&fit=crop";
 
   // Show the detail page immediately with a loading state.
   document.getElementById("homepage").style.display = "none";
@@ -1398,38 +1395,13 @@ async function viewListing(listingId) {
   }
 
   currentDetailId = data.id;
-  const book = data.books || {};
-  const priceNum = Number(data.price);
-
-  const cover = document.getElementById("detailCover");
-  cover.src = book.cover_url || fallbackCover;
-  cover.onerror = () => {
-    cover.src = fallbackCover;
-  };
-
-  document.getElementById("detailTitle").textContent = book.title || "Untitled";
-  const authorEl = document.getElementById("detailAuthor");
-  authorEl.textContent = "";
-  if (book.author) {
-    authorEl.appendChild(document.createTextNode("by "));
-    const authorSpan = document.createElement("span");
-    authorSpan.className = "author-link";
-    authorSpan.textContent = book.author;
-    authorSpan.addEventListener("click", () => searchByAuthor(book.author));
-    authorEl.appendChild(authorSpan);
-  }
-  document.getElementById("detailIsbn").textContent = book.isbn
-    ? "ISBN: " + book.isbn
-    : "";
-  document.getElementById("detailCondition").textContent = formatCondition(
-    data.condition
-  );
-  document.getElementById("detailPrice").textContent = Number.isFinite(priceNum)
-    ? "$" + priceNum.toFixed(2)
-    : "";
-  document.getElementById("detailDescription").textContent =
-    data.description || "No description provided.";
-  document.getElementById("detailBuyBtn").style.display = "inline-flex";
+  _renderFull(normalizeBook(data), {
+    myListingId: data.id,
+    price: data.price,
+    condition: data.condition,
+    description: data.description,
+    isListedLocally: true,
+  });
 
   // Show seller name with profile link (async; page is already visible)
   const sellerEl = document.getElementById("detailSeller");
@@ -1496,21 +1468,11 @@ function backToBrowse() {
   currentDetailId = null;
 }
 
-function buyBook(listingId) {
-  if (!isLoggedIn) {
-    alert("Please login first to buy books");
-    showLogin();
-    return;
-  }
-
-  const book = displayedListings.find((b) => b.id === listingId);
-  if (!book) return;
-
-  const priceLabel = `$${Number(book.price).toFixed(2)}`;
-  if (confirm(`Are you sure you want to buy "${book.title}" for ${priceLabel}?`)) {
-    alert(
-      "Purchase successful! You will receive shipping information via email."
-    );
+function buyBook(listingId, price, title) {
+  if (!isLoggedIn) { alert("Please login first to buy books"); showLogin(); return; }
+  const priceLabel = Number.isFinite(+price) ? ` for $${Number(price).toFixed(2)}` : "";
+  if (confirm(`Are you sure you want to buy "${title || "this book"}"${priceLabel}?`)) {
+    alert("Purchase successful! You will receive shipping information via email.");
   }
 }
 
@@ -1638,21 +1600,23 @@ async function browseBookById(bookId, title) {
     searchBooksAPI(title || "").then((r) => { apiBooks = r; }).catch(() => {}),
   ]);
 
-  const localNormalized = ((localResult && localResult.data) || []).map(normalizeListing);
-  const localISBNs = new Set(localNormalized.map((r) => r.isbn).filter(Boolean));
+  const localPairs = ((localResult && localResult.data) || []).map(row => ({
+    book: normalizeBook(row),
+    context: { myListingId: row.id, price: row.price, condition: row.condition, isListedLocally: true },
+  }));
+  const localISBNs = new Set(localPairs.map(({ book }) => book.isbn).filter(Boolean));
 
-  const externalNormalized = apiBooks
-    .filter((b) => !localISBNs.has(b.isbn))
-    .map((b) => ({ type: "external", id: b.isbn, isbn: b.isbn, title: b.title, author: b.author, image: b.cover, year: b.year, buyLink: b.buyLink }));
+  const externalPairs = apiBooks
+    .filter(b => !localISBNs.has(b.isbn))
+    .map(b => ({ book: normalizeBook(b), context: { isListedLocally: false } }));
 
-  allSearchResults = [...localNormalized, ...externalNormalized];
+  allSearchResults = [...localPairs, ...externalPairs];
   searchResultsLoaded = 0;
-  displayedListings = localNormalized;
 
-  const subtitle = localNormalized.length > 0
-    ? `${localNormalized.length} on BookSharez · ${externalNormalized.length} online`
-    : externalNormalized.length > 0
-      ? `${externalNormalized.length} results online`
+  const subtitle = localPairs.length > 0
+    ? `${localPairs.length} on BookSharez · ${externalPairs.length} online`
+    : externalPairs.length > 0
+      ? `${externalPairs.length} results online`
       : "";
 
   const existingSub = document.querySelector(".search-subtitle");
@@ -2300,44 +2264,8 @@ function renderProfileShelf(containerId, entries, listedIsbns = new Set()) {
   const grid = document.createElement("div");
   grid.style.cssText = "display:flex;flex-wrap:wrap;gap:1rem;margin-bottom:1.5rem;";
   entries.forEach((entry) => {
-    const book = entry.books || {};
-    const isListed = listedIsbns.has(book.isbn);
-
-    const item = document.createElement("div");
-    item.style.cssText = "text-align:center;width:90px;cursor:pointer;";
-    item.title = book.title || "";
-
-    const imgWrapper = document.createElement("div");
-    imgWrapper.style.cssText = "position:relative;width:80px;height:110px;margin:0 auto;";
-
-    const img = document.createElement("img");
-    img.src = book.cover_url || "";
-    img.alt = book.title || "";
-    img.style.cssText = "width:80px;height:110px;object-fit:contain;background:#f5f5f5;border-radius:8px;box-shadow:0 3px 8px rgba(0,0,0,0.12);display:block;";
-    img.onerror = () => {
-      img.src = "https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=90&h=120&fit=crop";
-    };
-    imgWrapper.appendChild(img);
-
-    if (isListed) {
-      const badge = document.createElement("div");
-      badge.textContent = "For Sale";
-      badge.style.cssText =
-        "position:absolute;top:4px;right:4px;background:rgba(102,126,234,0.92);" +
-        "color:#fff;font-size:0.6rem;font-weight:700;padding:2px 5px;border-radius:4px;line-height:1.3;white-space:nowrap;";
-      imgWrapper.appendChild(badge);
-    }
-
-    const titleEl = document.createElement("p");
-    titleEl.style.cssText =
-      "font-size:0.75rem;margin:0.4rem 0 0;color:#333;overflow:hidden;" +
-      "text-overflow:ellipsis;white-space:nowrap;max-width:90px;";
-    titleEl.textContent = book.title || "";
-
-    item.appendChild(imgWrapper);
-    item.appendChild(titleEl);
-    item.addEventListener("click", () => browseBookById(book.id, book.title));
-    grid.appendChild(item);
+    const book = normalizeBook(entry);
+    grid.appendChild(renderBook(book, { isForSale: listedIsbns.has(book.isbn) }, "thumb"));
   });
   container.appendChild(grid);
 }
@@ -2441,6 +2369,7 @@ let _scanAnimFrame = null;   // requestAnimationFrame id
 let _scannerFallback = null; // html5-qrcode instance (fallback only)
 let _scannerTarget = null;   // 'shelf' | 'sell' | 'dashboard'
 let _scannedBookData = null;
+let _lastScanFile = null;    // File kept for AI barcode retry after Quagga/BarcodeDetector fails
 
 function openBookScanner() {
   _scannerTarget = "dashboard";
@@ -2485,7 +2414,7 @@ function startLiveCamera() {
 
 function _showScannerState(state) {
   document.getElementById("scannerStateScanning").style.display = state === "scanning" ? "" : "none";
-  document.getElementById("scannerStateFound").style.display   = state === "found"    ? "" : "none";
+  document.getElementById("scannerStateFound").style.display   = state === "found"    ? "block" : "none";
 }
 
 async function _startLiveScanner() {
@@ -2560,6 +2489,20 @@ async function _stopLiveScanner() {
 }
 
 async function _onBarcodeDetected(isbn) {
+  // Reject non-ISBN barcodes (UPC-A, store price codes, etc.)
+  const isIsbn13 = /^97[89]\d{10}$/.test(isbn);
+  const isIsbn10 = /^\d{9}[\dXx]$/.test(isbn);
+  if (!isIsbn13 && !isIsbn10) {
+    const statusEl = document.getElementById("scannerStatus");
+    statusEl.style.display = "";
+    statusEl.textContent = "That’s a price barcode, not an ISBN — enter the ISBN below:";
+    document.getElementById("scannerManualEntry").style.display = "";
+    document.getElementById("scannerManualISBN").focus();
+    document.getElementById("scannerPhotoInput").value = "";
+    document.getElementById("scannerGalleryInput").value = "";
+    return;
+  }
+
   await _stopLiveScanner();
   document.getElementById("barcodeScannerView").innerHTML = "";
 
@@ -2659,10 +2602,14 @@ async function addScannedBook(shelfType) {
 async function scannerReset() {
   await _stopLiveScanner();
   _scannedBookData = null;
+  _lastScanFile = null;
   _showScannerState("scanning");
   _resetCameraView();
   document.getElementById("scannerPhotoInput").value = "";
   document.getElementById("scannerGalleryInput").value = "";
+  document.getElementById("scannerCoverInput").value = "";
+  document.getElementById("scannerVisionFallback").style.display = "none";
+  document.getElementById("scannerCoverResults").style.display = "none";
 }
 
 async function closeBarcodeScanner() {
@@ -2671,13 +2618,19 @@ async function closeBarcodeScanner() {
   document.getElementById("barcodeScannerView").innerHTML = "";
   document.getElementById("scannerPhotoInput").value = "";
   document.getElementById("scannerGalleryInput").value = "";
+  document.getElementById("scannerCoverInput").value = "";
+  document.getElementById("scannerVisionFallback").style.display = "none";
+  document.getElementById("scannerCoverResults").style.display = "none";
   _scannedBookData = null;
+  _lastScanFile = null;
 }
 
 async function scanFromPhoto(input) {
   const file = input.files[0];
   if (!file) return;
+  _lastScanFile = file; // saved for AI barcode retry
   const statusEl = document.getElementById("scannerStatus");
+  statusEl.style.display = "";
   statusEl.textContent = "Scanning photo…";
   await _stopLiveScanner();
 
@@ -2696,16 +2649,197 @@ async function scanFromPhoto(input) {
     } catch (e) { console.warn("BarcodeDetector photo scan failed:", e); }
   }
 
-  // html5-qrcode fallback
+  // Quagga2 fallback — purpose-built for 1D barcodes from static images.
+  // html5-qrcode's bundled ZXing-js is kept only for the live camera path.
+  const objUrl = URL.createObjectURL(file);
   try {
-    const tmpScanner = new Html5Qrcode("barcodeScannerView");
-    const result = await tmpScanner.scanFile(file, false);
-    try { tmpScanner.clear(); } catch (e) { /* ignore */ }
-    await _onBarcodeDetected(result);
-  } catch (err) {
-    statusEl.textContent = "No barcode found. Make sure the barcode is sharp and well-lit, or try the live camera.";
+    const isbn = await new Promise((resolve) => {
+      Quagga.decodeSingle({
+        src: objUrl,
+        numOfWorkers: 0,
+        decoder: { readers: ["ean_reader", "ean_8_reader", "code_128_reader", "upc_reader"] },
+        locate: true,
+      }, (result) => {
+        resolve(result && result.codeResult ? result.codeResult.code : null);
+      });
+    });
+    if (isbn) {
+      await _onBarcodeDetected(isbn);
+    } else {
+      statusEl.textContent = "Couldn't read barcode — try AI reader, scan the cover, or enter manually.";
+      document.getElementById("scannerVisionFallback").style.display = "";
+      input.value = "";
+      document.getElementById("scannerPhotoInput").value = "";
+      document.getElementById("scannerGalleryInput").value = "";
+    }
+  } finally {
+    URL.revokeObjectURL(objUrl);
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Vision OCR helpers (vision-extract Edge Function)
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Compress a File to under 4.5 MB and return { base64, mimeType }.
+// Uses canvas resize when the file is oversized; reads directly otherwise.
+async function _compressAndEncode(file) {
+  const MAX_BYTES = 4.5 * 1024 * 1024;
+
+  if (file.size <= MAX_BYTES) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const dataUrl = reader.result;
+        const [header, base64] = dataUrl.split(",");
+        const mimeType = header.match(/:(.*?);/)?.[1] || "image/jpeg";
+        const allowed = ["image/jpeg", "image/png", "image/webp"];
+        resolve({ base64, mimeType: allowed.includes(mimeType) ? mimeType : "image/jpeg" });
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
+
+  // Oversized — scale down via canvas (preserves aspect ratio).
+  const bitmap = await createImageBitmap(file);
+  const scale = Math.sqrt(MAX_BYTES / file.size);
+  const w = Math.round(bitmap.width * scale);
+  const h = Math.round(bitmap.height * scale);
+  const canvas = document.createElement("canvas");
+  canvas.width = w;
+  canvas.height = h;
+  canvas.getContext("2d").drawImage(bitmap, 0, 0, w, h);
+  bitmap.close();
+
+  return new Promise((resolve, reject) => {
+    canvas.toBlob((blob) => {
+      if (!blob) { reject(new Error("Canvas compression failed")); return; }
+      const reader = new FileReader();
+      reader.onload = () => {
+        resolve({ base64: reader.result.split(",")[1], mimeType: "image/jpeg" });
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    }, "image/jpeg", 0.85);
+  });
+}
+
+// Call the vision-extract Edge Function. Returns the parsed `data` object,
+// or throws with a user-safe message on failure.
+async function _callVisionExtract(base64, mimeType, mode) {
+  const { data, error } = await supabaseClient.functions.invoke("vision-extract", {
+    body: { imageBase64: base64, mimeType, mode },
+  });
+  if (error) throw new Error(error.message || "Vision read failed");
+  if (!data.ok) throw new Error(data.error || "Couldn't read the image.");
+  return data.data;
+}
+
+// Called by the "Try AI barcode reader" button — retries the last failed
+// scan photo through the vision-extract Edge Function (barcode mode).
+async function retryWithVision() {
+  if (!_lastScanFile) return;
+  const statusEl = document.getElementById("scannerStatus");
+  document.getElementById("scannerVisionFallback").style.display = "none";
+  statusEl.style.display = "";
+  statusEl.textContent = "Reading barcode with AI…";
+
+  try {
+    const { base64, mimeType } = await _compressAndEncode(_lastScanFile);
+    const result = await _callVisionExtract(base64, mimeType, "barcode");
+    const isbn = (result.isbn || "").replace(/[\s-]/g, "");
+
+    if (/^(\d{13}|\d{9}[\dXx])$/.test(isbn)) {
+      statusEl.textContent = "Barcode read: " + isbn + " — looking up…";
+      await _onBarcodeDetected(isbn);
+    } else {
+      statusEl.textContent = "Couldn't read the ISBN. Try scanning the cover or enter manually.";
+      document.getElementById("scannerManualEntry").style.display = "";
+    }
+  } catch (e) {
+    console.error("Vision barcode retry failed:", e);
+    statusEl.textContent = e.message || "Couldn't read the image. Enter details manually.";
+    document.getElementById("scannerManualEntry").style.display = "";
+  }
+}
+
+// Called by the "Read Book Cover" file input. Sends the cover photo to
+// vision-extract (cover mode), searches by the returned title/author,
+// and shows candidates for the user to confirm — never silently auto-fills.
+async function scanCoverPhoto(input) {
+  const file = input.files[0];
+  if (!file) return;
+
+  const statusEl = document.getElementById("scannerStatus");
+  const coverResultsDiv = document.getElementById("scannerCoverResults");
+  statusEl.style.display = "";
+  statusEl.textContent = "Reading cover…";
+  coverResultsDiv.style.display = "none";
+  document.getElementById("scannerVisionFallback").style.display = "none";
+
+  try {
+    const { base64, mimeType } = await _compressAndEncode(file);
+    const result = await _callVisionExtract(base64, mimeType, "cover");
+
+    const title = (result.title || "").trim();
+    const author = (result.author || "").trim();
+    const isbnRaw = (result.isbn || "").replace(/[\s-]/g, "");
+
+    // High-confidence ISBN on the cover — route straight to barcode flow.
+    if (isbnRaw && /^(\d{13}|\d{9}[\dXx])$/.test(isbnRaw) && result.confidence === "high") {
+      statusEl.textContent = "ISBN found on cover: " + isbnRaw + " — looking up…";
+      await _onBarcodeDetected(isbnRaw);
+      return;
+    }
+
+    if (!title) {
+      statusEl.textContent = "Couldn't read the cover. Try a clearer photo or enter details manually.";
+      document.getElementById("scannerManualEntry").style.display = "";
+      return;
+    }
+
+    const query = [title, author].filter(Boolean).join(" ");
+    statusEl.textContent = "Searching: " + [title, author].filter(Boolean).join(" · ") + "…";
+
+    const results = await searchBooksAPI(query);
+    if (!results.length) {
+      statusEl.textContent = "No matches found. Try entering the ISBN or title manually.";
+      document.getElementById("scannerManualEntry").style.display = "";
+      return;
+    }
+
+    statusEl.textContent = "Select the correct book:";
+    coverResultsDiv.style.display = "";
+    renderBookSearchResults(results.slice(0, 5), coverResultsDiv, async (book) => {
+      coverResultsDiv.style.display = "none";
+      statusEl.textContent = "";
+      if (book.isbn) {
+        // Route confirmed candidate through the existing isbn-lookup flow.
+        await _onBarcodeDetected(book.isbn);
+      } else {
+        // No ISBN available — fill fields directly from search metadata.
+        if (_scannerTarget === "sell") {
+          await closeBarcodeScanner();
+          selectSellBook("", book.title, book.author, book.cover);
+        } else if (_scannerTarget === "shelf") {
+          await closeBarcodeScanner();
+          selectShelfBook("", book.title, book.author, book.cover);
+        } else {
+          _scannedBookData = { isbn: "", title: book.title, author: book.author, cover_url: book.cover };
+          document.getElementById("scannerBookCover").src =
+            book.cover || "https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=140&h=190&fit=crop";
+          document.getElementById("scannerBookTitle").textContent = book.title;
+          document.getElementById("scannerBookAuthor").textContent = book.author ? "by " + book.author : "";
+          _showScannerState("found");
+        }
+      }
+    });
+  } catch (e) {
+    console.error("Cover scan failed:", e);
+    statusEl.textContent = e.message || "Couldn't read the cover. Enter details manually.";
+    document.getElementById("scannerManualEntry").style.display = "";
+  } finally {
     input.value = "";
-    document.getElementById("scannerPhotoInput").value = "";
-    document.getElementById("scannerGalleryInput").value = "";
   }
 }

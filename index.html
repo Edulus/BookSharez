@@ -219,7 +219,6 @@
             <button
               class="btn btn-primary"
               id="detailBuyBtn"
-              onclick="buyBook(currentDetailId)"
             >
               <i class="fas fa-cart-plus"></i> Buy Now
             </button>
@@ -606,6 +605,33 @@
             </button>
             <div id="barcodeScannerView" style="display:none"></div>
             <p id="scannerStatus" class="scanner-status" style="display:none"></p>
+            <!-- Shown after a barcode scan fails — lets the user retry with AI -->
+            <div id="scannerVisionFallback" class="scanner-vision-fallback" style="display:none">
+              <button type="button" class="btn btn-secondary btn-small" onclick="retryWithVision()">
+                <i class="fas fa-magic"></i> Try AI barcode reader
+              </button>
+            </div>
+            <div class="scanner-divider"><span>or</span></div>
+            <!-- Cover photo path — vision OCR fallback when barcode is unavailable -->
+            <label class="scanner-photo-label">
+              <i class="fas fa-book-open"></i> Read Book Cover
+              <input type="file" id="scannerCoverInput"
+                accept="image/jpeg,image/png,image/webp" capture="environment"
+                onchange="scanCoverPhoto(this)" class="scanner-file-input">
+            </label>
+            <!-- Candidate list shown after a cover vision read -->
+            <div id="scannerCoverResults" class="scanner-cover-results" style="display:none"></div>
+            <div id="scannerManualEntry" style="display:none">
+              <div class="scanner-manual-input">
+                <input type="text" id="scannerManualISBN" placeholder="e.g. 9780553296129"
+                  inputmode="numeric" maxlength="17"
+                  onkeydown="if(event.key==='Enter') scannerManualLookup()">
+                <button type="button" class="btn btn-primary" onclick="scannerManualLookup()">
+                  Look Up
+                </button>
+              </div>
+              <p class="scanner-manual-hint">Dashes OK — e.g. 978-0-553-29612-9</p>
+            </div>
           </div>
 
           <!-- State 2: book found -->
@@ -646,8 +672,10 @@
 
     <!-- Supabase JS library (must load before supabase-config.js) -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <!-- Barcode / QR scanner -->
+    <!-- Barcode / QR scanner (live camera) -->
     <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+    <!-- Quagga2: 1D barcode decoder for photo/file scanning (html5-qrcode's ZXing-js is unreliable for static 1D images) -->
+    <script src="https://cdn.jsdelivr.net/npm/@ericblade/quagga2@1.8.4/dist/quagga.min.js"></script>
     <script src="js/supabase-config.js"></script>
     <script src="js/main.js"></script>
   </body>
