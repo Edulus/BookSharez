@@ -1,7 +1,7 @@
 # BookSharez ToDo
 **Created:** June 12, 2026
 **Source:** PROJECT_REVIEW_2026-06-12.md
-**Last updated:** June 15, 2026
+**Last updated:** June 20, 2026
 
 > **Completed work is in [CHANGELOG.md](CHANGELOG.md).** This file is future work
 > only. The original 1–10 backlog (git, docs pivot, schema, RLS, auth, 5-grade
@@ -65,6 +65,7 @@ live too (quick filter/sort behavior not yet explicitly retested).
 ## 🚧 QUEUED — BLOCKED
 
 - [x] **Book-as-object renderer consolidation** — `renderBook(book, context, density)` is live. All five old renderers replaced; `normalizeListing`, `createBookCard`, `createExternalBookCard`, `displayedListings` removed. One `FALLBACK_COVER`; one field name per concept. *(Done June 20.)*
+- [x] **Vision OCR** — `vision-extract` Edge Function deployed, `GEMINI_API_KEY` set, client-side wiring complete (barcode recovery + cover photo paths), verified by Playwright harness. *(Done June 20.)*
 
 ---
 

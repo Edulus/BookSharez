@@ -14,7 +14,29 @@ rationale lives inline in the relevant docs (e.g. the ADR in
 
 ## [Unreleased]
 
-_Phase 1 backend foundation + documentation. Work to date: 2026-06-14 – 2026-06-15._
+_Phase 1 backend foundation + documentation. Work to date: 2026-06-14 – 2026-06-20._
+
+### Added (June 20 — Vision OCR + renderer consolidation)
+
+- **Vision OCR — barcode recovery + cover photo paths** — two new listing entry points alongside the existing barcode scanner:
+  - *Barcode recovery:* when Quagga2/BarcodeDetector returns no result, a "Try AI barcode reader" button (`#scannerVisionFallback`) appears. Clicking it sends the saved `_lastScanFile` to the `vision-extract` Edge Function (barcode mode); a valid ISBN routes into the existing `_onBarcodeDetected` → `isbn-lookup` chain. Invalid/missing ISBN surfaces manual entry.
+  - *Cover photo:* a "Read Book Cover" file input (`#scannerCoverInput`) sends the image to `vision-extract` (cover mode). High-confidence ISBN on the cover routes straight to the barcode flow; otherwise title+author feed `searchBooksAPI` and candidates render in `#scannerCoverResults` via the existing `renderBookSearchResults` picker — user always confirms before auto-fill. Both failure branches surface `#scannerManualEntry`.
+  - Four JS functions in `js/main.js`: `_compressAndEncode(file)` (canvas resize if > 4.5 MB), `_callVisionExtract(base64, mimeType, mode)` (calls Edge Function with user JWT, user-safe errors on failure), `retryWithVision()` (barcode path), `scanCoverPhoto(input)` (cover path). `scannerReset()` and `closeBarcodeScanner()` both clear the new divs.
+  - `GEMINI_API_KEY` never reaches the browser. Verified by `verify-vision.js` Playwright harness: all DOM checks, JS function checks, Path A (cover → candidates → confirm), and Path B (scan fail → AI retry → ISBN) pass. Zero console errors.
+
+- **`vision-extract` Edge Function deployed** — JWT-gated Deno function on Supabase. Two modes: `cover` → `{title, author, isbn, confidence}`; `barcode` → `{isbn, confidence}`. Strips markdown fences defensively, 10 s timeout, user-safe errors only. `GEMINI_API_KEY` secret set (Generative Language API, `booksharez` GCP project). Model: `gemini-3.5-flash`.
+
+- **Book object rendering contract (§6A)** — single `renderBook(book, context, density)` function replacing five separate renderers (`createBookCard`, `createExternalBookCard`, inline community-shelf card, `renderProfileShelf` DOM loop, `viewListing` DOM manipulation). `normalizeBook(raw)` maps any source shape to `Book = {bookId, isbn, title, author, coverUrl, year}`; `BookContext` carries viewer-relative state; `renderBook` dispatches to `_renderTile`/`_renderThumb`/`_renderFull`. One `FALLBACK_COVER` constant. `allSearchResults` converted to `{book, context}` pairs. `buyBook()` signature changed to `(listingId, price, title)`; `_renderFull` wires the detail-page Buy Now button directly, removing the inline `onclick` from `index.html`. `displayedListings` global eliminated. Contract documented in `docs/BOOKSHAREZ_ARCHITECTURE.md` §6A and `CLAUDE.md`. Verified across all five rendering paths by Playwright harness.
+
+### Changed (June 20)
+
+- **`.gitignore`** — added `node_modules/`, `package.json`, `package-lock.json`.
+
+### Note on commit history (June 20)
+
+`9db85bf` ("Renderer consolidation") contains both the renderer work and the vision OCR client-side wiring — batched in one pass, not individually bisectable. `426ee57` ("Add Vision OCR feature") contains the Edge Function source, verify harness, and spec doc only. The commit messages understate `9db85bf`'s contents.
+
+---
 
 ### Security (June 18 — API key incident response + prevention)
 
