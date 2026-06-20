@@ -10,6 +10,11 @@ Thumbs.db
 .vscode/
 .idea/
 
+# Node / Playwright
+node_modules/
+package.json
+package-lock.json
+
 # Test artefacts
 verify-screenshots/
 
