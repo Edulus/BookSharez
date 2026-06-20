@@ -61,3 +61,16 @@ live too (quick filter/sort behavior not yet explicitly retested).
 ## 📌 Doc loose end
 
 - [ ] **PROJECT_FILES_INDEX.md** — still labels the dev folder a "Next.js project," but that file lives in the Claude project, **not this repo** — patch it there.
+
+## 🚧 QUEUED — BLOCKED
+
+- [x] **Book-as-object renderer consolidation** — `renderBook(book, context, density)` is live. All five old renderers replaced; `normalizeListing`, `createBookCard`, `createExternalBookCard`, `displayedListings` removed. One `FALLBACK_COVER`; one field name per concept. *(Done June 20.)*
+
+---
+
+## 🔒 SECURITY (June 18 — completed)
+
+- [x] **Google Books API key removed from browser JS** — old key rotated/deleted; new key in Supabase Edge Function secrets only. `supabase-config.js` now contains only `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY`.
+- [x] **Pre-commit hook** — `.git/hooks/pre-commit` blocks `AIzaSy…`, `sk-…`, and service-role JWT patterns. Live and tested.
+- [x] **GitHub Actions gitleaks** — `.github/workflows/secret-scan.yml` scans every push and PR.
+- [x] **CLAUDE.md security rules** — non-negotiable rules added at the top; any future API key must go through an Edge Function.

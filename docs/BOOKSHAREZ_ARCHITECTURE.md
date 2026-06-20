@@ -314,6 +314,68 @@ Every book page has three tabs/sections:
 
 ---
 
+## 6A. The Book Object (Rendering Contract)
+
+A book is a single object that renders itself at any density and carries a
+viewer-relative action set. Anywhere a book surfaces — search result, shelf tile,
+scan result, profile thumbnail, feed item, or full detail page — it is the *same
+object* drawing itself differently, not a fresh hand-built representation.
+
+This contract exists to prevent renderer drift: the failure mode where each feature
+reconstructs "a book on screen" with its own markup, its own field names, and its
+own fallbacks, so that adding one data point requires editing every renderer.
+
+### Three seams
+
+**1. `Book` (canonical, viewer-independent)**
+
+```
+Book = { bookId, isbn, title, author, coverUrl, year }
+```
+
+One normalized shape. Every source — a `listings` row, a `shelf_entries` row, an
+external API result — passes through `normalizeBook(raw)` to produce it. There is
+exactly one field name per concept (`coverUrl`, never also `image` or `cover`).
+
+**2. `BookContext` (this viewer's relationship to the book)**
+
+```
+BookContext = { isListedLocally, communityCount, myListingId,
+                onHaveShelf, onWantShelf, isForSale, wantCount }
+```
+
+The differences between a community card, an "external/not-listed" card, and a
+"For Sale"-badged shelf thumbnail are not separate templates — they are different
+values of this one object. Context is *data carried alongside the book*, not
+knowledge baked into which function happened to be called.
+
+**3. `availableActions(book, context)` → `[{ label, icon, handler }]`**
+
+The action set is derived from state, not hardcoded into markup. A book listed
+locally offers Buy; one not yet listed offers "List it"; one already on the
+viewer's Have shelf offers List-for-sale / Remove. The renderer loops the returned
+list; affordances are added by extending this function, never by editing a template.
+
+### The renderer
+
+```
+renderBook(book, context, density)   // density → tile | thumb | full
+```
+
+One function consumes all three seams. `tile` is the grid card, `thumb` is the
+compact shelf cover (with badge), `full` is the detail page. The compact picker row
+used inside the shelf/sell modals is intentionally **not** part of this contract —
+it is a selection control, not a book representation, and stays separate.
+
+### Phase alignment
+
+Phase 1 populates only `isListedLocally`, `communityCount`, and `myListingId`; the
+remaining `BookContext` fields are declared but null. They are the seams onto which
+Phase 2 (shelves, want-counts) and Phase 3–4 (discussion, reviews) attach without
+re-touching any renderer.
+
+---
+
 ## 7. Profile Page Structure (Priority Order)
 
 ### 1. Bookshelf (Primary — why someone visits)
@@ -410,6 +472,7 @@ This architecture describes the full product vision. Implementation is phased:
 3. **Every search resolves to a meaningful outcome.** Dead-end prevention is a system requirement, not a UX preference.
 4. **Identity is inferred, not declared.** No onboarding questionnaires. Shelves generate the profile.
 5. **Community supply is always prioritized.** Affiliate is fallback, never primary.
+6. **Every book is a single self-rendering object.** A book renders itself at any density (tile / thumb / full) and carries a viewer-relative action set derived from `BookContext`. No feature hand-builds a book card. See §6A for the contract.
 
 ---
 
