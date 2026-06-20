@@ -518,8 +518,8 @@ header {
 }
 
 .scanner-book-cover {
-  width: 70px;
-  height: 95px;
+  width: 100px;
+  height: 135px;
   object-fit: contain;
   border-radius: 6px;
   background: #e9ecef;
@@ -527,13 +527,13 @@ header {
 }
 
 .scanner-book-info h3 {
-  font-size: 1rem;
+  font-size: 1.2rem;
   margin: 0 0 0.3rem;
   color: #333;
 }
 
 .scanner-book-info p {
-  font-size: 0.9rem;
+  font-size: 1rem;
   color: #666;
   margin: 0;
   font-style: italic;
@@ -541,12 +541,13 @@ header {
 
 .scanner-actions {
   display: flex;
+  flex-direction: column;
   gap: 0.75rem;
 }
 
 .scanner-actions .btn {
-  flex: 1;
   justify-content: center;
+  width: 100%;
 }
 
 .scanner-rescan-btn {
@@ -554,6 +555,45 @@ header {
   margin-top: 1rem;
   padding: 0.6rem;
   text-align: center;
+}
+
+.scanner-manual-input {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.scanner-manual-input input {
+  flex: 1;
+  padding: 0.5rem 0.75rem;
+  border: 1.5px solid #ddd;
+  border-radius: 8px;
+  font-size: 1rem;
+  outline: none;
+}
+
+.scanner-manual-input input:focus {
+  border-color: #667eea;
+}
+
+.scanner-manual-hint {
+  font-size: 0.8rem;
+  color: #888;
+  margin: 0.35rem 0 0;
+  text-align: center;
+}
+
+.scanner-vision-fallback {
+  margin-top: 0.5rem;
+  text-align: center;
+}
+
+.scanner-cover-results {
+  max-height: 240px;
+  overflow-y: auto;
+  border: 1px solid #e9ecef;
+  border-radius: 8px;
+  margin-top: 0.5rem;
 }
 
 /* Prominent scan button on dashboard */

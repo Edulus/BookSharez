@@ -16,6 +16,20 @@ rationale lives inline in the relevant docs (e.g. the ADR in
 
 _Phase 1 backend foundation + documentation. Work to date: 2026-06-14 – 2026-06-15._
 
+### Security (June 18 — API key incident response + prevention)
+
+- **Google Books API key removed from client-side code** — the key was committed in `js/supabase-config.js` and exposed when the repo was made public for GitHub Pages. Remediation: old key deleted in Google Cloud Console; new key added as a Supabase Edge Function secret (`GOOGLE_BOOKS_API_KEY`) so only `isbn-lookup` uses it server-side. Both client-side Google Books call sites (`lookupGoogleBooks`, `searchBooksAPI`) are now keyless (lower-quota anonymous calls — acceptable for Phase 1; Open Library is the automatic fallback on 429).
+- **Pre-commit hook** — `.git/hooks/pre-commit` blocks commits that contain Google API key patterns (`AIzaSy…`), generic secret keys (`sk-…`), and Supabase service-role JWTs. Tested: staging a file with a fake key exits 1 with a clear error message.
+- **GitHub Actions secret scan** — `.github/workflows/secret-scan.yml` runs `gitleaks/gitleaks-action@v2` on every push and pull request (full history scan via `fetch-depth: 0`).
+- **CLAUDE.md security rules** — non-negotiable rules added at the top of `CLAUDE.md`: only `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY` are allowed in committed JS; all other keys must live in Supabase Edge Function secrets; any new external API requiring a key must be proxied through an Edge Function.
+
+### Fixed (June 18 — barcode scanner)
+
+- **Scanner modal blank body on mobile** — the `.modal-content` `display:flex` layout caused `.modal-body` (`flex:1`) to collapse to zero height in an unconstrained viewport. Fixed by removing the flex layout from `.modal-content`/`.modal-header` entirely and replacing `.modal-body`'s flex rule with `overflow-y: auto; max-height: calc(96vh - 80px)`.
+- **Scanner restructured: photo-first UX** — the scanner modal now shows "Take a Photo" and "Choose from Gallery" buttons immediately on open, with a divider and an optional "Use Live Camera" button below. Live camera only starts when the user taps it (was auto-starting, which also caused "stuck on looking up" hangs).
+- **isbn-lookup Edge Function deployed** — was written but never deployed; pasted into Supabase Dashboard → Edge Functions (name: `isbn-lookup`). `GOOGLE_BOOKS_API_KEY` secret set with the new rotated key.
+- **API call timeouts hardened** — `lookupViaEdgeFunction`, `lookupOpenLibrary`, and `lookupGoogleBooks` each gained an `AbortController` timeout (5–6 s). Previously had none, causing "stuck on looking up" if any request hung.
+
 ### Added (June 17 — continued: Google Books API, sell modal polish, clickable books, UI fixes)
 
 - **Google Books API key wired in** — authenticated API key added to `js/supabase-config.js`
