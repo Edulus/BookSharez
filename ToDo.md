@@ -23,6 +23,9 @@ Supabase SQL editor:
 - [x] **8. Apply [db/discussions.sql](db/discussions.sql)** — creates `discussion_posts` table with RLS (public read, auth insert, owner delete). Required for the Discuss section on the book detail page to work. *(Applied June 21; Discuss section verified working.)*
 - [x] **5. Deploy the `pricing` Edge Function** — pasted into Supabase Dashboard → Edge Functions (name `pricing`). *(Applied June 16.)*
 - [x] **6. Set the `DEEPSEEK_API_KEY` secret** — set in Supabase Edge Function Secrets. *(Applied June 16.)*
+- [ ] **9. Apply [db/book_enrichment_columns.sql](db/book_enrichment_columns.sql)** — adds the Hardcover enrichment columns (`description`, `hc_rating`, `hc_genres`, `hc_series_name`, `hc_slug`, `hc_enriched_at`, etc.) to `books`. Required before the book-enrichment Edge Function can cache results.
+- [ ] **10. Deploy the `book-enrichment` Edge Function** — paste [supabase/functions/book-enrichment/index.ts](supabase/functions/book-enrichment/index.ts) into Supabase Dashboard → Edge Functions (name `book-enrichment`).
+- [ ] **11. Set the `HARDCOVER_API_TOKEN` secret** — token from https://hardcover.app/account/api, in Supabase Edge Function Secrets (with or without a leading `Bearer `).
 
 **Status:** the `pricing` function is live — tested successfully against a real book lookup. "Suggest price" now calls DeepSeek for real, with the local fallback algorithm kicking in automatically only if the Edge Function fails.
 

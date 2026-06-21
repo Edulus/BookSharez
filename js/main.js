@@ -660,6 +660,9 @@ function _renderBookPage(book, offers) {
   // look it up by ISBN for external books not yet matched to the catalog.
   if (book.bookId) _loadBookSocial(book.bookId, token);
   else enrichExternalBook(book, token);
+
+  // Hardcover enrichment (non-blocking; fills in below the ISBN line).
+  runBookEnrichment(book.isbn, token);
 }
 
 // Render community seller offers into the book page as renderBook tiles
@@ -675,6 +678,193 @@ function renderBookOffers(offers) {
     grid.appendChild(renderBook(offerBook, context, "tile"));
   });
   section.style.display = "block";
+}
+
+// ─── Book detail enrichment (Hardcover) ─────────────────────────────────────────
+// Progressive enhancement: the detail page renders instantly from listing/book
+// data, then these sections fill in async. Wired into both detail render paths
+// (_renderFull via viewListing, and _renderBookPage). Section styles live in
+// css/style.css; the data source is the book-enrichment Edge Function.
+
+async function fetchBookEnrichment(isbn) {
+  if (!isbn) return null;
+  try {
+    const resp = await supabaseClient.functions.invoke("book-enrichment", {
+      body: { isbn },
+    });
+    if (resp.error || !resp.data?.enriched) return null;
+    return resp.data;
+  } catch (e) {
+    console.error("Enrichment fetch failed:", e);
+    return null;
+  }
+}
+
+// Kick off enrichment for the book currently on screen. `token` is the value of
+// currentDetailId captured at render time; if the user navigates away before
+// Hardcover responds we drop the result instead of painting a stale book.
+function runBookEnrichment(isbn, token) {
+  const container = document.getElementById("detailEnrichment");
+  if (!container) return;
+  container.innerHTML = "";
+  if (!isbn) return;
+
+  container.innerHTML =
+    '<div class="detail-enrichment-skeleton">' +
+    '<div class="skeleton-bar"></div>' +
+    '<div class="skeleton-bar"></div>' +
+    '<div class="skeleton-bar"></div></div>';
+
+  fetchBookEnrichment(isbn).then((data) => {
+    if (currentDetailId !== token) return; // navigated away
+    if (!data) {
+      container.innerHTML = ""; // graceful degradation — page looks as before
+      return;
+    }
+    renderEnrichment(data);
+  });
+}
+
+function formatSeriesPos(pos) {
+  const n = Number(pos);
+  if (!Number.isFinite(n)) return String(pos);
+  return Number.isInteger(n) ? String(n) : String(n);
+}
+
+// Set the search box to a genre and run a browse search (mirrors searchByAuthor).
+function searchByGenre(genre) {
+  document.getElementById("homepage").style.display = "block";
+  document.getElementById("dashboard").style.display = "none";
+  document.getElementById("bookDetail").style.display = "none";
+  document.getElementById("profilePage").style.display = "none";
+  document.getElementById("searchInput").value = genre;
+  searchBooks();
+}
+
+// Build the enrichment sections into #detailEnrichment. Any section whose data
+// is null/empty is skipped. User-controlled text is set via textContent.
+function renderEnrichment(data) {
+  const container = document.getElementById("detailEnrichment");
+  if (!container) return;
+  container.innerHTML = "";
+
+  // Description with a Read more toggle when long.
+  if (data.description) {
+    const desc = document.createElement("div");
+    desc.className = "detail-book-description";
+    const LIMIT = 500;
+    const full = data.description;
+    if (full.length > LIMIT) {
+      const shortText = full.slice(0, LIMIT).trimEnd() + "… ";
+      const span = document.createElement("span");
+      span.textContent = shortText;
+      const toggle = document.createElement("span");
+      toggle.className = "read-more-toggle";
+      toggle.textContent = "Read more";
+      let expanded = false;
+      toggle.addEventListener("click", () => {
+        expanded = !expanded;
+        span.textContent = expanded ? full + " " : shortText;
+        toggle.textContent = expanded ? "Show less" : "Read more";
+      });
+      desc.appendChild(span);
+      desc.appendChild(toggle);
+    } else {
+      desc.textContent = full;
+    }
+    container.appendChild(desc);
+  }
+
+  // Meta row: page count, publisher, year, category.
+  const metaParts = [];
+  if (data.pageCount) metaParts.push(`${data.pageCount} pages`);
+  if (data.publisher) metaParts.push(data.publisher);
+  if (data.publishDate) {
+    const yr = String(data.publishDate).slice(0, 4);
+    if (/^\d{4}$/.test(yr)) metaParts.push(yr);
+  }
+  if (data.category) metaParts.push(data.category);
+  if (metaParts.length) {
+    const row = document.createElement("div");
+    row.className = "detail-meta-row";
+    metaParts.forEach((p) => {
+      const pill = document.createElement("span");
+      pill.className = "detail-pill";
+      pill.textContent = p;
+      row.appendChild(pill);
+    });
+    container.appendChild(row);
+  }
+
+  // Community rating (CSS stars).
+  if (data.rating != null) {
+    const rating = document.createElement("div");
+    rating.className = "detail-rating";
+    const rounded = Math.round(Number(data.rating));
+    const stars = document.createElement("span");
+    stars.className = "detail-stars";
+    for (let i = 1; i <= 5; i++) {
+      const star = document.createElement("span");
+      star.className = i <= rounded ? "star-filled" : "star-empty";
+      star.textContent = "★";
+      stars.appendChild(star);
+    }
+    rating.appendChild(stars);
+    const num = document.createElement("span");
+    num.className = "detail-rating-num";
+    num.textContent = Number(data.rating).toFixed(1);
+    rating.appendChild(num);
+    const metaBits = [];
+    if (data.ratingCount) metaBits.push(`${data.ratingCount.toLocaleString()} ratings`);
+    if (data.usersRead) metaBits.push(`${data.usersRead.toLocaleString()} readers`);
+    if (metaBits.length) {
+      const meta = document.createElement("span");
+      meta.className = "detail-rating-meta";
+      meta.textContent = "· " + metaBits.join(" · ");
+      rating.appendChild(meta);
+    }
+    container.appendChild(rating);
+  }
+
+  // Genre pills (clickable → browse search).
+  if (Array.isArray(data.genres) && data.genres.length) {
+    const genres = document.createElement("div");
+    genres.className = "detail-genres";
+    data.genres.slice(0, 5).forEach((g) => {
+      const pill = document.createElement("button");
+      pill.className = "detail-genre-pill";
+      pill.textContent = g;
+      pill.addEventListener("click", () => searchByGenre(g));
+      genres.appendChild(pill);
+    });
+    container.appendChild(genres);
+  }
+
+  // Series line.
+  if (data.seriesName) {
+    const series = document.createElement("div");
+    series.className = "detail-series";
+    const icon = document.createElement("i");
+    icon.className = "fas fa-layer-group";
+    series.appendChild(icon);
+    const label =
+      data.seriesPosition != null
+        ? `Book ${formatSeriesPos(data.seriesPosition)} in ${data.seriesName}`
+        : `Part of ${data.seriesName}`;
+    series.appendChild(document.createTextNode(label));
+    container.appendChild(series);
+  }
+
+  // Outbound Hardcover link.
+  if (data.slug) {
+    const link = document.createElement("a");
+    link.className = "detail-hc-link";
+    link.href = `https://hardcover.app/books/${data.slug}`;
+    link.target = "_blank";
+    link.rel = "noopener";
+    link.textContent = "More on Hardcover →";
+    container.appendChild(link);
+  }
 }
 
 // For an external book with no catalog id, match it to the `books` catalog by
@@ -1654,6 +1844,7 @@ async function viewListing(listingId) {
   document.getElementById("homepage").style.display = "none";
   document.getElementById("dashboard").style.display = "none";
   detail.style.display = "block";
+  document.getElementById("detailEnrichment").innerHTML = "";
   window.scrollTo({ top: 0, behavior: "smooth" });
 
   const { data, error } = await supabaseClient
@@ -1690,6 +1881,9 @@ async function viewListing(listingId) {
     description: data.description,
     isListedLocally: true,
   });
+
+  // Hardcover enrichment (non-blocking; fills in below the ISBN line).
+  runBookEnrichment(data.books?.isbn, data.id);
 
   // Show want count (async; page is already visible)
   if (data.book_id) {
@@ -1898,6 +2092,7 @@ function backToBrowse() {
   document.getElementById("dashboard").style.display = "none";
   document.getElementById("profilePage").style.display = "none";
   document.getElementById("homepage").style.display = "block";
+  document.getElementById("detailEnrichment").innerHTML = "";
   currentDetailId = null;
 }
 
