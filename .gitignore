@@ -17,6 +17,7 @@ package-lock.json
 
 # Test artefacts
 verify-screenshots/
+verify-bookflow-screenshots/
 
 # Logs
 *.log

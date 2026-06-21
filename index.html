@@ -215,6 +215,7 @@
             <div class="detail-price" id="detailPrice"></div>
             <div class="detail-description" id="detailDescription"></div>
             <p class="detail-seller" id="detailSeller">Sold by a BookSharez seller</p>
+            <p class="detail-want-count" id="detailWantCount"></p>
             <div class="detail-gallery" id="detailGallery"></div>
             <button
               class="btn btn-primary"
@@ -222,7 +223,34 @@
             >
               <i class="fas fa-cart-plus"></i> Buy Now
             </button>
+            <div id="detailOffers" class="detail-offers" style="display: none">
+              <h3 class="detail-offers-heading">Available on BookSharez</h3>
+              <div id="detailOffersGrid" class="detail-offers-grid"></div>
+            </div>
+            <div id="detailExternalActions" style="display: none">
+              <button class="btn btn-primary" id="detailAddShelfBtn">
+                <i class="fas fa-plus"></i> Add to Shelf
+              </button>
+              <div class="detail-affiliates" id="detailAffiliates"></div>
+            </div>
           </div>
+        </div>
+        <div id="detailDiscussion" class="detail-discussion">
+          <h3 class="discussion-heading"><i class="fas fa-comments"></i> Discussion</h3>
+          <div id="discussionPosts" class="discussion-posts"></div>
+          <div id="discussionForm" class="discussion-compose" style="display:none">
+            <textarea id="discussionInput" class="discussion-input"
+              placeholder="Share your thoughts about this book…"
+              maxlength="2000" rows="3"
+              oninput="document.getElementById('discussionCharCount').textContent = this.value.length + ' / 2000'"></textarea>
+            <div class="discussion-form-footer">
+              <span id="discussionCharCount" class="discussion-char-count">0 / 2000</span>
+              <button type="button" class="btn btn-primary btn-small" onclick="submitDiscussionPost()">Post</button>
+            </div>
+          </div>
+          <p id="discussionAuthPrompt" class="discussion-auth-prompt" style="display:none">
+            <a href="#" class="discussion-login-link" onclick="showLogin(); return false;">Log in</a> to join the discussion.
+          </p>
         </div>
       </div>
     </div>

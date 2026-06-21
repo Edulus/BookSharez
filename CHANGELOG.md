@@ -14,7 +14,24 @@ rationale lives inline in the relevant docs (e.g. the ADR in
 
 ## [Unreleased]
 
-_Phase 1 backend foundation + documentation. Work to date: 2026-06-14 – 2026-06-20._
+_Phase 1 backend foundation + documentation. Work to date: 2026-06-14 – 2026-06-21._
+
+### Added (June 21 — Unified book page + browse-flow polish)
+
+- **Unified, book-centric detail page (architecture §5.4)** — one `_renderBookPage(book, offers)` renderer on the existing `#bookDetail` surface now backs every "tell me more about this book" click. Shows book metadata, **community seller offers as primary** (rendered as `renderBook` tiles into a new `#detailOffers`/`#detailOffersGrid` — §6A contract, no hand-built cards; each tile links to its listing via `viewListing`), **affiliate offers as secondary** (Amazon + AbeBooks search links by ISBN/title, no keys — `renderAffiliateLinks`), the community want-count (social proof), and discussion — never a dead end (§4.3/§4.4).
+  - `browseBookById(bookId)` rewritten: was a homepage *grid*, now fetches the catalog book + its active listings and renders the book page. Repoints all four call sites at once (community-shelf tiles, profile thumbnails, both My Shelf cards).
+  - External search results (no catalog id) open the same page via `viewExternalBook(book)` → `_renderBookPage(book, [])`. **Clicking an external book no longer opens the Add-to-Shelf modal** — it opens the rich page, which offers Add to Shelf as a button.
+  - Shared social enrichment: `_loadBookSocial(bookId, token)` (want-count + discussion) used by both the catalog path (id known) and the external path (`enrichExternalBook` matches by ISBN first). All async work guards on a synthetic page token so a fast navigate-away can't populate a stale page. `viewListing` (single-offer page) unchanged, and now hides the book-page-only sections so toggling between the two is clean.
+
+- **Browse-flow polish** — book cards 15% larger (`.books-grid` min column 280→322px; card image 250→288px). Removed the "not yet available on BookSharez" line (and the dimming) from external tile cards — all books are available via affiliates; the "Not listed locally" badge and "Be the first to list this!" CTA were kept.
+
+- Verified end-to-end via `verify-bookflow.js` Playwright harness (mocked Supabase REST + Google Books, real DOM clicks): all four flows pass — larger cards with no "not available" text; external book → rich page (no modal) + affiliate links; catalog book → unified page with two seller offer tiles; offer tile → single-listing page. Zero console errors.
+
+### Added (June 21 — Want count + Discussions)
+
+- **Want count on book detail page** — `#detailWantCount` shows "N people want this book" (with heart icon) below the seller line. Populated async via a `shelf_entries` count query (public `want` entries only, enforced by RLS). Clears on navigation; hidden when count is zero. `book_id` added to the `viewListing` fetch select.
+
+- **Discussion section on book detail page** — flat per-book post thread rendered below the listing details. Schema in `db/discussions.sql` (pending Supabase apply — see ToDo item 8). Client-side: `loadDiscussion(bookId, listingId)` fetches posts + batch-fetches author usernames in two queries; `_renderDiscussionPosts` renders them with relative timestamps, clickable usernames (→ profile), and a delete button for own posts. Compose area with char counter (max 2000) shown to logged-in users; "Log in" prompt shown to anon. Navigation guard (`currentDetailId`) prevents stale renders on fast page switches. `_relativeTime(iso)` helper formats timestamps (just now / Nm ago / Nh ago / Nd ago / date).
 
 ### Added (June 20 — Vision OCR + renderer consolidation)
 

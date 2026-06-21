@@ -141,9 +141,8 @@ function _renderTile(book, context) {
     card.style.cursor = "pointer";
     card.addEventListener("click", () => browseBookById(book.bookId, book.title));
   } else {
-    card.style.opacity = "0.85";
     card.style.cursor = "pointer";
-    card.addEventListener("click", () => openExternalBookOptions(book));
+    card.addEventListener("click", () => viewExternalBook(book));
   }
 
   let badgeHtml = "";
@@ -173,8 +172,6 @@ function _renderTile(book, context) {
   let sellerHtml = "";
   if (context.myListingId) {
     sellerHtml = `<p class="book-seller"><i class="fas fa-check-circle" style="color:#28a745;"></i> Available from a BookSharez seller</p>`;
-  } else if (context.isListedLocally === false) {
-    sellerHtml = `<p class="book-seller" style="color:#bbb;font-size:0.8rem;"><i class="fas fa-info-circle"></i> Not yet available on BookSharez</p>`;
   }
 
   const yearSpan = (context.isListedLocally === false && book.year)
@@ -276,9 +273,21 @@ function _renderFull(book, context) {
   document.getElementById("detailDescription").textContent =
     context.description || "No description provided.";
 
+  const wantEl = document.getElementById("detailWantCount");
+  if (wantEl) wantEl.textContent = "";
+
   const buyBtn = document.getElementById("detailBuyBtn");
   buyBtn.style.display = "inline-flex";
   buyBtn.onclick = () => buyBook(context.myListingId, context.price, book.title);
+
+  // Listing path: hide the book-page sections (community offers + Add to Shelf
+  // + affiliates) and restore the discussion section (the book page hides it).
+  const offers = document.getElementById("detailOffers");
+  if (offers) offers.style.display = "none";
+  const externalActions = document.getElementById("detailExternalActions");
+  if (externalActions) externalActions.style.display = "none";
+  const discussion = document.getElementById("detailDiscussion");
+  if (discussion) discussion.style.display = "";
 }
 
 function _ensureBookCardStyles() {
@@ -288,7 +297,7 @@ function _ensureBookCardStyles() {
   style.textContent = `
     .book-card { background:white; border-radius:15px; overflow:hidden; box-shadow:0 5px 20px rgba(0,0,0,0.1); transition:transform 0.3s ease,box-shadow 0.3s ease; cursor:pointer; }
     .book-card:hover { transform:translateY(-5px); box-shadow:0 10px 30px rgba(0,0,0,0.15); }
-    .book-image { position:relative; height:250px; overflow:hidden; }
+    .book-image { position:relative; height:288px; overflow:hidden; }
     .book-image img { width:100%; height:100%; object-fit:contain; background:#f5f5f5; }
     .book-condition { position:absolute; top:10px; right:10px; background:rgba(102,126,234,0.9); color:white; padding:0.25rem 0.5rem; border-radius:12px; font-size:0.8rem; font-weight:500; }
     .book-info { padding:1.5rem; }
@@ -579,6 +588,155 @@ function openExternalBookOptions(book) {
   document.getElementById("shelfSearchResults").style.display = "none";
   pendingCover = { isbn: book.isbn || null, url: book.coverUrl || null };
   modal.style.display = "block";
+}
+
+// Open the rich book detail page for a book with no local listing yet (an
+// external search result). Reuses the bookDetail page, hides the listing-only
+// sections, and offers "Add to Shelf" + affiliate buy links. A click on a book
+// always means "tell me more about this book" — never the add-to-shelf modal.
+// Thin wrapper: open the book page for an external search result (no catalog
+// id known yet; community offers are looked up by ISBN during enrichment).
+function viewExternalBook(book) {
+  _renderBookPage(book, []);
+}
+
+// The unified, book-centric detail page (architecture §5.4). Shows book
+// metadata, community seller offers (primary), affiliate offers (secondary),
+// the community want-count (social proof), and discussion — never a dead end.
+// `book` is a normalized Book; `offers` is an array of active listing rows
+// (with their books join) already fetched for this book.
+function _renderBookPage(book, offers) {
+  ensureDetailStyles();
+
+  document.getElementById("homepage").style.display = "none";
+  document.getElementById("dashboard").style.display = "none";
+  document.getElementById("profilePage").style.display = "none";
+  document.getElementById("bookDetail").style.display = "block";
+  window.scrollTo({ top: 0, behavior: "smooth" });
+
+  // Synthetic page token so async enrichment can tell if the user navigated
+  // away before it resolved. (viewListing uses the real listing id instead.)
+  const token = "book:" + (book.bookId || book.isbn || Date.now());
+  currentDetailId = token;
+
+  const cover = document.getElementById("detailCover");
+  cover.src = book.coverUrl || FALLBACK_COVER;
+  cover.onerror = () => { cover.src = FALLBACK_COVER; };
+  document.getElementById("detailTitle").textContent = book.title || "Untitled";
+
+  const authorEl = document.getElementById("detailAuthor");
+  authorEl.textContent = "";
+  if (book.author) {
+    authorEl.appendChild(document.createTextNode("by "));
+    const span = document.createElement("span");
+    span.className = "author-link";
+    span.textContent = book.author;
+    span.addEventListener("click", () => searchByAuthor(book.author));
+    authorEl.appendChild(span);
+  }
+
+  document.getElementById("detailIsbn").textContent = book.isbn ? "ISBN: " + book.isbn : "";
+  document.getElementById("detailDescription").textContent =
+    book.year ? `First published ${book.year}.` : "";
+
+  // Hide the single-listing elements — this is a book page, not one offer.
+  document.getElementById("detailCondition").textContent = "";
+  document.getElementById("detailPrice").textContent = "";
+  document.getElementById("detailSeller").textContent = "";
+  document.getElementById("detailWantCount").textContent = "";
+  document.getElementById("detailGallery").innerHTML = "";
+  document.getElementById("detailBuyBtn").style.display = "none";
+  document.getElementById("detailDiscussion").style.display = "none";
+
+  // Community offers (primary). Each tile routes to its listing via renderBook.
+  renderBookOffers(offers);
+
+  // Add to Shelf + affiliate buy links (secondary).
+  document.getElementById("detailExternalActions").style.display = "block";
+  document.getElementById("detailAddShelfBtn").onclick = () => openExternalBookOptions(book);
+  renderAffiliateLinks(book);
+
+  // Community want-count + discussion. Use the known catalog id directly, or
+  // look it up by ISBN for external books not yet matched to the catalog.
+  if (book.bookId) _loadBookSocial(book.bookId, token);
+  else enrichExternalBook(book, token);
+}
+
+// Render community seller offers into the book page as renderBook tiles
+// (§6A contract — never hand-build cards). Each tile links to its listing.
+function renderBookOffers(offers) {
+  const section = document.getElementById("detailOffers");
+  const grid = document.getElementById("detailOffersGrid");
+  grid.innerHTML = "";
+  if (!offers || offers.length === 0) { section.style.display = "none"; return; }
+  offers.forEach((row) => {
+    const offerBook = normalizeBook(row);
+    const context = { myListingId: row.id, price: row.price, condition: row.condition, isListedLocally: true };
+    grid.appendChild(renderBook(offerBook, context, "tile"));
+  });
+  section.style.display = "block";
+}
+
+// For an external book with no catalog id, match it to the `books` catalog by
+// ISBN, then load its social data. Guards on the page token throughout.
+async function enrichExternalBook(book, token) {
+  if (!book.isbn) return;
+  const { data: catalogBook } = await supabaseClient
+    .from("books")
+    .select("id")
+    .eq("isbn", book.isbn)
+    .maybeSingle();
+  if (currentDetailId !== token || !catalogBook) return; // navigated away, or not in catalog
+  _loadBookSocial(catalogBook.id, token);
+}
+
+// Populate the book page's want-count and discussion for a known catalog book.
+// Guards on the page token so a fast navigate-away can't populate a stale page.
+function _loadBookSocial(bookId, token) {
+  const wantEl = document.getElementById("detailWantCount");
+  supabaseClient
+    .from("shelf_entries")
+    .select("*", { count: "exact", head: true })
+    .eq("book_id", bookId)
+    .eq("shelf_type", "want")
+    .then(({ count }) => {
+      if (currentDetailId !== token || !wantEl || !count) return;
+      const label = count === 1 ? "person wants" : "people want";
+      wantEl.innerHTML = `<i class="fas fa-heart"></i> ${count} ${label} this book`;
+    });
+
+  document.getElementById("detailDiscussion").style.display = "";
+  loadDiscussion(bookId, token);
+}
+
+// Build "Buy on …" affiliate links for an external book — search URLs keyed on
+// ISBN (title fallback). No API keys; affiliate tags can be appended later.
+function renderAffiliateLinks(book) {
+  const container = document.getElementById("detailAffiliates");
+  container.innerHTML = "";
+  const isbn = book.isbn || "";
+  const titleQuery = encodeURIComponent(book.title || "");
+  const links = [
+    {
+      label: "Buy on Amazon",
+      url: `https://www.amazon.com/s?k=${isbn ? encodeURIComponent(isbn) : titleQuery}`,
+    },
+    {
+      label: "Buy on AbeBooks",
+      url: isbn
+        ? `https://www.abebooks.com/servlet/SearchResults?isbn=${encodeURIComponent(isbn)}`
+        : `https://www.abebooks.com/servlet/SearchResults?kn=${titleQuery}`,
+    },
+  ];
+  links.forEach(({ label, url }) => {
+    const a = document.createElement("a");
+    a.className = "affiliate-link";
+    a.href = url;
+    a.target = "_blank";
+    a.rel = "noopener noreferrer";
+    a.innerHTML = `<i class="fas fa-external-link-alt"></i> ${escapeHTML(label)}`;
+    container.appendChild(a);
+  });
 }
 
 // Show buy books page
@@ -1332,6 +1490,11 @@ function ensureDetailStyles() {
     .detail-seller {
       color: #888;
       font-size: 0.9rem;
+      margin-bottom: 0.5rem;
+    }
+    .detail-want-count {
+      color: #e74c3c;
+      font-size: 0.9rem;
       margin-bottom: 1.5rem;
     }
     .detail-gallery {
@@ -1347,6 +1510,44 @@ function ensureDetailStyles() {
       border-radius: 10px;
       box-shadow: 0 3px 10px rgba(0,0,0,0.12);
     }
+    .detail-offers {
+      margin: 1.5rem 0;
+    }
+    .detail-offers-heading {
+      font-size: 1.1rem;
+      color: #333;
+      margin-bottom: 1rem;
+    }
+    .detail-offers-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 1.25rem;
+    }
+    #detailAddShelfBtn {
+      margin-bottom: 1rem;
+    }
+    .detail-affiliates {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+    }
+    .affiliate-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.6rem 1.1rem;
+      border: 1px solid #667eea;
+      border-radius: 8px;
+      color: #667eea;
+      font-weight: 600;
+      font-size: 0.9rem;
+      text-decoration: none;
+      transition: background 0.2s ease, color 0.2s ease;
+    }
+    .affiliate-link:hover {
+      background: #667eea;
+      color: #fff;
+    }
     @media (max-width: 700px) {
       .detail-layout {
         grid-template-columns: 1fr;
@@ -1356,6 +1557,89 @@ function ensureDetailStyles() {
         margin: 0 auto;
       }
     }
+    .detail-discussion {
+      margin-top: 3rem;
+      padding-top: 2rem;
+      border-top: 1px solid #eee;
+    }
+    .discussion-heading {
+      font-size: 1.3rem;
+      color: #333;
+      margin-bottom: 1.5rem;
+    }
+    .discussion-post {
+      padding: 1rem 0;
+      border-bottom: 1px solid #f0f0f0;
+    }
+    .discussion-post:last-child {
+      border-bottom: none;
+    }
+    .discussion-post-header {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin-bottom: 0.4rem;
+    }
+    .discussion-username {
+      font-weight: 600;
+      color: #667eea;
+      text-decoration: none;
+      font-size: 0.9rem;
+    }
+    .discussion-username:hover { text-decoration: underline; }
+    .discussion-time {
+      color: #aaa;
+      font-size: 0.8rem;
+    }
+    .discussion-delete {
+      margin-left: auto;
+      background: none;
+      border: none;
+      color: #ccc;
+      cursor: pointer;
+      font-size: 0.8rem;
+      padding: 0;
+    }
+    .discussion-delete:hover { color: #e74c3c; }
+    .discussion-post-body {
+      color: #444;
+      line-height: 1.5;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .discussion-empty {
+      color: #999;
+      font-style: italic;
+      text-align: center;
+      padding: 1.5rem 0;
+    }
+    .discussion-compose {
+      margin-top: 1.5rem;
+    }
+    .discussion-input {
+      width: 100%;
+      padding: 0.75rem;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      font-family: inherit;
+      resize: vertical;
+      box-sizing: border-box;
+    }
+    .discussion-input:focus {
+      outline: none;
+      border-color: #667eea;
+      box-shadow: 0 0 0 2px rgba(102,126,234,0.15);
+    }
+    .discussion-form-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 0.5rem;
+    }
+    .discussion-char-count { color: #aaa; font-size: 0.8rem; }
+    .discussion-auth-prompt { color: #888; font-size: 0.9rem; margin-top: 1rem; }
+    .discussion-login-link { color: #667eea; }
   `;
   document.head.appendChild(style);
 }
@@ -1375,7 +1659,7 @@ async function viewListing(listingId) {
   const { data, error } = await supabaseClient
     .from("listings")
     .select(
-      "id, user_id, price, condition, created_at, description, books!inner(title, author, cover_url, isbn)"
+      "id, user_id, price, condition, created_at, description, book_id, books!inner(title, author, cover_url, isbn)"
     )
     .eq("id", listingId)
     .single();
@@ -1390,6 +1674,10 @@ async function viewListing(listingId) {
     document.getElementById("detailDescription").textContent = "";
     document.getElementById("detailCondition").textContent = "";
     document.getElementById("detailGallery").innerHTML = "";
+    document.getElementById("detailWantCount").textContent = "";
+    document.getElementById("discussionPosts").innerHTML = "";
+    document.getElementById("discussionForm").style.display = "none";
+    document.getElementById("discussionAuthPrompt").style.display = "none";
     document.getElementById("detailBuyBtn").style.display = "none";
     return;
   }
@@ -1402,6 +1690,22 @@ async function viewListing(listingId) {
     description: data.description,
     isListedLocally: true,
   });
+
+  // Show want count (async; page is already visible)
+  if (data.book_id) {
+    const wantEl = document.getElementById("detailWantCount");
+    supabaseClient
+      .from("shelf_entries")
+      .select("*", { count: "exact", head: true })
+      .eq("book_id", data.book_id)
+      .eq("shelf_type", "want")
+      .then(({ count }) => {
+        if (currentDetailId !== data.id || !wantEl || !count) return;
+        const label = count === 1 ? "person wants" : "people want";
+        wantEl.innerHTML =
+          `<i class="fas fa-heart"></i> ${count} ${label} this book`;
+      });
+  }
 
   // Show seller name with profile link (async; page is already visible)
   const sellerEl = document.getElementById("detailSeller");
@@ -1422,6 +1726,7 @@ async function viewListing(listingId) {
   }
 
   renderDetailGallery(data.id);
+  loadDiscussion(data.book_id, data.id);
 }
 
 // Fetch this listing's photos and render them as a gallery. The bucket is
@@ -1458,6 +1763,134 @@ async function renderDetailGallery(listingId) {
     gallery.appendChild(img);
   });
 }
+
+// ─── Discussion ───────────────────────────────────────────────────────────────
+
+let currentDiscussionBookId = null;
+
+async function loadDiscussion(bookId, listingId) {
+  currentDiscussionBookId = bookId;
+  const postsEl  = document.getElementById("discussionPosts");
+  const formEl   = document.getElementById("discussionForm");
+  const authEl   = document.getElementById("discussionAuthPrompt");
+  if (!postsEl) return;
+
+  postsEl.innerHTML = '<p class="discussion-empty">Loading…</p>';
+  formEl.style.display = "none";
+  authEl.style.display = "none";
+
+  const { data: posts, error } = await supabaseClient
+    .from("discussion_posts")
+    .select("id, body, created_at, user_id")
+    .eq("book_id", bookId)
+    .order("created_at", { ascending: true })
+    .limit(100);
+
+  if (currentDetailId !== listingId) return;
+
+  if (error) {
+    postsEl.innerHTML = '<p class="discussion-empty">Couldn\'t load discussion.</p>';
+    return;
+  }
+
+  // Batch-fetch usernames for all unique authors in one query.
+  let profileMap = {};
+  if (posts && posts.length > 0) {
+    const userIds = [...new Set(posts.map(p => p.user_id))];
+    const { data: profiles } = await supabaseClient
+      .from("profiles")
+      .select("id, username")
+      .in("id", userIds);
+    if (profiles) profiles.forEach(p => { profileMap[p.id] = p.username; });
+  }
+
+  if (currentDetailId !== listingId) return;
+
+  _renderDiscussionPosts(posts || [], profileMap);
+
+  if (isLoggedIn) {
+    formEl.style.display = "block";
+    authEl.style.display = "none";
+  } else {
+    formEl.style.display = "none";
+    authEl.style.display = "block";
+  }
+}
+
+function _renderDiscussionPosts(posts, profileMap) {
+  const postsEl = document.getElementById("discussionPosts");
+  if (!postsEl) return;
+  if (posts.length === 0) {
+    postsEl.innerHTML =
+      '<p class="discussion-empty">No posts yet — be the first to start the conversation!</p>';
+    return;
+  }
+  postsEl.innerHTML = posts.map(p => {
+    const name = escapeHTML(profileMap[p.user_id] || "BookSharez reader");
+    const time = _relativeTime(p.created_at);
+    const body = escapeHTML(p.body);
+    const isOwn = currentUserId && currentUserId === p.user_id;
+    const del = isOwn
+      ? `<button type="button" class="discussion-delete" onclick="deleteDiscussionPost('${p.id}')">` +
+        `<i class="fas fa-trash"></i></button>`
+      : "";
+    return `<div class="discussion-post" data-id="${p.id}">
+      <div class="discussion-post-header">
+        <a href="#" class="discussion-username"
+           onclick="viewProfile('${p.user_id}'); return false;">${name}</a>
+        <span class="discussion-time">${time}</span>
+        ${del}
+      </div>
+      <div class="discussion-post-body">${body}</div>
+    </div>`;
+  }).join("");
+}
+
+async function submitDiscussionPost() {
+  if (!isLoggedIn || !currentDiscussionBookId) return;
+  const input = document.getElementById("discussionInput");
+  const body  = input.value.trim();
+  if (!body) return;
+
+  const btn = document.querySelector("#discussionForm .btn");
+  btn.disabled    = true;
+  btn.textContent = "Posting…";
+
+  const { error } = await supabaseClient
+    .from("discussion_posts")
+    .insert({ book_id: currentDiscussionBookId, user_id: currentUserId, body });
+
+  btn.disabled   = false;
+  btn.innerHTML  = "Post";
+
+  if (error) { alert("Couldn't post. Please try again."); return; }
+
+  input.value = "";
+  document.getElementById("discussionCharCount").textContent = "0 / 2000";
+  loadDiscussion(currentDiscussionBookId, currentDetailId);
+}
+
+async function deleteDiscussionPost(postId) {
+  if (!confirm("Delete this post?")) return;
+  const { error } = await supabaseClient
+    .from("discussion_posts")
+    .delete()
+    .eq("id", postId);
+  if (!error) loadDiscussion(currentDiscussionBookId, currentDetailId);
+}
+
+function _relativeTime(iso) {
+  const mins = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
+  if (mins < 1)  return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24)  return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  if (days < 7)  return `${days}d ago`;
+  return new Date(iso).toLocaleDateString();
+}
+
+// ─── end Discussion ────────────────────────────────────────────────────────────
 
 // Return from the detail page to the browse grid.
 function backToBrowse() {
@@ -1578,68 +2011,34 @@ function browseBook(isbn, title) {
   searchBooks();
 }
 
-// Navigate to homepage showing all active listings for a book already in our DB.
-// Uses book_id so no external API calls are needed.
+// Open the unified book page for a catalog book (architecture §5.4): book
+// metadata + its community seller offers (primary) + affiliate offers + want
+// count + discussion. Uses book_id, so no external API calls are needed.
 async function browseBookById(bookId, title) {
-  document.getElementById("homepage").style.display = "block";
+  ensureDetailStyles();
+  document.getElementById("homepage").style.display = "none";
   document.getElementById("dashboard").style.display = "none";
-  document.getElementById("bookDetail").style.display = "none";
   document.getElementById("profilePage").style.display = "none";
-  document.getElementById("searchInput").value = "";
-  setCommunityShelvesVisible(false);
+  document.getElementById("bookDetail").style.display = "block";
+  window.scrollTo({ top: 0, behavior: "smooth" });
 
-  const sectionTitle = document.getElementById("featuredTitle");
-  if (sectionTitle) sectionTitle.textContent = escapeHTML(title || "Book");
-  showGridMessage("Loading…");
-  setViewMoreBtn(false);
+  // Show the title immediately so the page isn't blank while we fetch.
+  document.getElementById("detailTitle").textContent = title || "Book";
 
-  // Query local listings for this specific book and the API in parallel.
-  let apiBooks = [];
-  const [localResult] = await Promise.all([
+  // Fetch the catalog book row and its active listings in parallel.
+  const [bookRes, listingRes] = await Promise.all([
+    supabaseClient
+      .from("books")
+      .select("id, isbn, title, author, cover_url")
+      .eq("id", bookId)
+      .maybeSingle(),
     applySort(baseListingsQuery().eq("book_id", bookId), currentSort()),
-    searchBooksAPI(title || "").then((r) => { apiBooks = r; }).catch(() => {}),
   ]);
 
-  const localPairs = ((localResult && localResult.data) || []).map(row => ({
-    book: normalizeBook(row),
-    context: { myListingId: row.id, price: row.price, condition: row.condition, isListedLocally: true },
-  }));
-  const localISBNs = new Set(localPairs.map(({ book }) => book.isbn).filter(Boolean));
-
-  const externalPairs = apiBooks
-    .filter(b => !localISBNs.has(b.isbn))
-    .map(b => ({ book: normalizeBook(b), context: { isListedLocally: false } }));
-
-  allSearchResults = [...localPairs, ...externalPairs];
-  searchResultsLoaded = 0;
-
-  const subtitle = localPairs.length > 0
-    ? `${localPairs.length} on BookSharez · ${externalPairs.length} online`
-    : externalPairs.length > 0
-      ? `${externalPairs.length} results online`
-      : "";
-
-  const existingSub = document.querySelector(".search-subtitle");
-  if (existingSub) existingSub.remove();
-  if (subtitle && sectionTitle) {
-    const sub = document.createElement("p");
-    sub.className = "search-subtitle";
-    sub.style.cssText = "color:#888;font-size:0.9rem;margin:-0.75rem 0 1rem;text-align:center;";
-    sub.textContent = subtitle;
-    sectionTitle.insertAdjacentElement("afterend", sub);
-  }
-
-  const grid = document.getElementById("booksGrid");
-  grid.innerHTML = "";
-
-  if (allSearchResults.length === 0) {
-    showGridMessage("No results found.");
-  } else {
-    showNextSearchResults();
-  }
-
-  const resultsSection = document.querySelector(".featured");
-  if (resultsSection) resultsSection.scrollIntoView({ behavior: "smooth", block: "start" });
+  const book = bookRes.data
+    ? normalizeBook(bookRes.data)
+    : normalizeBook({ id: bookId, title });
+  _renderBookPage(book, (listingRes && listingRes.data) || []);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
