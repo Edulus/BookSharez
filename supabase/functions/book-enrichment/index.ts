@@ -66,6 +66,18 @@ function normalizeISBN(raw: string): string | null {
   return null;
 }
 
+// ISBN-13 (978-prefixed only) → ISBN-10. Hardcover stores some editions under
+// isbn_10 only, so we try both forms on exact match. 979-prefixed ISBN-13s have
+// no ISBN-10 equivalent → return null and we just skip the isbn_10 condition.
+function isbn13to10(isbn13: string): string | null {
+  if (!/^978\d{10}$/.test(isbn13)) return null;
+  const core = isbn13.slice(3, 12); // 9 significant digits
+  let sum = 0;
+  for (let i = 0; i < 9; i++) sum += Number(core[i]) * (10 - i);
+  const check = (11 - (sum % 11)) % 11;
+  return core + (check === 10 ? "X" : String(check));
+}
+
 // ── Hardcover payload normalization ─────────────────────────────────────────────
 
 interface Enrichment {
@@ -240,14 +252,26 @@ async function hardcoverFetch(
 }
 
 // deno-lint-ignore no-explicit-any
-async function lookupByISBN(token: string, isbn13: string): Promise<any | null> {
+async function lookupByISBN(
+  token: string,
+  isbn13: string,
+  isbn10: string | null
+  // deno-lint-ignore no-explicit-any
+): Promise<any | null> {
+  // Exact match only — Hardcover disables _like/_ilike/_regex, so there is no
+  // fuzzy/prefix ISBN matching. Try both ISBN-13 and (when it exists) ISBN-10,
+  // since editions can be stored under either form.
+  const where = isbn10
+    ? "{ _or: [{ isbn_13: { _eq: $i13 } }, { isbn_10: { _eq: $i10 } }] }"
+    : "{ isbn_13: { _eq: $i13 } }";
   const query = `
-    query BookByISBN($isbn: String!) {
-      editions(where: { isbn_13: { _eq: $isbn } }, limit: 1) {
+    query BookByISBN($i13: String!${isbn10 ? ", $i10: String!" : ""}) {
+      editions(where: ${where}, limit: 1) {
         book { ${BOOK_FIELDS} }
       }
     }`;
-  const data = await hardcoverFetch(token, query, { isbn: isbn13 });
+  const variables = isbn10 ? { i13: isbn13, i10: isbn10 } : { i13: isbn13 };
+  const data = await hardcoverFetch(token, query, variables);
   return data?.editions?.[0]?.book ?? null;
 }
 
@@ -335,7 +359,10 @@ Deno.serve(async (req) => {
   const { data: { user }, error: authErr } = await userClient.auth.getUser();
   if (authErr || !user) return jsonResponse({ error: "Unauthorized" }, 401);
 
-  let body: { isbn?: string };
+  // title/author are optional — the client passes them so a book that isn't yet
+  // a catalog row (browsed straight from external search) can still use the
+  // title-search fallback when its ISBN misses on Hardcover.
+  let body: { isbn?: string; title?: string; author?: string };
   try {
     body = await req.json();
   } catch {
@@ -344,6 +371,7 @@ Deno.serve(async (req) => {
 
   const isbn13 = normalizeISBN(body.isbn ?? "");
   if (!isbn13) return jsonResponse({ enriched: false });
+  const isbn10 = isbn13to10(isbn13);
 
   const serviceClient = createClient(
     Deno.env.get("SUPABASE_URL")!,
@@ -354,7 +382,7 @@ Deno.serve(async (req) => {
   const { data: existing } = await serviceClient
     .from("books")
     .select(
-      "id, title, description, page_count, publisher, publish_date, " +
+      "id, title, author, description, page_count, publisher, publish_date, " +
         "hc_rating, hc_rating_count, hc_users_read, hc_genres, " +
         "hc_series_name, hc_series_pos, hc_slug, hc_book_category, hc_enriched_at"
     )
@@ -375,16 +403,17 @@ Deno.serve(async (req) => {
     return jsonResponse({ enriched: false });
   }
 
-  let raw = await lookupByISBN(token, isbn13);
-  if (!raw && existing?.title) {
-    // Fall back to a title search using the catalog title/author we already have.
-    const { data: catalog } = await serviceClient
-      .from("books")
-      .select("title, author")
-      .eq("isbn", isbn13)
-      .maybeSingle();
-    if (catalog?.title) {
-      raw = await lookupByTitle(token, catalog.title, catalog.author);
+  let raw = await lookupByISBN(token, isbn13, isbn10);
+  if (!raw) {
+    // ISBN exact-match missed. Fuzzy ISBN matching isn't possible (Hardcover
+    // disables _like/_ilike/_regex), so the title search endpoint is the only
+    // non-exact path. Prefer the catalog title/author; fall back to whatever the
+    // client sent for books not yet in the catalog. Textbooks frequently miss on
+    // ISBN but resolve via title search.
+    const title = existing?.title ?? body.title ?? null;
+    const author = existing?.author ?? body.author ?? null;
+    if (title) {
+      raw = await lookupByTitle(token, title, author);
     }
   }
 

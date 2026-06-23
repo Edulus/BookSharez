@@ -662,7 +662,7 @@ function _renderBookPage(book, offers) {
   else enrichExternalBook(book, token);
 
   // Hardcover enrichment (non-blocking; fills in below the ISBN line).
-  runBookEnrichment(book.isbn, token);
+  runBookEnrichment(book.isbn, token, book.title, book.author);
 }
 
 // Render community seller offers into the book page as renderBook tiles
@@ -686,11 +686,11 @@ function renderBookOffers(offers) {
 // (_renderFull via viewListing, and _renderBookPage). Section styles live in
 // css/style.css; the data source is the book-enrichment Edge Function.
 
-async function fetchBookEnrichment(isbn) {
+async function fetchBookEnrichment(isbn, title, author) {
   if (!isbn) return null;
   try {
     const resp = await supabaseClient.functions.invoke("book-enrichment", {
-      body: { isbn },
+      body: { isbn, title, author },
     });
     if (resp.error || !resp.data?.enriched) return null;
     return resp.data;
@@ -703,7 +703,7 @@ async function fetchBookEnrichment(isbn) {
 // Kick off enrichment for the book currently on screen. `token` is the value of
 // currentDetailId captured at render time; if the user navigates away before
 // Hardcover responds we drop the result instead of painting a stale book.
-function runBookEnrichment(isbn, token) {
+function runBookEnrichment(isbn, token, title, author) {
   const container = document.getElementById("detailEnrichment");
   if (!container) return;
   container.innerHTML = "";
@@ -715,7 +715,7 @@ function runBookEnrichment(isbn, token) {
     '<div class="skeleton-bar"></div>' +
     '<div class="skeleton-bar"></div></div>';
 
-  fetchBookEnrichment(isbn).then((data) => {
+  fetchBookEnrichment(isbn, title, author).then((data) => {
     if (currentDetailId !== token) return; // navigated away
     if (!data) {
       container.innerHTML = ""; // graceful degradation — page looks as before
@@ -855,16 +855,9 @@ function renderEnrichment(data) {
     container.appendChild(series);
   }
 
-  // Outbound Hardcover link.
-  if (data.slug) {
-    const link = document.createElement("a");
-    link.className = "detail-hc-link";
-    link.href = `https://hardcover.app/books/${data.slug}`;
-    link.target = "_blank";
-    link.rel = "noopener";
-    link.textContent = "More on Hardcover →";
-    container.appendChild(link);
-  }
+  // Hardcover link now lives in the affiliate buy row (rendered there so it sits
+  // alongside Amazon/AbeBooks). Possible only when enrichment matched a slug.
+  renderHardcoverBuyLink(data.slug);
 }
 
 // For an external book with no catalog id, match it to the `books` catalog by
@@ -927,6 +920,26 @@ function renderAffiliateLinks(book) {
     a.innerHTML = `<i class="fas fa-external-link-alt"></i> ${escapeHTML(label)}`;
     container.appendChild(a);
   });
+}
+
+// Append the Hardcover button to the affiliate buy row. Unlike Amazon/AbeBooks
+// (ISBN-pattern search URLs that always resolve), Hardcover needs a catalog
+// `slug` from a successful enrichment match — so this renders only when one
+// exists, and it arrives async (after renderAffiliateLinks has painted the row).
+function renderHardcoverBuyLink(slug) {
+  const container = document.getElementById("detailAffiliates");
+  if (!container) return;
+  const existing = container.querySelector("[data-hc-link]");
+  if (existing) existing.remove();
+  if (!slug) return;
+  const a = document.createElement("a");
+  a.className = "affiliate-link";
+  a.setAttribute("data-hc-link", "");
+  a.href = `https://hardcover.app/books/${slug}`;
+  a.target = "_blank";
+  a.rel = "noopener noreferrer";
+  a.innerHTML = `<i class="fas fa-external-link-alt"></i> ${escapeHTML("View on Hardcover")}`;
+  container.appendChild(a);
 }
 
 // Show buy books page
@@ -1883,7 +1896,7 @@ async function viewListing(listingId) {
   });
 
   // Hardcover enrichment (non-blocking; fills in below the ISBN line).
-  runBookEnrichment(data.books?.isbn, data.id);
+  runBookEnrichment(data.books?.isbn, data.id, data.books?.title, data.books?.author);
 
   // Show want count (async; page is already visible)
   if (data.book_id) {
