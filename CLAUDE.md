@@ -47,6 +47,7 @@ Note: condition uses **5 grades** (`like_new`, `very_good`, `good`, `fair`, `poo
 - [docs/env.example](docs/env.example) — all expected environment variables by phase. Phase 1 requires Supabase keys, ISBNDB_API_KEY, GOOGLE_BOOKS_API_KEY, and one AI key (DeepSeek).
 - [docs/SEARCH_SYSTEMS.md](docs/SEARCH_SYSTEMS.md) — **two distinct "search" systems, do not conflate:** seller-side ISBN lookup (external APIs) vs. buyer-side browse/search (local Supabase DB only, no external calls). Affiliate fallback is deferred, not Phase 1.
 - [docs/ISBN_LOOKUP_DESIGN.md](docs/ISBN_LOOKUP_DESIGN.md) — design for the `isbn-lookup` Edge Function: cache-first against the `books` table, ISBNdb→Google Books fallback, rate-limiting approach (items 9 & 10).
+- [docs/HARDCOVER_INTEGRATION.md](docs/HARDCOVER_INTEGRATION.md) — authoritative ceiling for Hardcover use: enrichment-only (Tier 1) is shippable today; the per-user social layer (Tier 2) is blocked until Hardcover ships OAuth. Hard constraints (server-side only, 60 req/min, depth ≤3, 1-year token), the required proxy + normalize + cache + graceful-degradation pattern, and the rule "Hardcover enriches *books*; BookSharez owns *users* and *social*." The shipped `book-enrichment` function is this doc's Tier 1.
 
 ## Prototype Architecture Notes
 
