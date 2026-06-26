@@ -2580,6 +2580,63 @@ async function handleAddToShelf(e) {
   }
 }
 
+// Build one shelf tile (cover, title/author, management actions) for the Have /
+// Want shelves. Laid out in a horizontal .shelf-grid so a shelf reads like a row
+// of books, not a column of full-width cards. `isListed` only applies to "have".
+const SHELF_COVER_FALLBACK =
+  "https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=70&h=95&fit=crop";
+
+function _renderShelfTile(book, entryId, shelfType, isListed) {
+  const card = document.createElement("div");
+  card.className = "shelf-card";
+
+  const coverWrap = document.createElement("div");
+  coverWrap.className = "shelf-cover-wrap";
+
+  const img = document.createElement("img");
+  img.className = "shelf-cover";
+  img.src = book.cover_url || "";
+  img.alt = book.title || "";
+  img.onerror = () => { img.src = SHELF_COVER_FALLBACK; };
+  coverWrap.appendChild(img);
+
+  if (isListed) {
+    const badge = document.createElement("div");
+    badge.textContent = "For Sale";
+    badge.style.cssText =
+      "position:absolute;top:4px;right:4px;background:rgba(102,126,234,0.92);" +
+      "color:#fff;font-size:0.6rem;font-weight:700;padding:2px 5px;" +
+      "border-radius:4px;line-height:1.3;white-space:nowrap;";
+    coverWrap.appendChild(badge);
+  }
+  coverWrap.addEventListener("click", () => browseBookById(book.id, book.title));
+
+  const info = document.createElement("div");
+  info.className = "shelf-card-info";
+  info.innerHTML = `
+    <h4>${escapeHTML(book.title)}</h4>
+    <p>${escapeHTML(book.author || "")}</p>
+  `;
+
+  const actions = document.createElement("div");
+  actions.className = "shelf-card-actions";
+  actions.innerHTML = `
+    ${shelfType === "have" && !isListed
+      ? `<button class="btn btn-primary btn-small" onclick="listShelfItemForSale('${entryId}')">
+           <i class="fas fa-tags"></i> List for Sale
+         </button>`
+      : ""}
+    <button class="btn btn-secondary btn-small" onclick="removeFromShelf('${entryId}','${shelfType}')">
+      <i class="fas fa-times"></i> Remove
+    </button>
+  `;
+
+  card.appendChild(coverWrap);
+  card.appendChild(info);
+  card.appendChild(actions);
+  return card;
+}
+
 async function loadShelfHave() {
   const container = document.getElementById("shelfHaveList");
   container.innerHTML = "<p>Loading…</p>";
@@ -2618,65 +2675,14 @@ async function loadShelfHave() {
   }
 
   container.innerHTML = "";
+  const grid = document.createElement("div");
+  grid.className = "shelf-grid";
   myShelfHave.forEach((entry) => {
     const book = entry.books || {};
     const isListed = listedBookIds.has(book.id);
-    const card = document.createElement("div");
-    card.className = "listing-card";
-
-    const main = document.createElement("div");
-    main.className = "listing-main";
-    main.style.cursor = "pointer";
-
-    const imgWrapper = document.createElement("div");
-    imgWrapper.style.cssText = "position:relative;flex-shrink:0;";
-
-    const img = document.createElement("img");
-    img.className = "listing-cover";
-    img.src = book.cover_url || "";
-    img.alt = book.title || "";
-    img.onerror = () => {
-      img.src = "https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=70&h=95&fit=crop";
-    };
-    imgWrapper.appendChild(img);
-
-    if (isListed) {
-      const badge = document.createElement("div");
-      badge.textContent = "For Sale";
-      badge.style.cssText =
-        "position:absolute;top:3px;right:3px;background:rgba(102,126,234,0.92);" +
-        "color:#fff;font-size:0.55rem;font-weight:700;padding:2px 5px;" +
-        "border-radius:3px;line-height:1.3;white-space:nowrap;";
-      imgWrapper.appendChild(badge);
-    }
-
-    const info = document.createElement("div");
-    info.innerHTML = `
-      <h4 style="margin:0 0 0.2rem;">${escapeHTML(book.title)}</h4>
-      <p style="margin:0;color:#666;font-style:italic;">${escapeHTML(book.author || "")}</p>
-    `;
-
-    main.appendChild(imgWrapper);
-    main.appendChild(info);
-    main.addEventListener("click", () => browseBookById(book.id, book.title));
-
-    const actions = document.createElement("div");
-    actions.className = "listing-actions";
-    actions.innerHTML = `
-      ${!isListed
-        ? `<button class="btn btn-primary btn-small" onclick="listShelfItemForSale('${entry.id}')">
-             <i class="fas fa-tags"></i> List for Sale
-           </button>`
-        : ""}
-      <button class="btn btn-secondary btn-small" onclick="removeFromShelf('${entry.id}','have')">
-        <i class="fas fa-times"></i> Remove
-      </button>
-    `;
-
-    card.appendChild(main);
-    card.appendChild(actions);
-    container.appendChild(card);
+    grid.appendChild(_renderShelfTile(book, entry.id, "have", isListed));
   });
+  container.appendChild(grid);
 }
 
 async function loadShelfWant() {
@@ -2709,45 +2715,12 @@ async function loadShelfWant() {
   }
 
   container.innerHTML = "";
+  const grid = document.createElement("div");
+  grid.className = "shelf-grid";
   myShelfWant.forEach((entry) => {
-    const book = entry.books || {};
-    const card = document.createElement("div");
-    card.className = "listing-card";
-
-    const main = document.createElement("div");
-    main.className = "listing-main";
-    main.style.cursor = "pointer";
-
-    const img = document.createElement("img");
-    img.className = "listing-cover";
-    img.src = book.cover_url || "";
-    img.alt = book.title || "";
-    img.onerror = () => {
-      img.src = "https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=70&h=95&fit=crop";
-    };
-
-    const info = document.createElement("div");
-    info.innerHTML = `
-      <h4 style="margin:0 0 0.2rem;">${escapeHTML(book.title)}</h4>
-      <p style="margin:0;color:#666;font-style:italic;">${escapeHTML(book.author || "")}</p>
-    `;
-
-    main.appendChild(img);
-    main.appendChild(info);
-    main.addEventListener("click", () => browseBookById(book.id, book.title));
-
-    const actions = document.createElement("div");
-    actions.className = "listing-actions";
-    actions.innerHTML = `
-      <button class="btn btn-secondary btn-small" onclick="removeFromShelf('${entry.id}','want')">
-        <i class="fas fa-times"></i> Remove
-      </button>
-    `;
-
-    card.appendChild(main);
-    card.appendChild(actions);
-    container.appendChild(card);
+    grid.appendChild(_renderShelfTile(entry.books || {}, entry.id, "want", false));
   });
+  container.appendChild(grid);
 }
 
 async function removeFromShelf(entryId, shelfType) {
