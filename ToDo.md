@@ -26,6 +26,7 @@ Supabase SQL editor:
 - [ ] **9. Apply [db/book_enrichment_columns.sql](db/book_enrichment_columns.sql)** — adds the Hardcover enrichment columns (`description`, `hc_rating`, `hc_genres`, `hc_series_name`, `hc_slug`, `hc_enriched_at`, etc.) to `books`. Required before the book-enrichment Edge Function can cache results.
 - [ ] **10. Deploy the `book-enrichment` Edge Function** — paste [supabase/functions/book-enrichment/index.ts](supabase/functions/book-enrichment/index.ts) into Supabase Dashboard → Edge Functions (name `book-enrichment`).
 - [ ] **11. Set the `HARDCOVER_API_TOKEN` secret** — token from https://hardcover.app/account/api, in Supabase Edge Function Secrets (with or without a leading `Bearer `).
+- [x] **12. Supabase keep-alive workflow** — [.github/workflows/keep-alive.yml](.github/workflows/keep-alive.yml) pings the REST API every 3 days so the Free Plan never auto-pauses; self-re-enables its schedule each run (no 60-day chore). Secrets set, deployed, verified HTTP 200. *(Done July 3 — see CHANGELOG.)* **Follow-up (pre-launch):** upgrade to Supabase Pro and delete this workflow.
 
 **Status:** the `pricing` function is live — tested successfully against a real book lookup. "Suggest price" now calls DeepSeek for real, with the local fallback algorithm kicking in automatically only if the Edge Function fails.
 

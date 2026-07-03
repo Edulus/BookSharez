@@ -14,7 +14,11 @@ rationale lives inline in the relevant docs (e.g. the ADR in
 
 ## [Unreleased]
 
-_Phase 1 backend foundation + documentation. Work to date: 2026-06-14 – 2026-06-21._
+_Phase 1 backend foundation + documentation. Work to date: 2026-06-14 – 2026-07-03._
+
+### Added (July 3 — Supabase keep-alive automation)
+
+- **Supabase Free-Plan auto-pause prevention** — GitHub Actions workflow [.github/workflows/keep-alive.yml](.github/workflows/keep-alive.yml) pings the Supabase REST API (`GET /rest/v1/books?select=id&limit=1`, anon key, RLS enforced) every 3 days, resetting the 7-day inactivity pause timer. Prompted by a pause-warning email (July 3). Fully zero-maintenance: each run also calls the GitHub API to re-enable its own schedule, defeating GitHub's 60-day scheduled-workflow deactivation; GitHub emails on run failure. Repo secrets `SUPABASE_URL` / `SUPABASE_ANON_KEY` set (both public-safe values). **Deployed and verified July 3** — manual dispatch run returned HTTP 200. Delete the workflow when the project moves to Supabase Pro (the pre-launch plan of record).
 
 ### Added (June 21 — Unified book page + browse-flow polish)
 
