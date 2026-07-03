@@ -1,0 +1,56 @@
+# Supabase Free Plan keep-alive.
+#
+# Free projects are auto-paused after ~7 days without activity. This workflow
+# pings the Supabase REST API every 3 days so the inactivity timer never fires.
+# See docs/ (Supabase Auto-Pause Prevention brief, July 2026). Remove this
+# workflow once the project is on the Pro plan.
+#
+# Required repo secrets (Settings -> Secrets and variables -> Actions):
+#   SUPABASE_URL       e.g. https://xxxx.supabase.co
+#   SUPABASE_ANON_KEY  the publishable/anon key (public by design; RLS enforced)
+
+name: Supabase keep-alive
+
+on:
+  schedule:
+    # Every 3 days at 09:17 UTC. Day-of-month stepping resets at month
+    # boundaries, so the gap is sometimes shorter than 3 days — never longer.
+    - cron: "17 9 */3 * *"
+  workflow_dispatch: {}
+
+permissions:
+  actions: write # lets the job re-enable its own schedule (60-day timeout reset)
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Reset GitHub's 60-day scheduled-workflow timeout
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api -X PUT \
+            "repos/${{ github.repository }}/actions/workflows/keep-alive.yml/enable" \
+            && echo "Schedule re-enabled (timeout reset)" \
+            || echo "::warning::Could not re-enable workflow schedule"
+      - name: Ping Supabase REST API
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_ANON_KEY" ]; then
+            echo "::error::SUPABASE_URL / SUPABASE_ANON_KEY repo secrets are not set"
+            exit 1
+          fi
+          status=$(curl -s -o /tmp/body.txt -w "%{http_code}" \
+            --max-time 30 --retry 3 --retry-delay 10 \
+            -H "apikey: $SUPABASE_ANON_KEY" \
+            -H "Authorization: Bearer $SUPABASE_ANON_KEY" \
+            "$SUPABASE_URL/rest/v1/books?select=id&limit=1")
+          echo "HTTP status: $status"
+          if [ "$status" -lt 200 ] || [ "$status" -ge 300 ]; then
+            echo "::error::Keep-alive ping failed with HTTP $status"
+            cat /tmp/body.txt
+            exit 1
+          fi
+          echo "Supabase keep-alive ping OK"
