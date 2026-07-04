@@ -16,6 +16,17 @@ rationale lives inline in the relevant docs (e.g. the ADR in
 
 _Phase 1 backend foundation + documentation. Work to date: 2026-06-14 – 2026-07-04._
 
+### Changed (July 4 — ES-module split, phase 1: router + api-lookup)
+
+- **`js/main.js` is now an ES module entry** (`<script type="module">`), first step of the incremental split (improvement plan §5.2). Extracted this session:
+  - [js/router.js](js/router.js) — hash routing. main.js injects the page functions via `initRouter(pages)`, so the router has zero imports and no circular dependency; `setRoute()` / `applyInitialRoute()` are the exported API (renamed from `_setRoute`).
+  - [js/api-lookup.js](js/api-lookup.js) — the external book-data layer (`lookupViaEdgeFunction`, `lookupOpenLibrary`, `lookupGoogleBooks`, `isbn10to13Client`, `searchGoogleBooks`, `searchOpenLibrary`, `searchBooksAPI`). Pure fetch logic, no DOM. main.js shrinks ~230 lines.
+  - `js/supabase-config.js` stays a classic script so `supabaseClient` remains a global the modules read.
+- **`Object.assign(window, {...})` block at the bottom of main.js** — modules have no global scope, but inline `onclick` attributes and generated markup call functions by name; all 49 HTML-referenced functions are attached there. Rule recorded in CLAUDE.md: HTML-referenced functions must be in that block; converting a handler to `addEventListener` means deleting its line.
+- **`file://` no longer works** (browsers refuse module loads from file URLs) — new zero-dependency [dev-server.js](dev-server.js) (`node dev-server.js` → http://localhost:7654, the port the verify harnesses expect). CLAUDE.md run instructions updated.
+- **Fixed a pre-existing dead button found during the function audit:** `scannerManualLookup()` was referenced by the scanner modal's manual-ISBN-entry UI (index.html) but never defined — clicking "Look up" threw a `ReferenceError` since the scanner shipped. Now implemented: validates ISBN-10/13, routes through `_onBarcodeDetected` like a successful scan.
+- **Verified:** all four harnesses re-run against the module build — verify-routing (20/20), verify-notifications (14/14), verify-bookflow (all flows, only the pre-existing 3×401 fake-session noise), verify-vision (both OCR paths, zero console errors) — plus a targeted `scannerManualLookup` check (defined; invalid-ISBN branch shows the validation message).
+
 ### Added (July 4 — Notifications rail + want-match notifications)
 
 - **Notifications rail** (improvement plan §5.4) — one generic `notifications` table ([db/notifications.sql](db/notifications.sql), **pending Supabase apply — ToDo item 13**) designed to serve every future notification type (want-match now; "interested" pings, follows, mentions, discussion replies later). Columns: recipient, `type`, `actor_id`, polymorphic `subject_type`/`subject_id`, denormalized `payload` JSONB, `read_at`. RLS: owner-only read/update/delete, **no client INSERT** — rows are created exclusively by `SECURITY DEFINER` triggers, so notifications can't be forged.

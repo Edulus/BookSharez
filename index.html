@@ -749,6 +749,8 @@
     <!-- Quagga2: 1D barcode decoder for photo/file scanning (html5-qrcode's ZXing-js is unreliable for static 1D images) -->
     <script src="https://cdn.jsdelivr.net/npm/@ericblade/quagga2@1.8.4/dist/quagga.min.js"></script>
     <script src="js/supabase-config.js"></script>
-    <script src="js/main.js"></script>
+    <!-- ES module entry: requires serving over http(s), not file:// — run
+         `node dev-server.js` and open http://localhost:7654 -->
+    <script type="module" src="js/main.js"></script>
   </body>
 </html>

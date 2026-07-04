@@ -1,3 +1,17 @@
+// BookSharez app entry (ES module). Module split in progress — plan §5.2:
+// js/router.js (hash routing) and js/api-lookup.js (external book lookups)
+// are extracted; everything else still lives here and moves out over time.
+// Functions referenced from HTML (inline onclick / generated markup) are
+// attached to window at the bottom of this file — see the export block.
+import { initRouter, setRoute, applyInitialRoute } from "./router.js";
+import {
+  lookupViaEdgeFunction,
+  lookupOpenLibrary,
+  lookupGoogleBooks,
+  isbn10to13Client,
+  searchBooksAPI,
+} from "./api-lookup.js";
+
 let isLoggedIn = false;
 let currentUser = null;
 let currentUserId = null;
@@ -9,66 +23,15 @@ let currentListingShelfEntryId = null;
 let currentProfileUserId = null;
 let currentProfileIsFollowed = false;
 
-// ---------------------------------------------------------------------------
-// Hash routing
-// ---------------------------------------------------------------------------
-// Pages remain display-toggled divs (no framework); the router is the single
-// mapping between location.hash and the existing page functions, giving
-// shareable URLs, working back/forward, and refresh that stays on the page.
-//
-//   #/                      homepage (browse)
-//   #/listing/<id>          single-listing detail page   → viewListing
-//   #/book/<bookId>         unified book page            → browseBookById
-//   #/profile/<userId>      public profile               → viewProfile
-//   #/dashboard[/<tab>]     dashboard (login required)   → showDashboard
-//
-// Page functions *record* their route via _setRoute() when invoked directly
-// (clicks); the hashchange listener *applies* routes on back/forward and
-// direct link loads. _routeWrites suppresses the echo event that our own
-// hash writes produce, so navigation never double-renders.
+// Hash routing lives in js/router.js; page functions are handed to it here.
 // External-search books (no catalog id) are deliberately unrouted: their page
 // is built from an in-memory object a URL can't reconstruct.
-
-let _routeWrites = 0; // pending hashchange events caused by _setRoute itself
-let _initialRouteApplied = false;
-
-// replace=true rewrites the current history entry instead of pushing a new
-// one (used for within-page changes like dashboard tabs, so the back button
-// leaves the page rather than replaying every tab). replaceState fires no
-// hashchange event, so it needs no _routeWrites guard.
-function _setRoute(hash, replace = false) {
-  // "" (no hash at all) and "#/" both mean the homepage; writing "#/" over an
-  // empty hash would push a phantom history entry and wipe the forward stack.
-  const current = location.hash === "" || location.hash === "#" ? "#/" : location.hash;
-  if (current === hash) return;
-  if (replace) {
-    history.replaceState(null, "", hash);
-    return;
-  }
-  _routeWrites++;
-  location.hash = hash;
-}
-
-function _applyRoute() {
-  const parts = location.hash
-    .replace(/^#\/?/, "")
-    .split("/")
-    .filter(Boolean)
-    .map(decodeURIComponent);
-  const [page, arg] = parts;
-  if (page === "listing" && arg) viewListing(arg);
-  else if (page === "book" && arg) browseBookById(arg);
-  else if (page === "profile" && arg) viewProfile(arg);
-  else if (page === "dashboard") showDashboard(arg);
-  else showBuyBooks(); // "", "#/" and anything unrecognized
-}
-
-window.addEventListener("hashchange", () => {
-  if (_routeWrites > 0) {
-    _routeWrites--;
-    return;
-  }
-  _applyRoute();
+initRouter({
+  home: () => showBuyBooks(),
+  listing: (id) => viewListing(id),
+  book: (id) => browseBookById(id),
+  profile: (id) => viewProfile(id),
+  dashboard: (tab) => showDashboard(tab),
 });
 
 // Initialize the app
@@ -1018,7 +981,7 @@ function renderHardcoverBuyLink(slug) {
 
 // Show buy books page
 function showBuyBooks() {
-  _setRoute("#/");
+  setRoute("#/");
   document.getElementById("homepage").style.display = "block";
   document.getElementById("dashboard").style.display = "none";
   document.getElementById("bookDetail").style.display = "none";
@@ -1067,10 +1030,7 @@ function initAuth() {
     // Apply the URL's route only after the first auth state is known, so a
     // direct link to #/dashboard works when a session is restored (and the
     // logged-out homepage reset above doesn't clobber a public deep link).
-    if (!_initialRouteApplied) {
-      _initialRouteApplied = true;
-      if (location.hash && location.hash !== "#/") _applyRoute();
-    }
+    applyInitialRoute();
   });
 }
 
@@ -1173,7 +1133,7 @@ async function handleLogout() {
   await supabaseClient.auth.signOut();
   // The auth handler already shows the homepage; keep the URL in step so a
   // refresh doesn't try to reopen a login-only page.
-  _setRoute("#/");
+  setRoute("#/");
 }
 
 // Map Supabase auth errors to friendly messages (never expose internals).
@@ -1340,7 +1300,7 @@ function activateDashboardTab(tabName) {
 
 function showDashboardTab(tabName) {
   // Push when arriving at the dashboard, replace when switching tabs inside it.
-  _setRoute("#/dashboard/" + tabName, location.hash.startsWith("#/dashboard"));
+  setRoute("#/dashboard/" + tabName, location.hash.startsWith("#/dashboard"));
   activateDashboardTab(tabName);
   if (tabName === "shelf-have") loadShelfHave();
   else if (tabName === "shelf-want") loadShelfWant();
@@ -1463,73 +1423,8 @@ function showSellCoverPreview(coverUrl, title) {
 
 // isbn-lookup Edge Function — primary lookup path. Returns the book if found,
 // null if not found, or throws if the function itself is unreachable.
-async function lookupViaEdgeFunction(isbn) {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 6000);
-  let data, error;
-  try {
-    ({ data, error } = await supabaseClient.functions.invoke("isbn-lookup", {
-      body: { isbn },
-      signal: controller.signal,
-    }));
-  } finally {
-    clearTimeout(timer);
-  }
-  if (error) throw new Error(`isbn-lookup function error: ${error.message}`);
-  if (!data.found) return null;
-  const b = data.book;
-  return { title: b.title || "", author: b.author || "", cover: b.coverUrl };
-}
-
-// Client-side fallback pipeline — used only if the Edge Function is unreachable.
-// These are keyless/free sources, so calling them from the browser is fine.
-async function lookupOpenLibrary(isbn) {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 5000);
-  let res;
-  try {
-    res = await fetch(
-      `https://openlibrary.org/api/books?bibkeys=ISBN:${isbn}&jscmd=data&format=json`,
-      { signal: controller.signal }
-    );
-  } finally { clearTimeout(timer); }
-  if (!res.ok) return null;
-  const data = await res.json();
-  const entry = data[`ISBN:${isbn}`];
-  if (!entry) return null;
-  return {
-    title: entry.title || "",
-    author: (entry.authors || []).map((a) => a.name).join(", "),
-    cover:
-      (entry.cover &&
-        (entry.cover.medium || entry.cover.large || entry.cover.small)) ||
-      null,
-  };
-}
-
-async function lookupGoogleBooks(isbn) {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 5000);
-  let res;
-  try {
-    res = await fetch(
-      `https://www.googleapis.com/books/v1/volumes?q=isbn:${isbn}&country=US`,
-      { signal: controller.signal }
-    );
-  } finally { clearTimeout(timer); }
-  if (!res.ok) return null;
-  const data = await res.json();
-  if (!data.totalItems || !(data.items && data.items.length)) return null;
-  const info = data.items[0].volumeInfo || {};
-  const cover =
-    info.imageLinks &&
-    (info.imageLinks.thumbnail || info.imageLinks.smallThumbnail);
-  return {
-    title: info.title || "",
-    author: (info.authors || []).join(", "),
-    cover: cover ? cover.replace(/^http:/, "https:") : null,
-  };
-}
+// lookupViaEdgeFunction / lookupOpenLibrary / lookupGoogleBooks moved to
+// js/api-lookup.js (imported at the top of this file).
 
 async function lookupISBN() {
   const isbn = (document.getElementById("bookISBN").value || "").replace(
@@ -2045,7 +1940,7 @@ function ensureDetailStyles() {
 // Book detail page: fetch the full listing by id and show it as a toggled
 // "page" (same display-toggle approach as homepage/dashboard; no routing).
 async function viewListing(listingId) {
-  _setRoute("#/listing/" + encodeURIComponent(listingId));
+  setRoute("#/listing/" + encodeURIComponent(listingId));
   ensureDetailStyles();
   const detail = document.getElementById("bookDetail");
 
@@ -2298,7 +2193,7 @@ function _relativeTime(iso) {
 
 // Return from the detail page to the browse grid.
 function backToBrowse() {
-  _setRoute("#/");
+  setRoute("#/");
   document.getElementById("bookDetail").style.display = "none";
   document.getElementById("dashboard").style.display = "none";
   document.getElementById("profilePage").style.display = "none";
@@ -2400,7 +2295,7 @@ handleResize(); // Call on load
 // Navigate from a shelf card to the browse grid, searching by ISBN (exact) or
 // title (fallback). ISBN gives the cleanest single-book result.
 function searchByAuthor(author) {
-  _setRoute("#/");
+  setRoute("#/");
   document.getElementById("homepage").style.display = "block";
   document.getElementById("dashboard").style.display = "none";
   document.getElementById("bookDetail").style.display = "none";
@@ -2410,7 +2305,7 @@ function searchByAuthor(author) {
 }
 
 function browseBook(isbn, title) {
-  _setRoute("#/");
+  setRoute("#/");
   const term = isbn || title;
   document.getElementById("homepage").style.display = "block";
   document.getElementById("dashboard").style.display = "none";
@@ -2423,7 +2318,7 @@ function browseBook(isbn, title) {
 // metadata + its community seller offers (primary) + affiliate offers + want
 // count + discussion. Uses book_id, so no external API calls are needed.
 async function browseBookById(bookId, title) {
-  _setRoute("#/book/" + encodeURIComponent(bookId));
+  setRoute("#/book/" + encodeURIComponent(bookId));
   ensureDetailStyles();
   document.getElementById("homepage").style.display = "none";
   document.getElementById("dashboard").style.display = "none";
@@ -2454,105 +2349,8 @@ async function browseBookById(bookId, title) {
 // Book search via Google Books API (title/author — both modals share this)
 // ─────────────────────────────────────────────────────────────────────────────
 
-// Convert ISBN-10 to ISBN-13 (for Google Books results that only carry ISBN-10)
-function isbn10to13Client(s) {
-  if (!/^\d{9}[\dX]$/.test(s)) return null;
-  const base = "978" + s.slice(0, 9);
-  const digits = base.split("").map(Number);
-  const sum = digits.reduce((acc, d, i) => acc + d * (i % 2 === 0 ? 1 : 3), 0);
-  return base + (10 - (sum % 10)) % 10;
-}
-
-// Search Google Books; returns up to 12 results with ISBNs.
-// Throws on quota/network error so the caller can fall back to Open Library.
-async function searchGoogleBooks(query) {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 8000);
-  let res;
-  try {
-    res = await fetch(
-      `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(query)}&maxResults=20&country=US`,
-      { signal: controller.signal }
-    );
-  } finally {
-    clearTimeout(timer);
-  }
-  if (res.status === 429 || res.status === 403) {
-    throw new Error(`Google Books quota exceeded (${res.status})`);
-  }
-  if (!res.ok) throw new Error(`Google Books error ${res.status}`);
-  const json = await res.json();
-  if (!json.items) return [];
-
-  return json.items.map((item) => {
-    const info = item.volumeInfo || {};
-    const sale = item.saleInfo || {};
-    const ids = info.industryIdentifiers || [];
-    const isbn13raw = ids.find((i) => i.type === "ISBN_13")?.identifier;
-    const isbn10raw = ids.find((i) => i.type === "ISBN_10")?.identifier;
-    const isbn = isbn13raw || (isbn10raw ? isbn10to13Client(isbn10raw) : null);
-    if (!isbn || !info.title) return null;
-    const cover = (info.imageLinks?.thumbnail || info.imageLinks?.smallThumbnail || "")
-      .replace(/^http:/, "https:");
-    return {
-      isbn, title: info.title,
-      author: (info.authors || []).join(", "),
-      year: (info.publishedDate || "").slice(0, 4),
-      cover,
-      buyLink: sale.buyLink || info.infoLink || null,
-    };
-  }).filter(Boolean);
-}
-
-// Search Open Library — free, no API key, no daily quota.
-async function searchOpenLibrary(query) {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 8000);
-  let res;
-  try {
-    res = await fetch(
-      `https://openlibrary.org/search.json?q=${encodeURIComponent(query)}&limit=20&fields=title,author_name,isbn,cover_i,first_publish_year`,
-      { signal: controller.signal }
-    );
-  } finally {
-    clearTimeout(timer);
-  }
-  if (!res.ok) return [];
-  const json = await res.json();
-  if (!json.docs) return [];
-
-  return json.docs.map((doc) => {
-    const isbns = doc.isbn || [];
-    const isbn13 = isbns.find((i) => /^\d{13}$/.test(i));
-    const isbn10 = isbns.find((i) => /^\d{9}[\dX]$/.test(i));
-    const isbn = isbn13 || (isbn10 ? isbn10to13Client(isbn10) : null);
-    if (!isbn || !doc.title) return null;
-    const cover = doc.cover_i
-      ? `https://covers.openlibrary.org/b/id/${doc.cover_i}-M.jpg`
-      : "";
-    return {
-      isbn, title: doc.title,
-      author: (doc.author_name || []).join(", "),
-      year: doc.first_publish_year ? String(doc.first_publish_year) : "",
-      cover,
-      buyLink: `https://openlibrary.org/isbn/${isbn}`,
-    };
-  }).filter(Boolean);
-}
-
-// Public entry point used by all three call sites (hero search, shelf modal,
-// sell modal). Tries Google Books first; falls back to Open Library on quota
-// or any network error so there is always a result.
-async function searchBooksAPI(query) {
-  try {
-    const results = await searchGoogleBooks(query);
-    if (results.length > 0) return results;
-    // Google Books returned OK but empty — still try Open Library.
-  } catch (e) {
-    console.warn("Google Books unavailable, using Open Library:", e.message);
-  }
-  return searchOpenLibrary(query);
-}
+// isbn10to13Client / searchGoogleBooks / searchOpenLibrary / searchBooksAPI
+// moved to js/api-lookup.js (imported at the top of this file).
 
 // Render search results into a container div; onSelect(book) is called on click.
 function renderBookSearchResults(results, container, onSelect) {
@@ -2971,7 +2769,7 @@ function listShelfItemForSale(shelfEntryId) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 async function viewProfile(userId) {
-  _setRoute("#/profile/" + encodeURIComponent(userId));
+  setRoute("#/profile/" + encodeURIComponent(userId));
   currentProfileUserId = userId;
   document.getElementById("homepage").style.display = "none";
   document.getElementById("dashboard").style.display = "none";
@@ -3055,7 +2853,7 @@ function renderProfileShelf(containerId, entries, listedIsbns = new Set()) {
 }
 
 function backFromProfile() {
-  _setRoute("#/");
+  setRoute("#/");
   document.getElementById("profilePage").style.display = "none";
   document.getElementById("homepage").style.display = "block";
   currentProfileUserId = null;
@@ -3326,6 +3124,24 @@ async function _onBarcodeDetected(isbn) {
   document.getElementById("scannerBookTitle").textContent  = book.title  || "Unknown Title";
   document.getElementById("scannerBookAuthor").textContent = book.author ? "by " + book.author : "";
   _showScannerState("found");
+}
+
+// Manual ISBN entry inside the scanner modal (the fallback shown when a scan
+// fails). Routes through the same path as a successful barcode scan.
+// Was referenced by index.html but never defined until July 4 — the "Look up"
+// button threw a ReferenceError.
+async function scannerManualLookup() {
+  const input = document.getElementById("scannerManualISBN");
+  const isbn = (input.value || "").replace(/[\s-]/g, "");
+  if (!/^(\d{13}|\d{9}[\dXx])$/.test(isbn)) {
+    const statusEl = document.getElementById("scannerStatus");
+    statusEl.style.display = "";
+    statusEl.textContent = "Enter a valid ISBN (10 or 13 digits).";
+    input.focus();
+    return;
+  }
+  document.getElementById("scannerManualEntry").style.display = "none";
+  await _onBarcodeDetected(isbn);
 }
 
 async function _fetchBookByISBN(isbn) {
@@ -3628,3 +3444,33 @@ async function scanCoverPhoto(input) {
     input.value = "";
   }
 }
+
+// ---------------------------------------------------------------------------
+// window exports
+// ---------------------------------------------------------------------------
+// This file is an ES module (module scope, not global scope), but the HTML
+// still calls functions by name: inline onclick/onchange/onkeydown attributes
+// in index.html, onclick strings in generated markup, and the Playwright
+// verify harnesses via page.evaluate. Every such function must be attached to
+// window here. When an inline handler is converted to addEventListener,
+// delete its line from this block too.
+Object.assign(window, {
+  // header / nav / auth
+  showHomePage, showBuyBooks, showSellModal, showLogin, showSignup,
+  handleLogout, showDashboard, showDashboardTab, closeModal,
+  // notifications
+  toggleNotifications, markAllNotificationsRead,
+  // browse / search / detail
+  searchBooks, showMoreSearchResults, applyControls, backToBrowse,
+  viewListing, browseBookById, browseBook, viewProfile, backFromProfile,
+  searchByAuthor, searchByGenre, viewExternalBook, openExternalBookOptions,
+  buyBook, submitDiscussionPost, deleteDiscussionPost, toggleFollow,
+  // sell / shelf
+  lookupISBN, suggestPrice, showAddToShelfModal, searchShelfBooks,
+  searchSellBooks, lookupShelfISBN, editListing, markAsSold, deleteListing,
+  removeFromShelf, listShelfItemForSale,
+  // scanner
+  openBookScanner, openBarcodeScanner, startLiveCamera, scanFromPhoto,
+  scanCoverPhoto, retryWithVision, addScannedBook, scannerReset,
+  closeBarcodeScanner, scannerManualLookup,
+});
