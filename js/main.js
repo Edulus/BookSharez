@@ -9,6 +9,68 @@ let currentListingShelfEntryId = null;
 let currentProfileUserId = null;
 let currentProfileIsFollowed = false;
 
+// ---------------------------------------------------------------------------
+// Hash routing
+// ---------------------------------------------------------------------------
+// Pages remain display-toggled divs (no framework); the router is the single
+// mapping between location.hash and the existing page functions, giving
+// shareable URLs, working back/forward, and refresh that stays on the page.
+//
+//   #/                      homepage (browse)
+//   #/listing/<id>          single-listing detail page   → viewListing
+//   #/book/<bookId>         unified book page            → browseBookById
+//   #/profile/<userId>      public profile               → viewProfile
+//   #/dashboard[/<tab>]     dashboard (login required)   → showDashboard
+//
+// Page functions *record* their route via _setRoute() when invoked directly
+// (clicks); the hashchange listener *applies* routes on back/forward and
+// direct link loads. _routeWrites suppresses the echo event that our own
+// hash writes produce, so navigation never double-renders.
+// External-search books (no catalog id) are deliberately unrouted: their page
+// is built from an in-memory object a URL can't reconstruct.
+
+let _routeWrites = 0; // pending hashchange events caused by _setRoute itself
+let _initialRouteApplied = false;
+
+// replace=true rewrites the current history entry instead of pushing a new
+// one (used for within-page changes like dashboard tabs, so the back button
+// leaves the page rather than replaying every tab). replaceState fires no
+// hashchange event, so it needs no _routeWrites guard.
+function _setRoute(hash, replace = false) {
+  // "" (no hash at all) and "#/" both mean the homepage; writing "#/" over an
+  // empty hash would push a phantom history entry and wipe the forward stack.
+  const current = location.hash === "" || location.hash === "#" ? "#/" : location.hash;
+  if (current === hash) return;
+  if (replace) {
+    history.replaceState(null, "", hash);
+    return;
+  }
+  _routeWrites++;
+  location.hash = hash;
+}
+
+function _applyRoute() {
+  const parts = location.hash
+    .replace(/^#\/?/, "")
+    .split("/")
+    .filter(Boolean)
+    .map(decodeURIComponent);
+  const [page, arg] = parts;
+  if (page === "listing" && arg) viewListing(arg);
+  else if (page === "book" && arg) browseBookById(arg);
+  else if (page === "profile" && arg) viewProfile(arg);
+  else if (page === "dashboard") showDashboard(arg);
+  else showBuyBooks(); // "", "#/" and anything unrecognized
+}
+
+window.addEventListener("hashchange", () => {
+  if (_routeWrites > 0) {
+    _routeWrites--;
+    return;
+  }
+  _applyRoute();
+});
+
 // Initialize the app
 document.addEventListener("DOMContentLoaded", function () {
   loadHomepageSections();
@@ -945,6 +1007,7 @@ function renderHardcoverBuyLink(slug) {
 
 // Show buy books page
 function showBuyBooks() {
+  _setRoute("#/");
   document.getElementById("homepage").style.display = "block";
   document.getElementById("dashboard").style.display = "none";
   document.getElementById("bookDetail").style.display = "none";
@@ -990,6 +1053,13 @@ function initAuth() {
   // every sign in / sign out, so a page refresh keeps the user logged in.
   supabaseClient.auth.onAuthStateChange((_event, session) => {
     applyAuthState(session);
+    // Apply the URL's route only after the first auth state is known, so a
+    // direct link to #/dashboard works when a session is restored (and the
+    // logged-out homepage reset above doesn't clobber a public deep link).
+    if (!_initialRouteApplied) {
+      _initialRouteApplied = true;
+      if (location.hash && location.hash !== "#/") _applyRoute();
+    }
   });
 }
 
@@ -1086,6 +1156,9 @@ async function handleSignup(e) {
 // Handle logout. onAuthStateChange resets the UI to the logged-out state.
 async function handleLogout() {
   await supabaseClient.auth.signOut();
+  // The auth handler already shows the homepage; keep the URL in step so a
+  // refresh doesn't try to reopen a login-only page.
+  _setRoute("#/");
 }
 
 // Map Supabase auth errors to friendly messages (never expose internals).
@@ -1121,7 +1194,12 @@ function clearAuthMessage(elId) {
 }
 
 // Show dashboard — defaults to Books I Have tab
-function showDashboard() {
+const DASHBOARD_TABS = ["shelf-have", "shelf-want", "listings", "profile"];
+
+// `tab` is optional; non-string values (e.g. the MouseEvent from
+// `loginBtn.onclick = showDashboard`) and unknown names fall back to the
+// default tab.
+function showDashboard(tab) {
   if (!isLoggedIn) {
     showLogin();
     return;
@@ -1130,8 +1208,7 @@ function showDashboard() {
   document.getElementById("bookDetail").style.display = "none";
   document.getElementById("profilePage").style.display = "none";
   document.getElementById("dashboard").style.display = "block";
-  activateDashboardTab("shelf-have");
-  loadShelfHave();
+  showDashboardTab(DASHBOARD_TABS.includes(tab) ? tab : "shelf-have");
 }
 
 function activateDashboardTab(tabName) {
@@ -1147,6 +1224,8 @@ function activateDashboardTab(tabName) {
 }
 
 function showDashboardTab(tabName) {
+  // Push when arriving at the dashboard, replace when switching tabs inside it.
+  _setRoute("#/dashboard/" + tabName, location.hash.startsWith("#/dashboard"));
   activateDashboardTab(tabName);
   if (tabName === "shelf-have") loadShelfHave();
   else if (tabName === "shelf-want") loadShelfWant();
@@ -1851,6 +1930,7 @@ function ensureDetailStyles() {
 // Book detail page: fetch the full listing by id and show it as a toggled
 // "page" (same display-toggle approach as homepage/dashboard; no routing).
 async function viewListing(listingId) {
+  _setRoute("#/listing/" + encodeURIComponent(listingId));
   ensureDetailStyles();
   const detail = document.getElementById("bookDetail");
 
@@ -2103,6 +2183,7 @@ function _relativeTime(iso) {
 
 // Return from the detail page to the browse grid.
 function backToBrowse() {
+  _setRoute("#/");
   document.getElementById("bookDetail").style.display = "none";
   document.getElementById("dashboard").style.display = "none";
   document.getElementById("profilePage").style.display = "none";
@@ -2204,6 +2285,7 @@ handleResize(); // Call on load
 // Navigate from a shelf card to the browse grid, searching by ISBN (exact) or
 // title (fallback). ISBN gives the cleanest single-book result.
 function searchByAuthor(author) {
+  _setRoute("#/");
   document.getElementById("homepage").style.display = "block";
   document.getElementById("dashboard").style.display = "none";
   document.getElementById("bookDetail").style.display = "none";
@@ -2213,6 +2295,7 @@ function searchByAuthor(author) {
 }
 
 function browseBook(isbn, title) {
+  _setRoute("#/");
   const term = isbn || title;
   document.getElementById("homepage").style.display = "block";
   document.getElementById("dashboard").style.display = "none";
@@ -2225,6 +2308,7 @@ function browseBook(isbn, title) {
 // metadata + its community seller offers (primary) + affiliate offers + want
 // count + discussion. Uses book_id, so no external API calls are needed.
 async function browseBookById(bookId, title) {
+  _setRoute("#/book/" + encodeURIComponent(bookId));
   ensureDetailStyles();
   document.getElementById("homepage").style.display = "none";
   document.getElementById("dashboard").style.display = "none";
@@ -2772,6 +2856,7 @@ function listShelfItemForSale(shelfEntryId) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 async function viewProfile(userId) {
+  _setRoute("#/profile/" + encodeURIComponent(userId));
   currentProfileUserId = userId;
   document.getElementById("homepage").style.display = "none";
   document.getElementById("dashboard").style.display = "none";
@@ -2855,6 +2940,7 @@ function renderProfileShelf(containerId, entries, listedIsbns = new Set()) {
 }
 
 function backFromProfile() {
+  _setRoute("#/");
   document.getElementById("profilePage").style.display = "none";
   document.getElementById("homepage").style.display = "block";
   currentProfileUserId = null;

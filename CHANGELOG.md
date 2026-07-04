@@ -16,6 +16,14 @@ rationale lives inline in the relevant docs (e.g. the ADR in
 
 _Phase 1 backend foundation + documentation. Work to date: 2026-06-14 – 2026-07-04._
 
+### Added (July 4 — Hash routing: shareable URLs + working back button)
+
+- **Hash router** (improvement plan §5.1) — pages are now addressable: `#/` (browse), `#/listing/<id>`, `#/book/<bookId>`, `#/profile/<userId>`, `#/dashboard[/<tab>]`. Deep links load the right page on a fresh visit, refresh stays put, and browser back/forward work. No framework; the display-toggle mechanism is unchanged.
+  - Design: page functions *record* their route (`_setRoute`), the `hashchange` listener *applies* routes (`_applyRoute`) for back/forward and direct loads; a write counter (`_routeWrites`) suppresses the echo event from our own hash writes, so navigation never double-renders. `""`/`#` are treated as `#/` so re-showing the homepage never pushes a phantom entry (preserves the forward stack).
+  - Dashboard: `showDashboard(tab)` now takes an optional tab (whitelisted via `DASHBOARD_TABS`; tolerates the `MouseEvent` from `loginBtn.onclick`); tab switches use `history.replaceState` so one Back leaves the dashboard instead of replaying every tab. Bare `#/dashboard` normalizes to `#/dashboard/shelf-have` without a history trap. Deep-linking `#/dashboard` works with a restored session because the initial route is applied after the first `onAuthStateChange` fires (also keeps the logged-out homepage reset from clobbering public deep links). Logout resets the URL to `#/`.
+  - External-search books (no catalog id) stay unrouted — their page is built from an in-memory object a URL can't reconstruct.
+  - **Verified:** new [verify-routing.js](verify-routing.js) Playwright harness (mocked Supabase REST, port 7654) — 20 checks covering click-through routes, back/forward, deep links, refresh persistence, dashboard tab replace-semantics, unknown-route fallback, zero page errors. `verify-bookflow.js` full regression re-run: all flows still pass.
+
 ### Added (July 4 — Improvement plan + quick wins)
 
 - **[docs/IMPROVEMENT_PLAN.md](docs/IMPROVEMENT_PLAN.md)** — comprehensive advisory review of the whole project: current state, quick wins, marketplace-loop gaps (want-match notifications, trust signals, book-page aggregation), social-layer build order (feed → reviews → reading statuses → recommendations), architecture priorities (hash routing ★, `main.js` module split, FTS search, shared notifications rail), security hardening, UX/accessibility, tooling/ops, and a sequenced roadmap. Advisory only — does not override the vision → architecture → spec hierarchy.
