@@ -45,6 +45,7 @@ async function installRoutes(page) {
     return json(route, [{ book_id: 'book-A', books: { id: 'book-A', title: 'The Way of Zen', author: 'Alan Watts', cover_url: null } }]);
   });
   await page.route('**/rest/v1/discussion_posts*', (route) => json(route, []));
+  await page.route('**/rest/v1/notifications*', (route) => json(route, [])); // bell badge query (July 4)
   await page.route('**/rest/v1/profiles*', (route) => isSingle(route) ? json(route, { id: 'seller-1', username: 'zenfan' }) : json(route, []));
   await page.route('**/rest/v1/listing_photos*', (route) => json(route, []));
   await page.route('**/books/v1/volumes*', (route) => json(route, GBOOKS));

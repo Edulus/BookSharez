@@ -16,6 +16,13 @@ rationale lives inline in the relevant docs (e.g. the ADR in
 
 _Phase 1 backend foundation + documentation. Work to date: 2026-06-14 – 2026-07-04._
 
+### Added (July 4 — Notifications rail + want-match notifications)
+
+- **Notifications rail** (improvement plan §5.4) — one generic `notifications` table ([db/notifications.sql](db/notifications.sql), **pending Supabase apply — ToDo item 13**) designed to serve every future notification type (want-match now; "interested" pings, follows, mentions, discussion replies later). Columns: recipient, `type`, `actor_id`, polymorphic `subject_type`/`subject_id`, denormalized `payload` JSONB, `read_at`. RLS: owner-only read/update/delete, **no client INSERT** — rows are created exclusively by `SECURITY DEFINER` triggers, so notifications can't be forged.
+- **Want-match notifications** (improvement plan §3.1, vision: "add it to your wish list and get notified when a copy becomes available") — `notify_want_match()` trigger fires when a listing is inserted with `status='active'` and notifies every user with that book on their Want shelf (except the seller), payload carrying title/author/price/seller username so the client renders with zero extra queries.
+- **Header bell UI** — bell button + badge (unread count, 99+ cap) in the header, shown when logged in; dropdown panel with the latest 20 notifications, unread highlighting, relative timestamps, "Mark all read", and click-outside-to-close. Clicking a notification marks it read and routes to its subject (`#/listing/<id>` for want-matches). Client degrades silently if the SQL isn't applied yet (hidden badge + friendly panel message). New JS: `refreshNotifBadge`, `toggleNotifications`, `loadNotifications`, `_renderNotifItem`, `_openNotification`, `markAllNotificationsRead`; wired into `applyAuthState` (show/hide + refresh on login/logout). Notification CSS in `style.css` (`.notif-*`).
+- **Verified:** [verify-notifications.js](verify-notifications.js) Playwright harness (mocked Supabase REST): bell hidden when logged out; badge count renders; panel lists items with unread styling; clicking routes to the listing page and issues the mark-read PATCH; mark-all-read PATCH clears the badge; zero page errors.
+
 ### Added (July 4 — Hash routing: shareable URLs + working back button)
 
 - **Hash router** (improvement plan §5.1) — pages are now addressable: `#/` (browse), `#/listing/<id>`, `#/book/<bookId>`, `#/profile/<userId>`, `#/dashboard[/<tab>]`. Deep links load the right page on a fresh visit, refresh stays put, and browser back/forward work. No framework; the display-toggle mechanism is unchanged.

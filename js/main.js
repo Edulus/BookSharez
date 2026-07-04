@@ -133,6 +133,17 @@ function setupEventListeners() {
     if (e.target.classList.contains("modal")) {
       e.target.style.display = "none";
     }
+    // Close the notifications dropdown on any click outside it (or its bell).
+    const notifPanel = document.getElementById("notifPanel");
+    const notifBell = document.getElementById("notifBell");
+    if (
+      notifPanel &&
+      notifPanel.style.display !== "none" &&
+      !notifPanel.contains(e.target) &&
+      !notifBell.contains(e.target)
+    ) {
+      notifPanel.style.display = "none";
+    }
   });
 
   // Enter key on book search inputs
@@ -1075,6 +1086,8 @@ function applyAuthState(session) {
     loginBtn.innerHTML = '<i class="fas fa-user-circle"></i> Dashboard';
     loginBtn.onclick = showDashboard;
     logoutBtn.style.display = "inline-flex";
+    document.getElementById("notifBell").style.display = "inline-flex";
+    refreshNotifBadge();
   } else {
     isLoggedIn = false;
     currentUser = null;
@@ -1082,6 +1095,8 @@ function applyAuthState(session) {
     loginBtn.innerHTML = '<i class="fas fa-user"></i> Login';
     loginBtn.onclick = showLogin;
     logoutBtn.style.display = "none";
+    document.getElementById("notifBell").style.display = "none";
+    document.getElementById("notifPanel").style.display = "none";
     // If the user was viewing the dashboard or profile, send them back to homepage.
     document.getElementById("homepage").style.display = "block";
     document.getElementById("dashboard").style.display = "none";
@@ -1194,6 +1209,106 @@ function clearAuthMessage(elId) {
 }
 
 // Show dashboard — defaults to Books I Have tab
+// ---------------------------------------------------------------------------
+// Notifications (rail: db/notifications.sql — v1 type: want_match)
+// ---------------------------------------------------------------------------
+// Rows are created server-side by the want-match trigger when someone lists a
+// book on the user's Want shelf. The client only reads and marks read.
+// Degrades silently if db/notifications.sql isn't applied yet: the badge
+// stays hidden and the panel shows a friendly message.
+
+async function refreshNotifBadge() {
+  if (!currentUserId) return;
+  const { count, error } = await supabaseClient
+    .from("notifications")
+    .select("*", { count: "exact", head: true })
+    .eq("user_id", currentUserId)
+    .is("read_at", null);
+  const badge = document.getElementById("notifBadge");
+  if (!badge) return;
+  if (error || !count) {
+    badge.style.display = "none";
+    return;
+  }
+  badge.textContent = count > 99 ? "99+" : String(count);
+  badge.style.display = "flex";
+}
+
+function toggleNotifications() {
+  const panel = document.getElementById("notifPanel");
+  if (panel.style.display === "none") {
+    panel.style.display = "block";
+    loadNotifications();
+  } else {
+    panel.style.display = "none";
+  }
+}
+
+async function loadNotifications() {
+  const list = document.getElementById("notifList");
+  list.innerHTML = '<p class="notif-empty">Loading…</p>';
+  const { data, error } = await supabaseClient
+    .from("notifications")
+    .select("id, type, subject_type, subject_id, payload, read_at, created_at")
+    .eq("user_id", currentUserId)
+    .order("created_at", { ascending: false })
+    .limit(20);
+  if (error) {
+    list.innerHTML = '<p class="notif-empty">Notifications are unavailable right now.</p>';
+    return;
+  }
+  if (!data || !data.length) {
+    list.innerHTML =
+      '<p class="notif-empty">Nothing yet — when someone lists a book from your Want shelf, you\'ll see it here.</p>';
+    return;
+  }
+  list.innerHTML = "";
+  data.forEach((n) => list.appendChild(_renderNotifItem(n)));
+}
+
+function _renderNotifItem(n) {
+  const item = document.createElement("div");
+  item.className = "notif-item" + (n.read_at ? "" : " notif-unread");
+  const p = n.payload || {};
+  let text;
+  if (n.type === "want_match") {
+    const price = Number.isFinite(+p.price) ? ` for $${Number(p.price).toFixed(2)}` : "";
+    const seller = p.seller_username ? ` by ${escapeHTML(p.seller_username)}` : "";
+    text = `<strong>${escapeHTML(p.title || "A book you want")}</strong> was just listed${price}${seller} — it's on your Want shelf.`;
+  } else {
+    // Future types (interested/follow/mention/…) get renderers as they ship.
+    text = escapeHTML(p.title || "New activity");
+  }
+  item.innerHTML = `<p>${text}</p><span class="notif-time">${_relativeTime(n.created_at)}</span>`;
+  item.addEventListener("click", () => _openNotification(n));
+  return item;
+}
+
+async function _openNotification(n) {
+  document.getElementById("notifPanel").style.display = "none";
+  if (!n.read_at) {
+    // Fire-and-forget; the badge refreshes when the update lands.
+    supabaseClient
+      .from("notifications")
+      .update({ read_at: new Date().toISOString() })
+      .eq("id", n.id)
+      .then(() => refreshNotifBadge());
+  }
+  if (n.subject_type === "listing") viewListing(n.subject_id);
+  else if (n.subject_type === "book") browseBookById(n.subject_id);
+  else if (n.subject_type === "profile") viewProfile(n.subject_id);
+}
+
+async function markAllNotificationsRead() {
+  await supabaseClient
+    .from("notifications")
+    .update({ read_at: new Date().toISOString() })
+    .eq("user_id", currentUserId)
+    .is("read_at", null);
+  refreshNotifBadge();
+  loadNotifications();
+}
+
 const DASHBOARD_TABS = ["shelf-have", "shelf-want", "listings", "profile"];
 
 // `tab` is optional; non-string values (e.g. the MouseEvent from
