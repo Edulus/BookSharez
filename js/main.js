@@ -181,7 +181,7 @@ function _renderTile(book, context) {
   card.innerHTML = `
     <div class="book-image">
       <img src="${escapeHTML(book.coverUrl || "")}" alt="${escapeHTML(book.title)}"
-        onerror="this.src='${FALLBACK_COVER}'">
+        loading="lazy" onerror="this.src='${FALLBACK_COVER}'">
       ${badgeHtml}
     </div>
     <div class="book-info">
@@ -216,6 +216,7 @@ function _renderThumb(book, context) {
   imgWrapper.style.cssText = "position:relative;width:80px;height:110px;margin:0 auto;";
 
   const img = document.createElement("img");
+  img.loading = "lazy";
   img.src = book.coverUrl || "";
   img.alt = book.title || "";
   img.style.cssText =
@@ -1593,7 +1594,7 @@ async function loadUserListings() {
     listingCard.innerHTML = `
       <div class="listing-main">
         <img class="listing-cover" src="${escapeHTML(book.cover_url || "")}" alt="${escapeHTML(book.title)}"
-          onerror="this.style.display='none'">
+          loading="lazy" onerror="this.style.display='none'">
         <div class="listing-info">
           <h4>${escapeHTML(book.title)}</h4>
           <p>by ${escapeHTML(book.author)}</p>
@@ -1965,6 +1966,7 @@ async function renderDetailGallery(listingId) {
     if (!item.signedUrl) return;
     const img = document.createElement("img");
     img.className = "detail-thumb";
+    img.loading = "lazy";
     img.src = item.signedUrl;
     img.alt = "Book photo";
     gallery.appendChild(img);
@@ -2364,6 +2366,7 @@ function renderBookSearchResults(results, container, onSelect) {
     item.onmouseenter = () => { item.style.background = "#f8f9fa"; };
     item.onmouseleave = () => { item.style.background = ""; };
     const img = document.createElement("img");
+    img.loading = "lazy";
     img.src = book.cover || "";
     img.alt = "";
     img.style.cssText = "width:36px;height:50px;object-fit:cover;border-radius:4px;flex-shrink:0;";
@@ -2595,6 +2598,7 @@ function _renderShelfTile(book, entryId, shelfType, isListed) {
 
   const img = document.createElement("img");
   img.className = "shelf-cover";
+  img.loading = "lazy";
   img.src = book.cover_url || "";
   img.alt = book.title || "";
   img.onerror = () => { img.src = SHELF_COVER_FALLBACK; };

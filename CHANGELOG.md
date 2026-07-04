@@ -14,7 +14,16 @@ rationale lives inline in the relevant docs (e.g. the ADR in
 
 ## [Unreleased]
 
-_Phase 1 backend foundation + documentation. Work to date: 2026-06-14 – 2026-07-03._
+_Phase 1 backend foundation + documentation. Work to date: 2026-06-14 – 2026-07-04._
+
+### Added (July 4 — Improvement plan + quick wins)
+
+- **[docs/IMPROVEMENT_PLAN.md](docs/IMPROVEMENT_PLAN.md)** — comprehensive advisory review of the whole project: current state, quick wins, marketplace-loop gaps (want-match notifications, trust signals, book-page aggregation), social-layer build order (feed → reviews → reading statuses → recommendations), architecture priorities (hash routing ★, `main.js` module split, FTS search, shared notifications rail), security hardening, UX/accessibility, tooling/ops, and a sequenced roadmap. Advisory only — does not override the vision → architecture → spec hierarchy.
+- **Quick wins applied (plan §2):**
+  - Fixed `<title>` typo ("Book**e**Sharez" → "BookSharez") in [index.html](index.html).
+  - Added SEO/social meta tags (`description`, Open Graph, Twitter card) and an emoji 📚 SVG favicon (data URI, no asset file) to `index.html`. No `og:image`/`og:url` yet — add when the site has a public URL.
+  - `loading="lazy"` on all book-cover images across the renderers: `_renderTile`, `_renderThumb`, listing cards (`loadUserListings`), detail-gallery thumbs, the shelf/sell picker rows (`renderBookSearchResults`), and shelf tiles (`_renderShelfTile`). The main `#detailCover` stays eager (primary content). `node --check` passes.
+  - Deleted `css/style_B.css` — unlinked from `index.html` since June; had drifted out of sync with `style.css` (it was a stale snapshot, not a variant). Git history preserves it. CLAUDE.md reference updated.
 
 ### Added (July 3 — Supabase keep-alive automation)
 

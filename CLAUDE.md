@@ -64,5 +64,4 @@ If working on the existing prototype:
 - **Search:** `searchBooks()` runs local DB + `searchBooksAPI()` in parallel. `searchBooksAPI()` tries Google Books first, auto-falls back to Open Library (free, no quota) on any 429/error. Results are merged local-first, paginated 9 at a time with a "View more" button.
 - **Sell flow architecture:** selling always routes through the shelf. "Sell Books" header → `showAddToShelfModal('have')` → add to "Books I Have" → "List for Sale" button pre-fills sell modal with `currentListingShelfEntryId` passed through to `listings.shelf_entry_id`.
 - **Cover images:** use `object-fit: contain` + `background: #f5f5f5` everywhere (not `cover`) so portrait book covers display without cropping. "For Sale" badge is a `position:absolute` child of a `position:relative` image wrapper.
-- [css/style_B.css](css/style_B.css) exists but is **not linked** from `index.html`; only `css/style.css` is loaded.
-- The old in-memory `sampleBooks` / `userBooks` arrays have been removed.
+- The old in-memory `sampleBooks` / `userBooks` arrays have been removed. (`css/style_B.css`, an unlinked stale copy of the stylesheet, was deleted July 4.)
