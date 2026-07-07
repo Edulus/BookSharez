@@ -83,9 +83,11 @@ what's missing is making the *repetition* frictionless on a phone:
   bottom, no pinch-zoom, no keyboard-covered inputs, camera viewfinder sized
   right. The audit found the logged-in header was forcing a 572px layout
   viewport — the whole site was zoomed out on phones.
-- **Capture → listed in one confirm.** The sell flow already routes through
-  the shelf; from a fresh capture, offer "Add & list for sale" that lands on a
-  pre-filled sell form (suggested price already fetched) needing one confirm.
+- **Capture → listed in one confirm.** *(Shipped July 7 — see CHANGELOG.)*
+  The sell flow already routes through the shelf; from a fresh capture, "Add &
+  List for Sale" lands on a pre-filled sell form (price auto-suggested on
+  condition pick) needing one confirm. Listing is never silent — condition and
+  price are always confirmed by the seller.
 - **Cover-photo path parity.** The AI cover path must stay as fast as the
   barcode path — it's what handles older books with no barcode, which heavy
   shelves are full of.

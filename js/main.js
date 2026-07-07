@@ -128,6 +128,15 @@ function setupEventListeners() {
     }
   });
 
+  // Auto-suggest a price the moment a condition is picked, if the seller
+  // hasn't typed one yet (vision: "accept or adjust the suggested price").
+  // suggestPrice falls back silently to the local algorithm on any failure.
+  document.getElementById("bookCondition").addEventListener("change", () => {
+    const hasPrice = document.getElementById("bookPrice").value.trim() !== "";
+    const hasTitle = document.getElementById("bookTitle").value.trim() !== "";
+    if (!hasPrice && hasTitle) suggestPrice();
+  });
+
   // Enter key on book search inputs
   document.getElementById("shelfSearchQuery").addEventListener("keypress", (e) => {
     if (e.key === "Enter") { e.preventDefault(); searchShelfBooks(); }
@@ -2538,8 +2547,13 @@ async function removeFromShelf(entryId, shelfType) {
 function listShelfItemForSale(shelfEntryId) {
   const entry = myShelfHave.find((e) => e.id === shelfEntryId);
   if (!entry) return;
-  const book = entry.books || {};
+  _openSellModalPrefilled(entry.books || {}, shelfEntryId, "Book pre-filled from shelf ✓");
+}
 
+// Pre-fill and open the sell modal for a shelf-linked book. Used by the shelf
+// "List for Sale" button and the scanner's Add & List path. Condition and
+// price start empty on purpose — the seller must confirm them to submit.
+function _openSellModalPrefilled(book, shelfEntryId, statusMsg) {
   currentListingShelfEntryId = shelfEntryId;
   document.getElementById("bookISBN").value = book.isbn || "";
   document.getElementById("bookTitle").value = book.title || "";
@@ -2547,11 +2561,11 @@ function listShelfItemForSale(shelfEntryId) {
   document.getElementById("bookCondition").value = "";
   document.getElementById("bookPrice").value = "";
   document.getElementById("bookDescription").value = "";
-  pendingCover = { isbn: book.isbn, url: book.cover_url || null };
+  pendingCover = { isbn: book.isbn || null, url: book.cover_url || null };
   showSellCoverPreview(book.cover_url || null, book.title || "");
 
   document.getElementById("sellSearchQuery").value = book.title || "";
-  document.getElementById("sellSearchStatus").textContent = "Book pre-filled from shelf ✓";
+  document.getElementById("sellSearchStatus").textContent = statusMsg;
   document.getElementById("sellSearchResults").style.display = "none";
   document.getElementById("sellSearchResults").innerHTML = "";
   setLookupStatus("");
@@ -3006,10 +3020,14 @@ async function _fetchBookByISBN(isbn) {
   return null;
 }
 
-async function addScannedBook(shelfType) {
-  if (!_scannedBookData) return;
+// Shared core: put the currently scanned book on a shelf. Returns
+// { book, bookId, entryId, isDuplicate } on success (duplicates count as
+// success and resolve to the *existing* entry id, so Add & List can link the
+// listing to it), or null on failure (after alerting).
+async function _addScannedToShelf(shelfType) {
+  if (!_scannedBookData) return null;
   const { data: { user } } = await supabaseClient.auth.getUser();
-  if (!user) { alert("Please log in first."); return; }
+  if (!user) { alert("Please log in first."); return null; }
 
   const book = _scannedBookData;
   let bookId = book.id;
@@ -3020,19 +3038,41 @@ async function addScannedBook(shelfType) {
       .upsert({ isbn: book.isbn, title: book.title, author: book.author, cover_url: book.cover_url },
                { onConflict: "isbn" })
       .select("id").single();
-    if (error || !upserted) { alert("Couldn't save book. Please try again."); return; }
+    if (error || !upserted) { alert("Couldn't save book. Please try again."); return null; }
     bookId = upserted.id;
   }
 
-  const { error: shelfError } = await supabaseClient
+  const { data: entry, error: shelfError } = await supabaseClient
     .from("shelf_entries")
-    .insert({ user_id: user.id, book_id: bookId, shelf_type: shelfType });
+    .insert({ user_id: user.id, book_id: bookId, shelf_type: shelfType })
+    .select("id")
+    .single();
 
-  if (shelfError && shelfError.code !== "23505") {
-    alert("Couldn't add to shelf. Please try again.");
-    return;
-  }
   const isDuplicate = !!(shelfError && shelfError.code === "23505");
+  if (shelfError && !isDuplicate) {
+    alert("Couldn't add to shelf. Please try again.");
+    return null;
+  }
+
+  let entryId = entry ? entry.id : null;
+  if (isDuplicate) {
+    const { data: existing } = await supabaseClient
+      .from("shelf_entries")
+      .select("id")
+      .eq("user_id", user.id)
+      .eq("book_id", bookId)
+      .eq("shelf_type", shelfType)
+      .maybeSingle();
+    entryId = existing ? existing.id : null;
+  }
+
+  return { book, bookId, entryId, isDuplicate };
+}
+
+async function addScannedBook(shelfType) {
+  const result = await _addScannedToShelf(shelfType);
+  if (!result) return;
+  const { book, isDuplicate } = result;
 
   // Batch capture (core loop): stay in the scanner and go straight back to
   // capture — the next book must cost zero extra taps. The shelf refreshes in
@@ -3051,6 +3091,24 @@ async function addScannedBook(shelfType) {
   // Photo/manual paths return to the capture-choice screen (a file picker
   // can't be reopened programmatically).
   if (_lastCaptureLive) startLiveCamera();
+}
+
+// "Add & List" (plan §3.0): one clean transition from a fresh capture into a
+// pre-filled sell form. The book lands on Books I Have, the scanner closes,
+// and the sell modal opens with the details filled in. The listing is created
+// only when the user confirms condition/price and submits — never silently.
+async function addScannedBookAndList() {
+  const result = await _addScannedToShelf("have");
+  if (!result) return;
+  if (!result.isDuplicate) _bumpCaptureCount();
+  loadShelfHave(); // background refresh
+
+  await closeBarcodeScanner();
+  _openSellModalPrefilled(
+    result.book,
+    result.entryId,
+    "Added to your shelf ✓ — confirm condition and price below"
+  );
 }
 
 async function scannerReset() {
@@ -3331,8 +3389,8 @@ Object.assign(window, {
   removeFromShelf, listShelfItemForSale,
   // scanner
   openBookScanner, openBarcodeScanner, startLiveCamera, scanFromPhoto,
-  scanCoverPhoto, retryWithVision, addScannedBook, scannerReset,
-  closeBarcodeScanner, scannerManualLookup,
+  scanCoverPhoto, retryWithVision, addScannedBook, addScannedBookAndList,
+  scannerReset, closeBarcodeScanner, scannerManualLookup,
   // internal, but probed by verify-vision.js
   _compressAndEncode, _callVisionExtract,
 });

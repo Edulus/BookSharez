@@ -1349,3 +1349,17 @@ footer {
     box-shadow: 0 -6px 12px rgba(0, 0, 0, 0.08);
   }
 }
+
+/* Add & List (scanner found state): full-width action below the shelf pair */
+.scanner-add-list-btn {
+  width: 100%;
+  justify-content: center;
+  margin-top: 0.75rem;
+  min-height: 44px;
+  background: linear-gradient(135deg, #28a745, #1e7e34);
+  color: #fff;
+}
+
+.scanner-add-list-btn:hover {
+  opacity: 0.92;
+}

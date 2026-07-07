@@ -21,6 +21,7 @@ const isSingle = (route) => (route.request().headers()["accept"] || "").includes
 
 let shelfInsertCount = 0;
 let duplicateMode = false; // when true, shelf insert returns 23505
+const listingPosts = []; // captured POST bodies to /rest/v1/listings
 
 async function installRoutes(page) {
   await page.route("**/auth/v1/**", (route) => {
@@ -51,13 +52,22 @@ async function installRoutes(page) {
       if (duplicateMode)
         return json(route, { code: "23505", message: "duplicate key value violates unique constraint", details: "", hint: "" }, {}, 409);
       shelfInsertCount++;
-      return route.fulfill({ status: 201, contentType: "application/json", body: "[]" });
+      // insert().select("id").single() expects a single object back
+      return json(route, { id: "entry-" + shelfInsertCount }, {}, 201);
     }
     if (req.method() === "HEAD") return json(route, [], { "content-range": "0-0/0" });
+    if (isSingle(route)) return json(route, { id: "entry-existing" }); // duplicate-path lookup
     return json(route, []);
   });
   await page.route("**/rest/v1/notifications*", (route) => json(route, []));
-  await page.route("**/rest/v1/listings*", (route) => json(route, []));
+  await page.route("**/rest/v1/listings*", (route) => {
+    const req = route.request();
+    if (req.method() === "POST") {
+      listingPosts.push(req.postData() || "");
+      return json(route, { id: "list-new" }, {}, 201);
+    }
+    return json(route, []);
+  });
   await page.route("**/rest/v1/profiles*", (route) => (isSingle(route) ? json(route, { id: "test-user-id", username: "me" }) : json(route, [])));
   await page.route("**/rest/v1/discussion_posts*", (route) => json(route, []));
   await page.route("**/rest/v1/listing_photos*", (route) => json(route, []));
@@ -102,7 +112,9 @@ async function captureViaManualEntry(page, isbn) {
   const browser = await chromium.launch();
   const page = await (await browser.newContext({ viewport: { width: 390, height: 844 } })).newPage(); // phone-sized
   const errors = [];
+  const dialogs = [];
   page.on("pageerror", (e) => errors.push("pageerror: " + e.message));
+  page.on("dialog", (d) => { dialogs.push(d.message()); d.accept(); });
   await installRoutes(page);
   await page.addInitScript(fakeSession);
   await page.goto(APP, { waitUntil: "networkidle" });
@@ -150,6 +162,42 @@ async function captureViaManualEntry(page, isbn) {
   await page.evaluate(() => window.openBookScanner());
   await page.waitForTimeout(200);
   check("chip persists across reopen", (await txt(page, "scannerSessionCount")).trim() === "2 books added today", await txt(page, "scannerSessionCount"));
+
+  check("no dialogs during batch adds", dialogs.length === 0, dialogs.join(" | "));
+
+  // ── Add & List: capture → one clean transition → confirm → listing ──
+  await captureViaManualEntry(page, "9780111111111");
+  await page.click(".scanner-add-list-btn");
+  await page.waitForTimeout(500);
+
+  check("Add&List: scanner closed", !(await modalVis(page, "barcodeScannerModal")));
+  check("Add&List: sell modal open", await modalVis(page, "sellModal"));
+  check("Add&List: ISBN prefilled", (await page.evaluate(() => document.getElementById("bookISBN").value)) === "9780111111111");
+  check("Add&List: title prefilled", (await page.evaluate(() => document.getElementById("bookTitle").value)).includes("Way of Zen"));
+  check("Add&List: status explains next step", (await txt(page, "sellSearchStatus")).includes("confirm condition and price"), await txt(page, "sellSearchStatus"));
+  check("Add&List: counted as a capture (chip 3)", (await txt(page, "scannerSessionCount")).trim() === "3 books added today", await txt(page, "scannerSessionCount"));
+  check("Add&List: condition + price start EMPTY (no silent listing)",
+    await page.evaluate(() => document.getElementById("bookCondition").value === "" && document.getElementById("bookPrice").value === ""));
+  check("Add&List: no listing POST before user confirms", listingPosts.length === 0);
+
+  // picking a condition auto-suggests a price (pricing fn mocked away → local fallback)
+  await page.selectOption("#bookCondition", "good");
+  await page.waitForTimeout(700);
+  const suggested = await page.evaluate(() => document.getElementById("bookPrice").value);
+  check("condition pick auto-suggests a price", parseFloat(suggested) > 0, suggested);
+
+  // the user stays in control: adjust the price, then confirm
+  await page.fill("#bookPrice", "12.50");
+  await page.click('#sellForm button[type="submit"]');
+  await page.waitForTimeout(900);
+
+  check("confirm creates exactly one listing", listingPosts.length === 1, String(listingPosts.length));
+  const posted = listingPosts[0] || "";
+  check("listing linked to the new shelf entry", posted.includes('"shelf_entry_id":"entry-3"'), posted);
+  check("listing carries confirmed condition", posted.includes('"condition":"good"'), posted);
+  check("listing carries adjusted price", posted.includes('"price":12.5'), posted);
+  check("success alert after listing", dialogs.some((d) => d.includes("listed successfully")), dialogs.join(" | "));
+  check("sell modal closed after confirm", !(await modalVis(page, "sellModal")));
 
   check("no page errors", errors.length === 0, errors.join(" | "));
   await browser.close();

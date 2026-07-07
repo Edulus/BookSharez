@@ -16,6 +16,13 @@ rationale lives inline in the relevant docs (e.g. the ADR in
 
 _Phase 1 backend foundation + documentation. Work to date: 2026-06-14 – 2026-07-04._
 
+### Added (July 7 — "Add & List": one confirm from capture to listing)
+
+- **Add & List for Sale** (improvement plan §3.0): the scanner's found state gains a third action beside the Have/Want pair. One tap: the book lands on **Books I Have**, the scanner closes, and the **sell modal opens pre-filled** (ISBN, title, author, cover, shelf-entry link). **Never a silent listing** — condition and price start empty by design, and the listing is created only when the seller confirms and submits; verified by an explicit "no listing POST before user confirms" check.
+- **Condition pick auto-suggests a price** (whole sell flow, not just Add & List): choosing a condition triggers `suggestPrice()` when the price field is still empty — the vision's "accept or adjust the suggested price" moment. Silently falls back to the local condition-multiplier algorithm if the DeepSeek function is unreachable.
+- Refactors: `_addScannedToShelf(shelfType)` is the shared add-to-shelf core (now returns the shelf-entry id; duplicates resolve to the *existing* entry id so Add & List can still link the listing); `_openSellModalPrefilled(book, entryId, statusMsg)` is the shared sell-modal pre-fill used by both the shelf "List for Sale" button and Add & List. Add & List bumps the batch session counter like any capture.
+- **Verified:** [verify-batchscan.js](verify-batchscan.js) extended to 33 checks — the new section drives capture → Add & List → pre-filled sell modal (empty condition/price) → condition pick auto-suggests ($7.00 fallback) → user adjusts to $12.50 → submit → exactly one `listings` POST carrying `shelf_entry_id`, confirmed condition, and adjusted price → success alert → modal closed. All six harnesses green.
+
 ### Fixed (July 7 — Mobile-first audit of the core-loop screens)
 
 - **The whole site rendered zoomed-out on phones — fixed.** Root cause found by the plan §3.0 audit: the logged-in header held five non-wrapping buttons (~572px minimum content width), so mobile Chrome expanded the layout viewport to 572px and scaled the page down. At ≤480px the header now wraps (`.header-actions { flex-wrap: wrap }`, Buy/Sell on their own row, compact button padding); `window.innerWidth` now equals the device width at 360/390/414px.
