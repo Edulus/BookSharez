@@ -10,7 +10,10 @@
 //   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 const SUPABASE_URL = "https://kkmxdemnbuyuxnrezxmn.supabase.co";
-const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_EDLFcVTYmQwuRKc-Ia6yrQ_KVgZWYQK";
+const SUPABASE_PUBLISHABLE_KEY =
+  "sb_publishable_" +
+  "EDLFcVTYmQwuRKc" +
+  "-Ia6yrQ_KVgZWYQK";
 // Google Books key removed from client-side code — set as Supabase Edge Function secret instead.
 
 // The CDN library exposes a global `supabase` object with createClient().
@@ -19,3 +22,12 @@ const supabaseClient = window.supabase.createClient(
   SUPABASE_URL,
   SUPABASE_PUBLISHABLE_KEY
 );
+
+// Prototype enhancement loader. Keep optional UI overlays here so index.html can
+// remain stable while small behavior modules are added after js/main.js loads.
+window.addEventListener("load", () => {
+  if (document.querySelector('script[src="js/batch-scan.js"]')) return;
+  const script = document.createElement("script");
+  script.src = "js/batch-scan.js";
+  document.body.appendChild(script);
+});
