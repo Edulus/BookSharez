@@ -77,11 +77,12 @@ what's missing is making the *repetition* frictionless on a phone:
   shelf," return straight to the live camera with a running session counter
   ("14 added tonight"), instead of closing the modal. Capture → confirm → next
   should be a rhythm with zero re-opening taps.
-- **Mobile-first audit of the loop screens.** Scanner modal, add-to-shelf,
-  and sell modal at 360–414 px widths: primary buttons thumb-reachable at the
+- **Mobile-first audit of the loop screens.** *(Shipped July 7 — see
+  CHANGELOG; guarded by verify-mobile.js.)* Scanner modal, add-to-shelf, and
+  sell modal at 360–414 px widths: primary buttons thumb-reachable at the
   bottom, no pinch-zoom, no keyboard-covered inputs, camera viewfinder sized
-  right. The CSS is desktop-designed with media-query retrofits — the loop
-  screens deserve phone-first treatment.
+  right. The audit found the logged-in header was forcing a 572px layout
+  viewport — the whole site was zoomed out on phones.
 - **Capture → listed in one confirm.** The sell flow already routes through
   the shelf; from a fresh capture, offer "Add & list for sale" that lands on a
   pre-filled sell form (suggested price already fetched) needing one confirm.
