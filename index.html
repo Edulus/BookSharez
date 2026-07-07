@@ -652,12 +652,15 @@
       <div class="modal-content scanner-modal-content">
         <div class="modal-header">
           <h3 id="scannerModalTitle"><i class="fas fa-camera"></i> Scan a Book</h3>
+          <span id="scannerSessionCount" class="scanner-session-count" style="display: none"></span>
           <span class="close" onclick="closeBarcodeScanner()">&times;</span>
         </div>
         <div class="modal-body">
 
           <!-- State 1: scanning -->
           <div id="scannerStateScanning">
+            <!-- Batch-capture flash: confirms the last add without leaving the scanner -->
+            <p id="scannerAddedMsg" class="scanner-added-msg" style="display: none"></p>
             <p class="scanner-hint">Take a photo of the barcode, or use live camera scanning.</p>
             <div class="scanner-photo-options">
               <label class="scanner-photo-label scanner-photo-primary">

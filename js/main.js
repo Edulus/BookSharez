@@ -2748,6 +2748,46 @@ let _scannerFallback = null; // html5-qrcode instance (fallback only)
 let _scannerTarget = null;   // 'shelf' | 'sell' | 'dashboard'
 let _scannedBookData = null;
 let _lastScanFile = null;    // File kept for AI barcode retry after Quagga/BarcodeDetector fails
+let _lastCaptureLive = false; // true when the current capture came from live camera (batch mode restarts it)
+let _addedMsgTimer = null;
+
+// ── Batch capture (core loop) ────────────────────────────────────────────────
+// The session counter persists per calendar day in localStorage so closing the
+// modal (or an accidental refresh) doesn't zero the "added tonight" feeling.
+
+function _captureCountKey() {
+  return "bsCaptures:" + new Date().toISOString().slice(0, 10);
+}
+
+function _getCaptureCount() {
+  try { return Number(localStorage.getItem(_captureCountKey())) || 0; }
+  catch (e) { return 0; }
+}
+
+function _updateSessionChip() {
+  const chip = document.getElementById("scannerSessionCount");
+  if (!chip) return;
+  const n = _getCaptureCount();
+  chip.textContent = n + (n === 1 ? " book added today" : " books added today");
+  chip.style.display = n > 0 ? "" : "none";
+}
+
+function _bumpCaptureCount() {
+  try { localStorage.setItem(_captureCountKey(), String(_getCaptureCount() + 1)); }
+  catch (e) { /* storage unavailable — chip just won't persist */ }
+  _updateSessionChip();
+}
+
+// Green confirmation inside the scanning state; auto-hides so the viewfinder
+// stays clean while the user lines up the next book.
+function _flashAddedMessage(html) {
+  const el = document.getElementById("scannerAddedMsg");
+  if (!el) return;
+  el.innerHTML = html;
+  el.style.display = "";
+  clearTimeout(_addedMsgTimer);
+  _addedMsgTimer = setTimeout(() => { el.style.display = "none"; }, 3500);
+}
 
 function openBookScanner() {
   _scannerTarget = "dashboard";
@@ -2763,6 +2803,7 @@ function _openScannerModal() {
   _scannedBookData = null;
   _showScannerState("scanning");
   _resetCameraView();
+  _updateSessionChip();
   document.getElementById("scannerPhotoInput").value = "";
   document.getElementById("scannerGalleryInput").value = "";
   document.getElementById("barcodeScannerModal").style.display = "block";
@@ -2780,6 +2821,7 @@ function _resetCameraView() {
 }
 
 function startLiveCamera() {
+  _lastCaptureLive = true;
   const view = document.getElementById("barcodeScannerView");
   const statusEl = document.getElementById("scannerStatus");
   const btn = document.getElementById("btnLiveCamera");
@@ -2926,6 +2968,7 @@ async function _onBarcodeDetected(isbn) {
 // Was referenced by index.html but never defined until July 4 — the "Look up"
 // button threw a ReferenceError.
 async function scannerManualLookup() {
+  _lastCaptureLive = false;
   const input = document.getElementById("scannerManualISBN");
   const isbn = (input.value || "").replace(/[\s-]/g, "");
   if (!/^(\d{13}|\d{9}[\dXx])$/.test(isbn)) {
@@ -2989,10 +3032,25 @@ async function addScannedBook(shelfType) {
     alert("Couldn't add to shelf. Please try again.");
     return;
   }
+  const isDuplicate = !!(shelfError && shelfError.code === "23505");
 
-  await closeBarcodeScanner();
-  alert(`"${book.title}" added to ${shelfType === "have" ? "Books I Have" : "Books I Want"}!`);
+  // Batch capture (core loop): stay in the scanner and go straight back to
+  // capture — the next book must cost zero extra taps. The shelf refreshes in
+  // the background; the modal closes only when the user decides they're done.
+  if (!isDuplicate) _bumpCaptureCount();
   if (shelfType === "have") loadShelfHave(); else loadShelfWant();
+
+  const shelfLabel = shelfType === "have" ? "Books I Have" : "Books I Want";
+  await scannerReset();
+  _flashAddedMessage(
+    isDuplicate
+      ? `<i class="fas fa-info-circle"></i> “${escapeHTML(book.title)}” is already on your shelf.`
+      : `<i class="fas fa-check-circle"></i> “${escapeHTML(book.title)}” added to ${shelfLabel}.`
+  );
+  // If the capture came from live camera, put the viewfinder straight back up.
+  // Photo/manual paths return to the capture-choice screen (a file picker
+  // can't be reopened programmatically).
+  if (_lastCaptureLive) startLiveCamera();
 }
 
 async function scannerReset() {
@@ -3001,6 +3059,7 @@ async function scannerReset() {
   _lastScanFile = null;
   _showScannerState("scanning");
   _resetCameraView();
+  document.getElementById("scannerAddedMsg").style.display = "none";
   document.getElementById("scannerPhotoInput").value = "";
   document.getElementById("scannerGalleryInput").value = "";
   document.getElementById("scannerCoverInput").value = "";
@@ -3010,7 +3069,10 @@ async function scannerReset() {
 
 async function closeBarcodeScanner() {
   await _stopLiveScanner();
+  _lastCaptureLive = false;
+  clearTimeout(_addedMsgTimer);
   document.getElementById("barcodeScannerModal").style.display = "none";
+  document.getElementById("scannerAddedMsg").style.display = "none";
   document.getElementById("barcodeScannerView").innerHTML = "";
   document.getElementById("scannerPhotoInput").value = "";
   document.getElementById("scannerGalleryInput").value = "";
@@ -3024,6 +3086,7 @@ async function closeBarcodeScanner() {
 async function scanFromPhoto(input) {
   const file = input.files[0];
   if (!file) return;
+  _lastCaptureLive = false;
   _lastScanFile = file; // saved for AI barcode retry
   const statusEl = document.getElementById("scannerStatus");
   statusEl.style.display = "";
@@ -3136,6 +3199,7 @@ async function _callVisionExtract(base64, mimeType, mode) {
 // scan photo through the vision-extract Edge Function (barcode mode).
 async function retryWithVision() {
   if (!_lastScanFile) return;
+  _lastCaptureLive = false;
   const statusEl = document.getElementById("scannerStatus");
   document.getElementById("scannerVisionFallback").style.display = "none";
   statusEl.style.display = "";
@@ -3166,6 +3230,7 @@ async function retryWithVision() {
 async function scanCoverPhoto(input) {
   const file = input.files[0];
   if (!file) return;
+  _lastCaptureLive = false;
 
   const statusEl = document.getElementById("scannerStatus");
   const coverResultsDiv = document.getElementById("scannerCoverResults");
@@ -3268,4 +3333,6 @@ Object.assign(window, {
   openBookScanner, openBarcodeScanner, startLiveCamera, scanFromPhoto,
   scanCoverPhoto, retryWithVision, addScannedBook, scannerReset,
   closeBarcodeScanner, scannerManualLookup,
+  // internal, but probed by verify-vision.js
+  _compressAndEncode, _callVisionExtract,
 });

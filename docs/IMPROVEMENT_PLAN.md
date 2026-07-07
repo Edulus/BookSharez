@@ -73,10 +73,10 @@ times in a session, this mirrors a whole physical collection onto the site.
 The pieces exist (barcode scanner, Gemini cover OCR, shelf-routed sell flow);
 what's missing is making the *repetition* frictionless on a phone:
 
-- **Batch capture mode.** After "Add to shelf," return straight to the live
-  camera with a running session counter ("14 added tonight"), instead of
-  closing the modal. Capture → confirm → next should be a rhythm with zero
-  re-opening taps. This is the single highest-leverage UX change available.
+- **Batch capture mode.** *(Shipped July 7 — see CHANGELOG.)* After "Add to
+  shelf," return straight to the live camera with a running session counter
+  ("14 added tonight"), instead of closing the modal. Capture → confirm → next
+  should be a rhythm with zero re-opening taps.
 - **Mobile-first audit of the loop screens.** Scanner modal, add-to-shelf,
   and sell modal at 360–414 px widths: primary buttons thumb-reachable at the
   bottom, no pinch-zoom, no keyboard-covered inputs, camera viewfinder sized

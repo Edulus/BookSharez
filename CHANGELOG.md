@@ -16,6 +16,12 @@ rationale lives inline in the relevant docs (e.g. the ADR in
 
 _Phase 1 backend foundation + documentation. Work to date: 2026-06-14 – 2026-07-04._
 
+### Added (July 7 — Batch capture mode: the scanner stays open)
+
+- **Batch capture** (improvement plan §3.0, first bullet — the core-loop change): adding a scanned book to a shelf **no longer closes the scanner or fires a blocking `alert()`**. Instead the modal stays open, a green flash confirms the add ("*'The Way of Zen' added to Books I Have*"), a **session counter chip** in the modal header counts the run ("14 books added today", persisted per calendar day in `localStorage` so closing the modal or a refresh doesn't zero it), and the flow returns straight to capture — **if the capture came from live camera, the viewfinder restarts automatically** (zero taps to the next book); photo/manual paths return to the capture-choice screen (file pickers can't be reopened programmatically). Duplicates (23505) show "already on your shelf" and don't bump the counter. Shelf refreshes in the background. New: `_lastCaptureLive` tracking across all five capture paths, `_bumpCaptureCount`/`_updateSessionChip`/`_flashAddedMessage` helpers, `#scannerSessionCount` chip + `#scannerAddedMsg` banner (CSS in `style.css`).
+- **Verified:** new [verify-batchscan.js](verify-batchscan.js) Playwright harness (phone-sized viewport, mocked Supabase REST) — 17 checks: modal stays open after add, scanning state ready for next book, flash text, chip counts across both shelves, duplicate handling, counter persistence across close/reopen, zero page errors. Full regression re-run: routing, notifications, bookflow, vision all green.
+- `_compressAndEncode` / `_callVisionExtract` added to the window-export block — verify-vision.js probes them by name; they lost implicit global scope in the July 4 module conversion (harness-only ❌, both OCR flows were unaffected).
+
 ### Changed (July 7 — Core loop enshrined across the design docs)
 
 - **The capture loop is now the documented center of gravity of the product** (user decision, July 7): phone-first; point the camera at a book — **barcode scan or front-cover photo** — → book identified automatically → added to "Books I Have" → one-tap list for sale; repeated fast enough to **mirror an entire physical bookshelf in one session**. Written into all four layers of the doc hierarchy:
