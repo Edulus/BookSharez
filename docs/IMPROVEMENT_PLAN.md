@@ -62,6 +62,38 @@ The biggest structural facts shaping this plan:
 These are the highest-leverage *product* gaps in the buy/sell core. Ordered by
 impact.
 
+### 3.0 The capture loop — the core idea, and the bar for everything else ★★
+*(Elevated July 7, 2026 — now enshrined in PRODUCT_VISION "The Core Loop",
+architecture principle §12.7, and the Phase 1 spec's Core UX Principle.)*
+
+The product's defining flow: a reader stands at their bookshelf with a phone,
+points the camera at a book — **barcode or front cover** — and BookSharez
+identifies it, shelves it, and offers a one-tap listing. Repeated dozens of
+times in a session, this mirrors a whole physical collection onto the site.
+The pieces exist (barcode scanner, Gemini cover OCR, shelf-routed sell flow);
+what's missing is making the *repetition* frictionless on a phone:
+
+- **Batch capture mode.** After "Add to shelf," return straight to the live
+  camera with a running session counter ("14 added tonight"), instead of
+  closing the modal. Capture → confirm → next should be a rhythm with zero
+  re-opening taps. This is the single highest-leverage UX change available.
+- **Mobile-first audit of the loop screens.** Scanner modal, add-to-shelf,
+  and sell modal at 360–414 px widths: primary buttons thumb-reachable at the
+  bottom, no pinch-zoom, no keyboard-covered inputs, camera viewfinder sized
+  right. The CSS is desktop-designed with media-query retrofits — the loop
+  screens deserve phone-first treatment.
+- **Capture → listed in one confirm.** The sell flow already routes through
+  the shelf; from a fresh capture, offer "Add & list for sale" that lands on a
+  pre-filled sell form (suggested price already fetched) needing one confirm.
+- **Cover-photo path parity.** The AI cover path must stay as fast as the
+  barcode path — it's what handles older books with no barcode, which heavy
+  shelves are full of.
+- **Measure the loop.** Books captured per minute, and % of captures that
+  become listings — these two numbers are the product's health metrics
+  (feed §10).
+
+Everything else in this section builds on the shelves this loop fills.
+
 ### 3.1 Want-match notifications (the killer connector) — HIGH IMPACT
 The single feature that makes the two halves of the product (shelves +
 marketplace) reinforce each other, and it's already promised in the vision

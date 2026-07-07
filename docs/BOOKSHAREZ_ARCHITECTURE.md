@@ -473,6 +473,7 @@ This architecture describes the full product vision. Implementation is phased:
 4. **Identity is inferred, not declared.** No onboarding questionnaires. Shelves generate the profile.
 5. **Community supply is always prioritized.** Affiliate is fallback, never primary.
 6. **Every book is a single self-rendering object.** A book renders itself at any density (tile / thumb / full) and carries a viewer-relative action set derived from `BookContext`. No feature hand-builds a book card. See §6A for the contract.
+7. **The capture loop is the primary interface.** The product is phone-first around camera capture — barcode scan *or* front-cover photo → book identified → added to "Books I Have" → one-tap list for sale — repeated fast enough to mirror an entire physical bookshelf in one session (see [PRODUCT_VISION "The Core Loop"](BOOKSHAREZ_PRODUCT_VISION.md)). Mobile responsiveness and the per-iteration speed of this loop take priority over desktop polish; any change that adds a tap or a second to the loop needs a strong reason.
 
 ---
 

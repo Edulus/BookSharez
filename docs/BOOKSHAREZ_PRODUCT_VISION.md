@@ -44,6 +44,39 @@ From those two lists, everything else flows. The platform knows your taste, can 
 
 ---
 
+## The Core Loop — Mirror Your Bookshelf From Your Phone
+
+**This is the product's center of gravity. Every design and engineering
+decision is measured against it.**
+
+The defining user moment: someone stands at a full bookshelf, phone in hand.
+They point the camera at a book — the barcode on the back, or just the front
+cover — and BookSharez identifies it, pulls in the details automatically, and
+puts it on their "Books I Have" shelf. Listing it for sale is one more tap:
+details pre-filled, price suggested, done. Then the next book. And the next.
+
+Working down a shelf book by book, a reader can mirror an entire physical
+collection onto BookSharez in a single evening — and every mirrored book is
+one tap away from being for sale.
+
+What this demands of the product:
+
+- **Phone-first, always.** The phone is the primary device because the camera
+  is the primary input. The site must be fully responsive, and every capture,
+  shelf, and listing flow must be excellent on a phone screen before it is
+  polished anywhere else.
+- **Two capture paths, one result.** Barcode scan when the book has one; a
+  photo of the front cover (AI recognition) when it doesn't. Both end the same
+  way: an identified book on your shelf.
+- **Repetition is the design case.** The loop runs dozens of times in a row,
+  not once. Every saved tap or second is multiplied across a whole bookshelf —
+  capture → confirm → next must feel like a rhythm, never a form.
+- **Shelf first, sale optional.** Capturing builds the collection (reader
+  identity); selling is one tap deeper, never required. The mirrored shelf is
+  valuable on its own — and it is what makes selling effortless later.
+
+---
+
 ## How It Works
 
 ### For Readers

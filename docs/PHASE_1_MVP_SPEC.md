@@ -19,6 +19,17 @@ this spec is the slice of that product shipping in Phase 1.
 > Function (Deno) examples to match — Next.js/TypeScript samples are no longer the
 > reference.
 
+> ### Core UX Principle (July 7, 2026)
+> Phase 1 is built **phone-first around the capture loop** (see
+> [PRODUCT_VISION "The Core Loop"](BOOKSHAREZ_PRODUCT_VISION.md)): camera
+> capture — barcode scan **or** front-cover photo — identifies the book, adds
+> it to "Books I Have", and offers a one-tap listing with pre-filled details.
+> The target user is systematically mirroring a full bookshelf from their
+> phone, dozens of books in one session. Consequences for this spec: the
+> scanner, add-to-shelf, and sell flows must be excellent at phone widths and
+> fast to *repeat* — per-iteration taps and seconds are the metric that
+> matters. Desktop layout is secondary.
+
 ---
 
 ## ðŸŽ¯ PHASE 1 SCOPE DEFINITION

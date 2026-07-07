@@ -16,6 +16,15 @@ rationale lives inline in the relevant docs (e.g. the ADR in
 
 _Phase 1 backend foundation + documentation. Work to date: 2026-06-14 – 2026-07-04._
 
+### Changed (July 7 — Core loop enshrined across the design docs)
+
+- **The capture loop is now the documented center of gravity of the product** (user decision, July 7): phone-first; point the camera at a book — **barcode scan or front-cover photo** — → book identified automatically → added to "Books I Have" → one-tap list for sale; repeated fast enough to **mirror an entire physical bookshelf in one session**. Written into all four layers of the doc hierarchy:
+  - [docs/BOOKSHAREZ_PRODUCT_VISION.md](docs/BOOKSHAREZ_PRODUCT_VISION.md) — new top-level section **"The Core Loop — Mirror Your Bookshelf From Your Phone"** right after "The Solution", with the four product demands (phone-first always; two capture paths one result; repetition is the design case; shelf first, sale optional).
+  - [docs/BOOKSHAREZ_ARCHITECTURE.md](docs/BOOKSHAREZ_ARCHITECTURE.md) — new design principle **§12.7**: the capture loop is the primary interface; mobile responsiveness and per-iteration loop speed outrank desktop polish.
+  - [docs/PHASE_1_MVP_SPEC.md](docs/PHASE_1_MVP_SPEC.md) — new **"Core UX Principle"** callout beside the ADR: loop screens must be excellent at phone widths and fast to *repeat*.
+  - [CLAUDE.md](CLAUDE.md) — principle added to Project State so every session optimizes for it.
+- [docs/IMPROVEMENT_PLAN.md](docs/IMPROVEMENT_PLAN.md) — new **§3.0** translating the principle into work: batch capture mode (camera stays live between adds, session counter), mobile-first audit of the three loop screens at 360–414 px, "Add & list" one-confirm path, cover-photo path parity, and the two loop health metrics (books captured/minute, % captures listed).
+
 ### Changed (July 7 — ES-module split, phase 2: book-render + dom-utils)
 
 - **[js/book-render.js](js/book-render.js)** — the §6A book-object contract (`normalizeBook`, `renderBook`, `_renderTile`/`_renderThumb`/`_renderFull`, `formatCondition`, `FALLBACK_COVER`, `#bookCardStyles` injection) extracted from main.js. Navigation stays one-directional: the renderers' click actions (view listing, browse book, view external, search by author, buy) are injected by main.js via `initBookRender(actions)` — book-render.js never imports main.js.
