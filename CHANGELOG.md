@@ -16,6 +16,13 @@ rationale lives inline in the relevant docs (e.g. the ADR in
 
 _Phase 1 backend foundation + documentation. Work to date: 2026-06-14 – 2026-07-04._
 
+### Changed (July 7 — ES-module split, phase 2: book-render + dom-utils)
+
+- **[js/book-render.js](js/book-render.js)** — the §6A book-object contract (`normalizeBook`, `renderBook`, `_renderTile`/`_renderThumb`/`_renderFull`, `formatCondition`, `FALLBACK_COVER`, `#bookCardStyles` injection) extracted from main.js. Navigation stays one-directional: the renderers' click actions (view listing, browse book, view external, search by author, buy) are injected by main.js via `initBookRender(actions)` — book-render.js never imports main.js.
+- **[js/dom-utils.js](js/dom-utils.js)** — `escapeHTML` moved to a dependency-free helper module both main.js and book-render.js import.
+- `viewListing` was calling the internal `_renderFull` directly; now goes through the public `renderBook(book, context, "full")` entry point like everything else.
+- main.js shrinks another ~230 lines (3,476 → ~3,240). All four harnesses re-run green.
+
 ### Changed (July 4 — ES-module split, phase 1: router + api-lookup)
 
 - **`js/main.js` is now an ES module entry** (`<script type="module">`), first step of the incremental split (improvement plan §5.2). Extracted this session:

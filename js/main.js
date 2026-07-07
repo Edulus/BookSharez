@@ -1,6 +1,7 @@
 // BookSharez app entry (ES module). Module split in progress — plan §5.2:
-// js/router.js (hash routing) and js/api-lookup.js (external book lookups)
-// are extracted; everything else still lives here and moves out over time.
+// js/router.js (hash routing), js/api-lookup.js (external book lookups),
+// js/dom-utils.js (escapeHTML), and js/book-render.js (the §6A contract) are
+// extracted; everything else still lives here and moves out over time.
 // Functions referenced from HTML (inline onclick / generated markup) are
 // attached to window at the bottom of this file — see the export block.
 import { initRouter, setRoute, applyInitialRoute } from "./router.js";
@@ -11,6 +12,14 @@ import {
   isbn10to13Client,
   searchBooksAPI,
 } from "./api-lookup.js";
+import { escapeHTML } from "./dom-utils.js";
+import {
+  FALLBACK_COVER,
+  initBookRender,
+  formatCondition,
+  normalizeBook,
+  renderBook,
+} from "./book-render.js";
 
 let isLoggedIn = false;
 let currentUser = null;
@@ -32,6 +41,16 @@ initRouter({
   book: (id) => browseBookById(id),
   profile: (id) => viewProfile(id),
   dashboard: (tab) => showDashboard(tab),
+});
+
+// book-render.js renders tiles/thumbs/the detail page but has no page-nav
+// logic of its own; wire its click handlers back into this file's functions.
+initBookRender({
+  viewListing: (id) => viewListing(id),
+  browseBookById: (id, title) => browseBookById(id, title),
+  viewExternalBook: (book) => viewExternalBook(book),
+  searchByAuthor: (author) => searchByAuthor(author),
+  buyBook: (id, price, title) => buyBook(id, price, title),
 });
 
 // Initialize the app
@@ -132,223 +151,9 @@ const SEARCH_PAGE_SIZE = 9;
 let allSearchResults = []; // full merged result set (local + external)
 let searchResultsLoaded = 0; // how many cards are currently rendered
 
-// Vanilla JS has no auto-escaping; escape user text before putting it in HTML.
-function escapeHTML(value) {
-  const div = document.createElement("div");
-  div.textContent = value == null ? "" : String(value);
-  return div.innerHTML;
-}
-
-
-// ─── Book object contract §6A ──────────────────────────────────────────────────
-// One normalizer, one renderer. See docs/BOOKSHAREZ_ARCHITECTURE.md §6A.
-
-const FALLBACK_COVER = "https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=400&h=600&fit=crop";
-
-// Accepts a listings row (with books join), a plain books row, or an external
-// API result and returns the canonical Book shape.
-function normalizeBook(raw) {
-  const b = raw.books || raw;
-  return {
-    bookId: b.id || null,
-    isbn:   b.isbn      || raw.isbn  || null,
-    title:  b.title     || raw.title || "",
-    author: b.author    || raw.author || "",
-    coverUrl: b.cover_url || b.cover || raw.cover_url || raw.cover || raw.image || null,
-    year:   b.year || raw.year || null,
-  };
-}
-
-// Returns a DOM element (tile/thumb) or populates the fixed detail DOM (full).
-function renderBook(book, context, density) {
-  if (density === "thumb") return _renderThumb(book, context);
-  if (density === "full")  { _renderFull(book, context); return null; }
-  return _renderTile(book, context);
-}
-
-function _renderTile(book, context) {
-  _ensureBookCardStyles();
-  const card = document.createElement("div");
-  card.className = "book-card";
-
-  if (context.myListingId) {
-    card.onclick = () => viewListing(context.myListingId);
-  } else if (book.bookId) {
-    card.style.cursor = "pointer";
-    card.addEventListener("click", () => browseBookById(book.bookId, book.title));
-  } else {
-    card.style.cursor = "pointer";
-    card.addEventListener("click", () => viewExternalBook(book));
-  }
-
-  let badgeHtml = "";
-  if (context.condition) {
-    badgeHtml = `<div class="book-condition">${formatCondition(context.condition)}</div>`;
-  } else if (context.isListedLocally === false) {
-    badgeHtml = `<div class="book-condition" style="background:rgba(108,117,125,0.85);">Not listed locally</div>`;
-  }
-
-  let footerHtml = "";
-  if (context.price != null) {
-    const priceLabel = `$${Number(context.price).toFixed(2)}`;
-    footerHtml = `
-      <div class="book-footer">
-        <span class="book-price">${priceLabel}</span>
-        <button class="btn btn-primary btn-small" data-action="buy">
-          <i class="fas fa-cart-plus"></i> Buy Now
-        </button>
-      </div>`;
-  } else if (context.isListedLocally === false) {
-    footerHtml = `
-      <div class="book-footer" style="margin-bottom:0.5rem;">
-        <span class="book-price" style="font-size:1rem;color:#667eea;">Be the first to list this!</span>
-      </div>`;
-  }
-
-  let sellerHtml = "";
-  if (context.myListingId) {
-    sellerHtml = `<p class="book-seller"><i class="fas fa-check-circle" style="color:#28a745;"></i> Available from a BookSharez seller</p>`;
-  }
-
-  const yearSpan = (context.isListedLocally === false && book.year)
-    ? ` <span style="color:#aaa;font-size:0.85em;">(${escapeHTML(book.year)})</span>`
-    : "";
-
-  card.innerHTML = `
-    <div class="book-image">
-      <img src="${escapeHTML(book.coverUrl || "")}" alt="${escapeHTML(book.title)}"
-        loading="lazy" onerror="this.src='${FALLBACK_COVER}'">
-      ${badgeHtml}
-    </div>
-    <div class="book-info">
-      <h3 class="book-title">${escapeHTML(book.title)}</h3>
-      <p class="book-author">by <span class="author-link">${escapeHTML(book.author || "")}</span>${yearSpan}</p>
-      ${footerHtml}
-      ${sellerHtml}
-    </div>
-  `;
-
-  if (book.author) {
-    const span = card.querySelector(".author-link");
-    if (span) span.addEventListener("click", (e) => { e.stopPropagation(); searchByAuthor(book.author); });
-  }
-  if (context.myListingId && context.price != null) {
-    const btn = card.querySelector("[data-action='buy']");
-    if (btn) btn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      buyBook(context.myListingId, context.price, book.title);
-    });
-  }
-
-  return card;
-}
-
-function _renderThumb(book, context) {
-  const item = document.createElement("div");
-  item.style.cssText = "text-align:center;width:90px;cursor:pointer;";
-  item.title = book.title || "";
-
-  const imgWrapper = document.createElement("div");
-  imgWrapper.style.cssText = "position:relative;width:80px;height:110px;margin:0 auto;";
-
-  const img = document.createElement("img");
-  img.loading = "lazy";
-  img.src = book.coverUrl || "";
-  img.alt = book.title || "";
-  img.style.cssText =
-    "width:80px;height:110px;object-fit:contain;background:#f5f5f5;" +
-    "border-radius:8px;box-shadow:0 3px 8px rgba(0,0,0,0.12);display:block;";
-  img.onerror = () => { img.src = FALLBACK_COVER; };
-  imgWrapper.appendChild(img);
-
-  if (context.isForSale) {
-    const badge = document.createElement("div");
-    badge.textContent = "For Sale";
-    badge.style.cssText =
-      "position:absolute;top:4px;right:4px;background:rgba(102,126,234,0.92);" +
-      "color:#fff;font-size:0.6rem;font-weight:700;padding:2px 5px;" +
-      "border-radius:4px;line-height:1.3;white-space:nowrap;";
-    imgWrapper.appendChild(badge);
-  }
-
-  const titleEl = document.createElement("p");
-  titleEl.style.cssText =
-    "font-size:0.75rem;margin:0.4rem 0 0;color:#333;overflow:hidden;" +
-    "text-overflow:ellipsis;white-space:nowrap;max-width:90px;";
-  titleEl.textContent = book.title || "";
-
-  item.appendChild(imgWrapper);
-  item.appendChild(titleEl);
-  if (book.bookId) {
-    item.addEventListener("click", () => browseBookById(book.bookId, book.title));
-  }
-  return item;
-}
-
-function _renderFull(book, context) {
-  const cover = document.getElementById("detailCover");
-  cover.src = book.coverUrl || FALLBACK_COVER;
-  cover.onerror = () => { cover.src = FALLBACK_COVER; };
-
-  document.getElementById("detailTitle").textContent = book.title || "Untitled";
-
-  const authorEl = document.getElementById("detailAuthor");
-  authorEl.textContent = "";
-  if (book.author) {
-    authorEl.appendChild(document.createTextNode("by "));
-    const span = document.createElement("span");
-    span.className = "author-link";
-    span.textContent = book.author;
-    span.addEventListener("click", () => searchByAuthor(book.author));
-    authorEl.appendChild(span);
-  }
-
-  document.getElementById("detailIsbn").textContent = book.isbn ? "ISBN: " + book.isbn : "";
-  document.getElementById("detailCondition").textContent = formatCondition(context.condition || "");
-  document.getElementById("detailPrice").textContent =
-    context.price != null ? "$" + Number(context.price).toFixed(2) : "";
-  document.getElementById("detailDescription").textContent =
-    context.description || "No description provided.";
-
-  const wantEl = document.getElementById("detailWantCount");
-  if (wantEl) wantEl.textContent = "";
-
-  const buyBtn = document.getElementById("detailBuyBtn");
-  buyBtn.style.display = "inline-flex";
-  buyBtn.onclick = () => buyBook(context.myListingId, context.price, book.title);
-
-  // Listing path: hide the book-page sections (community offers + Add to Shelf
-  // + affiliates) and restore the discussion section (the book page hides it).
-  const offers = document.getElementById("detailOffers");
-  if (offers) offers.style.display = "none";
-  const externalActions = document.getElementById("detailExternalActions");
-  if (externalActions) externalActions.style.display = "none";
-  const discussion = document.getElementById("detailDiscussion");
-  if (discussion) discussion.style.display = "";
-}
-
-function _ensureBookCardStyles() {
-  if (document.querySelector("#bookCardStyles")) return;
-  const style = document.createElement("style");
-  style.id = "bookCardStyles";
-  style.textContent = `
-    .book-card { background:white; border-radius:15px; overflow:hidden; box-shadow:0 5px 20px rgba(0,0,0,0.1); transition:transform 0.3s ease,box-shadow 0.3s ease; cursor:pointer; }
-    .book-card:hover { transform:translateY(-5px); box-shadow:0 10px 30px rgba(0,0,0,0.15); }
-    .book-image { position:relative; height:288px; overflow:hidden; }
-    .book-image img { width:100%; height:100%; object-fit:contain; background:#f5f5f5; }
-    .book-condition { position:absolute; top:10px; right:10px; background:rgba(102,126,234,0.9); color:white; padding:0.25rem 0.5rem; border-radius:12px; font-size:0.8rem; font-weight:500; }
-    .book-info { padding:1.5rem; }
-    .book-title { font-size:1.2rem; margin-bottom:0.5rem; color:#333; font-weight:600; }
-    .book-author { color:#666; margin-bottom:1rem; font-style:italic; }
-    .book-footer { display:flex; justify-content:space-between; align-items:center; margin-bottom:0.5rem; }
-    .book-price { font-size:1.4rem; font-weight:bold; color:#667eea; }
-    .btn-small { padding:0.5rem 1rem; font-size:0.9rem; }
-    .book-seller { color:#888; font-size:0.9rem; margin-top:0.5rem; }
-  `;
-  document.head.appendChild(style);
-}
-
-// ─── end §6A contract ──────────────────────────────────────────────────────────
+// escapeHTML moved to js/dom-utils.js; normalizeBook / renderBook / the §6A
+// contract renderers moved to js/book-render.js (imported at the top of this
+// file).
 
 function showGridMessage(message) {
   document.getElementById("booksGrid").innerHTML =
@@ -480,17 +285,7 @@ function loadHomepageSections() {
   loadCommunityShelfSection("have", "communityHaveGrid");
 }
 
-// Format condition for display
-function formatCondition(condition) {
-  const conditions = {
-    like_new: "Like New",
-    very_good: "Very Good",
-    good: "Good",
-    fair: "Fair",
-    poor: "Poor",
-  };
-  return conditions[condition] || condition;
-}
+// formatCondition moved to js/book-render.js (imported at the top of this file).
 
 // Search: queries local DB listings AND Google Books in parallel.
 // Local results (BookSharez sellers) appear first and are highlighted;
@@ -1978,13 +1773,13 @@ async function viewListing(listingId) {
   }
 
   currentDetailId = data.id;
-  _renderFull(normalizeBook(data), {
+  renderBook(normalizeBook(data), {
     myListingId: data.id,
     price: data.price,
     condition: data.condition,
     description: data.description,
     isListedLocally: true,
-  });
+  }, "full");
 
   // Hardcover enrichment (non-blocking; fills in below the ISBN line).
   runBookEnrichment(data.books?.isbn, data.id, data.books?.title, data.books?.author);
