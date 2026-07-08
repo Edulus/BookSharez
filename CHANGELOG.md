@@ -16,6 +16,10 @@ rationale lives inline in the relevant docs (e.g. the ADR in
 
 _Phase 1 backend foundation + documentation. Work to date: 2026-06-14 – 2026-07-04._
 
+### Added (July 8 — Project-level model tiering: scout + mech-editor agents)
+
+- Two project agents in [.claude/agents/](.claude/agents/) implement the "expensive model for judgment, cheap models for legwork" principle **project-scoped** (deliberately not the third-party pilotfish global install — evaluated and declined in favor of copying the principle): `scout` (haiku, read-only Read/Glob/Grep, repo-oriented recon) and `mech-editor` (sonnet, fully-specified mechanical work only, primed with the house rules — §6A renderer, books append-only, window-export block, port 7654). Delegation policy added to CLAUDE.md: judgment/security/final review stay in the main session; ad-hoc spawns set `model` explicitly; two failed delegations → take over, never a third retry; no bypassPermissions. Agents load at session start (restart to activate); the haiku-tier mechanism itself verified live via a model-pinned Explore run.
+
 ### Added (July 8 — Hosting + analytics: the site is live)
 
 - **BookSharez is publicly deployed at <https://edulus.github.io/BookSharez/>** (improvement plan §8). GitHub Pages was already enabled on the repo (legacy branch deploy from `main` root) but serving a month-old build — pushing `main` now auto-deploys the current app. Added [.nojekyll](.nojekyll) so Pages serves the files as-is (no Jekyll processing). `og:url` meta finished with the production URL. Relative asset paths, hash routing, and the dynamic `location.origin + location.pathname` reset-redirect all work unchanged under the `/BookSharez/` subpath.

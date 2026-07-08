@@ -51,6 +51,24 @@ Note: condition uses **5 grades** (`like_new`, `very_good`, `good`, `fair`, `poo
 - [docs/ISBN_LOOKUP_DESIGN.md](docs/ISBN_LOOKUP_DESIGN.md) — design for the `isbn-lookup` Edge Function: cache-first against the `books` table, ISBNdb→Google Books fallback, rate-limiting approach (items 9 & 10).
 - [docs/HARDCOVER_INTEGRATION.md](docs/HARDCOVER_INTEGRATION.md) — authoritative ceiling for Hardcover use: enrichment-only (Tier 1) is shippable today; the per-user social layer (Tier 2) is blocked until Hardcover ships OAuth. Hard constraints (server-side only, 60 req/min, depth ≤3, 1-year token), the required proxy + normalize + cache + graceful-degradation pattern, and the rule "Hardcover enriches *books*; BookSharez owns *users* and *social*." The shipped `book-enrichment` function is this doc's Tier 1.
 
+## Delegation (cost tiering)
+
+Two project agents live in [.claude/agents/](.claude/agents/) so main-session
+tokens go to judgment, not legwork (main session runs the expensive model;
+these run cheap ones):
+
+- **`scout`** (haiku, read-only) — any search/lookup/"where is X" spanning
+  more than a couple of files. Findings are inputs, not verified facts.
+- **`mech-editor`** (sonnet) — fully-specified mechanical work only: pattern
+  refactors, doc updates from provided text, running harnesses. Spec it in
+  one shot (goal, exact scope, done-criteria). Two failed attempts → take
+  over in the main session; don't retry a third time.
+
+Keep in the main session: planning, design decisions, security-sensitive work
+(§ security invariants), final review, and anything the user asked you
+personally to judge. Ad-hoc Agent spawns should set `model` explicitly rather
+than inheriting the main-session model. Never use bypassPermissions.
+
 ## Prototype Architecture Notes
 
 If working on the existing prototype:
