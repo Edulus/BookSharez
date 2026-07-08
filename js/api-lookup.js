@@ -90,8 +90,10 @@ export function isbn10to13Client(s) {
 }
 
 // Search Google Books; returns up to 12 results with ISBNs.
+// requireIsbn=false keeps matches without any ISBN (pre-ISBN era books) —
+// used by the scanner's cover path, where "no ISBN" is a normal outcome.
 // Throws on quota/network error so the caller can fall back to Open Library.
-export async function searchGoogleBooks(query) {
+export async function searchGoogleBooks(query, { requireIsbn = true } = {}) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 8000);
   let res;
@@ -117,7 +119,7 @@ export async function searchGoogleBooks(query) {
     const isbn13raw = ids.find((i) => i.type === "ISBN_13")?.identifier;
     const isbn10raw = ids.find((i) => i.type === "ISBN_10")?.identifier;
     const isbn = isbn13raw || (isbn10raw ? isbn10to13Client(isbn10raw) : null);
-    if (!isbn || !info.title) return null;
+    if (!info.title || (requireIsbn && !isbn)) return null;
     const cover = (info.imageLinks?.thumbnail || info.imageLinks?.smallThumbnail || "")
       .replace(/^http:/, "https:");
     return {
@@ -131,7 +133,7 @@ export async function searchGoogleBooks(query) {
 }
 
 // Search Open Library — free, no API key, no daily quota.
-export async function searchOpenLibrary(query) {
+export async function searchOpenLibrary(query, { requireIsbn = true } = {}) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 8000);
   let res;
@@ -152,7 +154,7 @@ export async function searchOpenLibrary(query) {
     const isbn13 = isbns.find((i) => /^\d{13}$/.test(i));
     const isbn10 = isbns.find((i) => /^\d{9}[\dX]$/.test(i));
     const isbn = isbn13 || (isbn10 ? isbn10to13Client(isbn10) : null);
-    if (!isbn || !doc.title) return null;
+    if (!doc.title || (requireIsbn && !isbn)) return null;
     const cover = doc.cover_i
       ? `https://covers.openlibrary.org/b/id/${doc.cover_i}-M.jpg`
       : "";
@@ -161,7 +163,7 @@ export async function searchOpenLibrary(query) {
       author: (doc.author_name || []).join(", "),
       year: doc.first_publish_year ? String(doc.first_publish_year) : "",
       cover,
-      buyLink: `https://openlibrary.org/isbn/${isbn}`,
+      buyLink: isbn ? `https://openlibrary.org/isbn/${isbn}` : null,
     };
   }).filter(Boolean);
 }
@@ -169,13 +171,13 @@ export async function searchOpenLibrary(query) {
 // Public entry point used by all three call sites (hero search, shelf modal,
 // sell modal). Tries Google Books first; falls back to Open Library on quota
 // or any network error so there is always a result.
-export async function searchBooksAPI(query) {
+export async function searchBooksAPI(query, opts = {}) {
   try {
-    const results = await searchGoogleBooks(query);
+    const results = await searchGoogleBooks(query, opts);
     if (results.length > 0) return results;
     // Google Books returned OK but empty — still try Open Library.
   } catch (e) {
     console.warn("Google Books unavailable, using Open Library:", e.message);
   }
-  return searchOpenLibrary(query);
+  return searchOpenLibrary(query, opts);
 }

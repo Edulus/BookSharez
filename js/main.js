@@ -29,6 +29,7 @@ let currentUserId = null;
 let myShelfHave = [];
 let myShelfWant = [];
 let currentListingShelfEntryId = null;
+let currentListingBookId = null; // canonical books.id when the sell modal was pre-filled from a known catalog row
 let currentProfileUserId = null;
 let currentProfileIsFollowed = false;
 
@@ -114,6 +115,7 @@ function setupEventListeners() {
   window.addEventListener("click", function (e) {
     if (e.target.classList.contains("modal")) {
       e.target.style.display = "none";
+      if (e.target.id === "sellModal") _resetSellLinkage();
     }
     // Close the notifications dropdown on any click outside it (or its bell).
     const notifPanel = document.getElementById("notifPanel");
@@ -1195,6 +1197,7 @@ async function suggestPrice() {
 }
 
 function fillBookFields(isbn, result) {
+  _resetSellLinkage(); // a fresh ISBN lookup replaces any pre-filled shelf link
   document.getElementById("bookTitle").value = result.title || "";
   document.getElementById("bookAuthor").value = result.author || "";
   pendingCover = { isbn, url: result.cover || null };
@@ -1299,8 +1302,10 @@ async function handleSellBook(e) {
     (f) => f instanceof File && f.size > 0
   );
 
-  // Validate (DB also enforces these via CHECK constraints).
-  if (!/^(\d{13}|\d{9}[\dXx])$/.test(isbn)) {
+  // Validate (DB also enforces these via CHECK constraints). A known catalog
+  // book id (pre-filled from shelf / Add & List) stands in for the ISBN —
+  // pre-ISBN era books have none and are still listable.
+  if (!currentListingBookId && !/^(\d{13}|\d{9}[\dXx])$/.test(isbn)) {
     alert("Please enter a valid ISBN — 10 or 13 digits.");
     return;
   }
@@ -1332,7 +1337,8 @@ async function handleSellBook(e) {
 
   try {
     const coverUrl = pendingCover.isbn === isbn ? pendingCover.url : null;
-    const bookId = await ensureBook({ isbn, title, author, coverUrl });
+    const bookId =
+      currentListingBookId || (await ensureBook({ isbn, title, author, coverUrl }));
     const {
       data: { user },
     } = await supabaseClient.auth.getUser();
@@ -1358,7 +1364,7 @@ async function handleSellBook(e) {
 
     closeModal("sellModal");
     e.target.reset();
-    currentListingShelfEntryId = null;
+    _resetSellLinkage();
     hideSellCoverPreview();
     alert(
       photoWarning
@@ -2080,6 +2086,7 @@ async function deleteListing(listingId) {
 // Close modal
 function closeModal(modalId) {
   document.getElementById(modalId).style.display = "none";
+  if (modalId === "sellModal") _resetSellLinkage();
 }
 
 // Utility function to handle responsive behavior
@@ -2257,6 +2264,7 @@ async function searchSellBooks() {
 }
 
 function selectSellBook(isbn, title, author, coverUrl) {
+  _resetSellLinkage(); // a different book replaces any pre-filled shelf link
   document.getElementById("bookISBN").value = isbn;
   document.getElementById("bookTitle").value = title;
   document.getElementById("bookAuthor").value = author || "";
@@ -2547,14 +2555,26 @@ async function removeFromShelf(entryId, shelfType) {
 function listShelfItemForSale(shelfEntryId) {
   const entry = myShelfHave.find((e) => e.id === shelfEntryId);
   if (!entry) return;
-  _openSellModalPrefilled(entry.books || {}, shelfEntryId, "Book pre-filled from shelf ✓");
+  const book = entry.books || {};
+  _openSellModalPrefilled(book, shelfEntryId, "Book pre-filled from shelf ✓", book.id || null);
 }
 
 // Pre-fill and open the sell modal for a shelf-linked book. Used by the shelf
 // "List for Sale" button and the scanner's Add & List path. Condition and
 // price start empty on purpose — the seller must confirm them to submit.
-function _openSellModalPrefilled(book, shelfEntryId, statusMsg) {
+// The pre-fill linkage must never outlive the pre-filled book: stale ids
+// would silently attach the next listing to the wrong shelf entry / catalog
+// row. Cleared on modal close and whenever the form's book changes.
+function _resetSellLinkage() {
+  currentListingShelfEntryId = null;
+  currentListingBookId = null;
+}
+
+// bookId (when known) lets handleSellBook skip the ISBN-keyed ensureBook —
+// which is also what makes no-ISBN books listable.
+function _openSellModalPrefilled(book, shelfEntryId, statusMsg, bookId = null) {
   currentListingShelfEntryId = shelfEntryId;
+  currentListingBookId = bookId;
   document.getElementById("bookISBN").value = book.isbn || "";
   document.getElementById("bookTitle").value = book.title || "";
   document.getElementById("bookAuthor").value = book.author || "";
@@ -2922,6 +2942,44 @@ async function _stopLiveScanner() {
   }
 }
 
+const SCANNER_COVER_FALLBACK =
+  "https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=140&h=190&fit=crop";
+
+// Land a capture on the "book found" screen — the single destination for
+// every successful capture path (barcode, cover candidate, manual ISBN), so
+// all of them expose the same three choices: Have / Want / Add & List.
+function _showBookFound(book) {
+  _scannedBookData = book;
+  document.getElementById("scannerBookCover").src = book.cover_url || SCANNER_COVER_FALLBACK;
+  document.getElementById("scannerBookTitle").textContent = book.title || "Unknown Title";
+  document.getElementById("scannerBookAuthor").textContent = book.author ? "by " + book.author : "";
+  _showScannerState("found");
+}
+
+// A cover candidate the user just confirmed already carries verified
+// metadata; the catalog lookup only adds the canonical id (dedup) when an
+// ISBN exists. Never re-derive via the barcode pipeline — a failed re-lookup
+// would lose data we already have (§3.0 cover-path parity).
+async function _confirmCoverCandidate(book) {
+  let data = {
+    isbn: book.isbn || null,
+    title: book.title,
+    author: book.author || "",
+    cover_url: book.cover || "",
+  };
+  if (book.isbn) {
+    try {
+      const { data: row } = await supabaseClient
+        .from("books")
+        .select("id, isbn, title, author, cover_url")
+        .eq("isbn", book.isbn)
+        .maybeSingle();
+      if (row) data = row;
+    } catch (e) { /* catalog unavailable — the candidate data is enough */ }
+  }
+  _showBookFound(data);
+}
+
 async function _onBarcodeDetected(isbn) {
   // Reject non-ISBN barcodes (UPC-A, store price codes, etc.)
   const isIsbn13 = /^97[89]\d{10}$/.test(isbn);
@@ -2960,21 +3018,13 @@ async function _onBarcodeDetected(isbn) {
   if (!book) {
     // Lookup failed — let the user add it manually with the ISBN pre-filled
     statusEl.textContent = "Couldn't load book info. You can still add it manually.";
-    _scannedBookData = { isbn, title: "ISBN: " + isbn, author: "", cover_url: "" };
-    document.getElementById("scannerBookCover").src =
-      "https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=140&h=190&fit=crop";
-    document.getElementById("scannerBookTitle").textContent = "ISBN: " + isbn;
-    document.getElementById("scannerBookAuthor").textContent = "Title unknown — tap below to add anyway";
-    _showScannerState("found");
+    _showBookFound({ isbn, title: "ISBN: " + isbn, author: "", cover_url: "" });
+    document.getElementById("scannerBookAuthor").textContent =
+      "Title unknown — tap below to add anyway";
     return;
   }
 
-  _scannedBookData = book;
-  document.getElementById("scannerBookCover").src =
-    book.cover_url || "https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=140&h=190&fit=crop";
-  document.getElementById("scannerBookTitle").textContent  = book.title  || "Unknown Title";
-  document.getElementById("scannerBookAuthor").textContent = book.author ? "by " + book.author : "";
-  _showScannerState("found");
+  _showBookFound(book);
 }
 
 // Manual ISBN entry inside the scanner modal (the fallback shown when a scan
@@ -3032,7 +3082,7 @@ async function _addScannedToShelf(shelfType) {
   const book = _scannedBookData;
   let bookId = book.id;
 
-  if (!bookId) {
+  if (!bookId && book.isbn) {
     const { data: upserted, error } = await supabaseClient
       .from("books")
       .upsert({ isbn: book.isbn, title: book.title, author: book.author, cover_url: book.cover_url },
@@ -3040,6 +3090,26 @@ async function _addScannedToShelf(shelfType) {
       .select("id").single();
     if (error || !upserted) { alert("Couldn't save book. Please try again."); return null; }
     bookId = upserted.id;
+  } else if (!bookId) {
+    // No ISBN (pre-ISBN era books from the cover path). There is no key to
+    // upsert on — never upsert with isbn:"" (all such books would collapse
+    // into one row). Best-effort dedup by exact title+author, else insert.
+    // Requires db/books_isbn_nullable.sql (ToDo 14); until applied the insert
+    // fails and the user sees the retry alert.
+    let query = supabaseClient
+      .from("books").select("id").is("isbn", null).eq("title", book.title);
+    query = book.author ? query.eq("author", book.author) : query.is("author", null);
+    const { data: matches } = await query.limit(1);
+    if (matches && matches.length) {
+      bookId = matches[0].id;
+    } else {
+      const { data: inserted, error } = await supabaseClient
+        .from("books")
+        .insert({ isbn: null, title: book.title, author: book.author || null, cover_url: book.cover_url || null })
+        .select("id").single();
+      if (error || !inserted) { alert("Couldn't save book. Please try again."); return null; }
+      bookId = inserted.id;
+    }
   }
 
   const { data: entry, error: shelfError } = await supabaseClient
@@ -3107,7 +3177,8 @@ async function addScannedBookAndList() {
   _openSellModalPrefilled(
     result.book,
     result.entryId,
-    "Added to your shelf ✓ — confirm condition and price below"
+    "Added to your shelf ✓ — confirm condition and price below",
+    result.bookId
   );
 }
 
@@ -3321,7 +3392,9 @@ async function scanCoverPhoto(input) {
     const query = [title, author].filter(Boolean).join(" ");
     statusEl.textContent = "Searching: " + [title, author].filter(Boolean).join(" · ") + "…";
 
-    const results = await searchBooksAPI(query);
+    // requireIsbn:false — pre-ISBN books are a normal cover-path outcome and
+    // must be selectable candidates, not silently dropped.
+    const results = await searchBooksAPI(query, { requireIsbn: false });
     if (!results.length) {
       statusEl.textContent = "No matches found. Try entering the ISBN or title manually.";
       document.getElementById("scannerManualEntry").style.display = "";
@@ -3333,25 +3406,16 @@ async function scanCoverPhoto(input) {
     renderBookSearchResults(results.slice(0, 5), coverResultsDiv, async (book) => {
       coverResultsDiv.style.display = "none";
       statusEl.textContent = "";
-      if (book.isbn) {
-        // Route confirmed candidate through the existing isbn-lookup flow.
-        await _onBarcodeDetected(book.isbn);
+      if (_scannerTarget === "sell") {
+        await closeBarcodeScanner();
+        selectSellBook(book.isbn || "", book.title, book.author, book.cover);
+      } else if (_scannerTarget === "shelf") {
+        await closeBarcodeScanner();
+        selectShelfBook(book.isbn || "", book.title, book.author, book.cover);
       } else {
-        // No ISBN available — fill fields directly from search metadata.
-        if (_scannerTarget === "sell") {
-          await closeBarcodeScanner();
-          selectSellBook("", book.title, book.author, book.cover);
-        } else if (_scannerTarget === "shelf") {
-          await closeBarcodeScanner();
-          selectShelfBook("", book.title, book.author, book.cover);
-        } else {
-          _scannedBookData = { isbn: "", title: book.title, author: book.author, cover_url: book.cover };
-          document.getElementById("scannerBookCover").src =
-            book.cover || "https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=140&h=190&fit=crop";
-          document.getElementById("scannerBookTitle").textContent = book.title;
-          document.getElementById("scannerBookAuthor").textContent = book.author ? "by " + book.author : "";
-          _showScannerState("found");
-        }
+        // Dashboard capture: land on the same found screen as a barcode scan
+        // (Have / Want / Add & List) — with or without an ISBN.
+        await _confirmCoverCandidate(book);
       }
     });
   } catch (e) {

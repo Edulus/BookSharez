@@ -8,6 +8,22 @@ const APP = "http://localhost:7654/index.html";
 
 const BOOK_A = { id: "book-A", isbn: "9780111111111", title: "The Way of Zen", author: "Alan Watts", cover_url: null };
 const BOOK_B = { id: "book-B", isbn: "9780222222222", title: "Siddhartha", author: "Hermann Hesse", cover_url: null };
+const BOOK_C = { id: "book-C", isbn: "9780333333333", title: "The Compleat Angler", author: "Izaak Walton", cover_url: null };
+
+// Cover-path candidates for the "Compleat Angler" query: a modern edition
+// with an ISBN, and a pre-ISBN first edition WITHOUT one — the real parity test.
+const GBOOKS_COVER = {
+  items: [
+    { volumeInfo: { title: "The Compleat Angler", authors: ["Izaak Walton"], publishedDate: "1955", industryIdentifiers: [{ type: "ISBN_13", identifier: "9780333333333" }], imageLinks: {} } },
+    { volumeInfo: { title: "The Compleat Angler", authors: ["Izaak Walton"], publishedDate: "1653", industryIdentifiers: [], imageLinks: {} } },
+  ],
+};
+
+// Tiny valid 1×1 JPEG for the cover input
+const TINY_JPEG = Buffer.from(
+  "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAMCAgICAgMCAgIDAwMDBAYEBAQEBAgGBgUGCQgKCgkICQkKDA8MCgsOCwkJDRENDg8QEBEQCgwSExIQEw8QEBD/yQALCAABAAEBAREA/8wABgAQEAX/2gAIAQEAAD8A0s8g/9k=",
+  "base64"
+);
 
 // access-control-expose-headers required or the browser hides content-range
 const json = (route, body, headers = {}, status = 200) =>
@@ -22,6 +38,7 @@ const isSingle = (route) => (route.request().headers()["accept"] || "").includes
 let shelfInsertCount = 0;
 let duplicateMode = false; // when true, shelf insert returns 23505
 const listingPosts = []; // captured POST bodies to /rest/v1/listings
+const shelfPosts = []; // captured POST bodies to /rest/v1/shelf_entries
 
 async function installRoutes(page) {
   await page.route("**/auth/v1/**", (route) => {
@@ -36,12 +53,16 @@ async function installRoutes(page) {
     const req = route.request();
     const url = req.url();
     if (req.method() === "POST") {
-      // upsert from addScannedBook — echo back an id based on payload isbn
+      // upsert/insert from _addScannedToShelf — echo back an id from payload
       const body = req.postData() || "";
+      if (body.includes('"isbn":null')) return json(route, { id: "book-noisbn" });
       const b = body.includes(BOOK_B.isbn) ? BOOK_B : BOOK_A;
       return json(route, { id: b.id });
     }
-    // _fetchBookByISBN cache lookup by isbn
+    // no-ISBN dedup lookup (isbn=is.null&title=eq...) → no existing match
+    if (url.includes("isbn=is.null")) return json(route, []);
+    // catalog lookups by isbn
+    if (url.includes("isbn=eq." + BOOK_C.isbn)) return json(route, isSingle(route) ? BOOK_C : [BOOK_C]);
     if (url.includes("isbn=eq." + BOOK_B.isbn)) return json(route, isSingle(route) ? BOOK_B : [BOOK_B]);
     if (url.includes("isbn=eq." + BOOK_A.isbn)) return json(route, isSingle(route) ? BOOK_A : [BOOK_A]);
     return json(route, isSingle(route) ? BOOK_A : [BOOK_A]);
@@ -52,6 +73,7 @@ async function installRoutes(page) {
       if (duplicateMode)
         return json(route, { code: "23505", message: "duplicate key value violates unique constraint", details: "", hint: "" }, {}, 409);
       shelfInsertCount++;
+      shelfPosts.push(req.postData() || "");
       // insert().select("id").single() expects a single object back
       return json(route, { id: "entry-" + shelfInsertCount }, {}, 201);
     }
@@ -72,9 +94,16 @@ async function installRoutes(page) {
   await page.route("**/rest/v1/discussion_posts*", (route) => json(route, []));
   await page.route("**/rest/v1/listing_photos*", (route) => json(route, []));
   await page.route("**/rest/v1/follows*", (route) => json(route, [], { "content-range": "0-0/0" }));
-  await page.route("**/books/v1/volumes*", (route) => json(route, { items: [] }));
+  await page.route("**/books/v1/volumes*", (route) => {
+    const q = decodeURIComponent(route.request().url());
+    return json(route, q.includes("Compleat") ? GBOOKS_COVER : { items: [] });
+  });
   await page.route("**/openlibrary.org/**", (route) => json(route, { docs: [] }));
   await page.route("**/functions/v1/**", (route) => route.fulfill({ status: 404, body: "{}" }));
+  // registered after the generic 404 so it takes precedence; the function
+  // wraps its payload in an { ok, data } envelope
+  await page.route("**/functions/v1/vision-extract*", (route) =>
+    json(route, { ok: true, data: { title: "The Compleat Angler", author: "Izaak Walton", isbn: "", confidence: "low" } }));
 }
 
 function fakeSession() {
@@ -198,6 +227,69 @@ async function captureViaManualEntry(page, isbn) {
   check("listing carries adjusted price", posted.includes('"price":12.5'), posted);
   check("success alert after listing", dialogs.some((d) => d.includes("listed successfully")), dialogs.join(" | "));
   check("sell modal closed after confirm", !(await modalVis(page, "sellModal")));
+
+  // ── Cover-path parity (§3.0): cover photo → candidates → SAME found screen ──
+  // The no-ISBN candidate is the real test: pre-ISBN books must be first-class.
+  await page.evaluate(() => window.openBookScanner());
+  await page.waitForTimeout(200);
+  await page.setInputFiles("#scannerCoverInput", { name: "cover.jpg", mimeType: "image/jpeg", buffer: TINY_JPEG });
+  await page.waitForSelector("#scannerCoverResults > div", { timeout: 8000 });
+
+  const candidateCount = await page.evaluate(() => document.querySelectorAll("#scannerCoverResults > div").length);
+  check("cover: candidates rendered (incl. no-ISBN edition)", candidateCount === 2, String(candidateCount));
+
+  // confirm the NO-ISBN candidate (second in the mock: the 1653 edition)
+  await page.click("#scannerCoverResults > div:nth-child(2)");
+  await page.waitForTimeout(500);
+
+  check("cover no-ISBN: lands on the SAME found screen", await vis(page, "scannerStateFound"));
+  check("cover no-ISBN: scanner modal still open (no reopen)", await modalVis(page, "barcodeScannerModal"));
+  check("cover no-ISBN: no dead-end manual form", !(await vis(page, "scannerManualEntry")));
+  check("cover no-ISBN: title shown", (await txt(page, "scannerBookTitle")).includes("Compleat Angler"));
+  check("cover no-ISBN: all three choices exposed", await page.evaluate(() => {
+    const v = (sel) => { const el = document.querySelector(sel); return !!el && el.offsetParent !== null; };
+    return v('button[onclick="addScannedBook(\'have\')"]') && v('button[onclick="addScannedBook(\'want\')"]') && v(".scanner-add-list-btn");
+  }));
+
+  // Add & List from the no-ISBN candidate
+  const shelfPostsBefore = shelfPosts.length;
+  await page.click(".scanner-add-list-btn");
+  await page.waitForTimeout(600);
+
+  check("cover no-ISBN: canonical book row created (isbn:null insert)", shelfPosts.length === shelfPostsBefore + 1 && shelfPosts[shelfPosts.length - 1].includes('"book_id":"book-noisbn"'), shelfPosts[shelfPosts.length - 1]);
+  check("cover no-ISBN: sell modal opens pre-filled", await modalVis(page, "sellModal"));
+  check("cover no-ISBN: title pre-filled, ISBN field EMPTY", await page.evaluate(() =>
+    document.getElementById("bookTitle").value.includes("Compleat Angler") && document.getElementById("bookISBN").value === ""));
+  check("cover no-ISBN: condition + price start empty", await page.evaluate(() =>
+    document.getElementById("bookCondition").value === "" && document.getElementById("bookPrice").value === ""));
+  check("cover no-ISBN: no listing before confirmation", listingPosts.length === 1);
+
+  await page.selectOption("#bookCondition", "very_good");
+  await page.waitForTimeout(700);
+  await page.fill("#bookPrice", "15.00");
+  await page.click('#sellForm button[type="submit"]');
+  await page.waitForTimeout(900);
+
+  check("cover no-ISBN: listing created on confirm", listingPosts.length === 2, String(listingPosts.length));
+  const noIsbnListing = listingPosts[1] || "";
+  check("cover no-ISBN: listing uses canonical book id (no ISBN dependency)", noIsbnListing.includes('"book_id":"book-noisbn"'), noIsbnListing);
+  check("cover no-ISBN: shelf_entry_id preserved", noIsbnListing.includes('"shelf_entry_id":"entry-4"'), noIsbnListing);
+  check("cover no-ISBN: confirmed condition + price", noIsbnListing.includes('"condition":"very_good"') && noIsbnListing.includes('"price":15'), noIsbnListing);
+
+  // ── Cover-path parity: the WITH-ISBN candidate also lands on found ──
+  await page.evaluate(() => window.openBookScanner());
+  await page.waitForTimeout(200);
+  await page.setInputFiles("#scannerCoverInput", { name: "cover2.jpg", mimeType: "image/jpeg", buffer: TINY_JPEG });
+  await page.waitForSelector("#scannerCoverResults > div", { timeout: 8000 });
+  await page.click("#scannerCoverResults > div:nth-child(1)"); // the 1955 edition (ISBN)
+  await page.waitForTimeout(500);
+  check("cover with-ISBN: lands on found screen (not re-routed away)", await vis(page, "scannerStateFound"));
+  check("cover with-ISBN: candidate metadata kept", (await txt(page, "scannerBookTitle")).includes("Compleat Angler"));
+  check("cover with-ISBN: Add & List available", await page.evaluate(() => {
+    const el = document.querySelector(".scanner-add-list-btn");
+    return !!el && el.offsetParent !== null;
+  }));
+  await page.evaluate(() => window.closeBarcodeScanner());
 
   check("no page errors", errors.length === 0, errors.join(" | "));
   await browser.close();

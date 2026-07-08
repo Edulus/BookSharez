@@ -88,9 +88,12 @@ what's missing is making the *repetition* frictionless on a phone:
   List for Sale" lands on a pre-filled sell form (price auto-suggested on
   condition pick) needing one confirm. Listing is never silent — condition and
   price are always confirmed by the seller.
-- **Cover-photo path parity.** The AI cover path must stay as fast as the
-  barcode path — it's what handles older books with no barcode, which heavy
-  shelves are full of.
+- **Cover-photo path parity.** *(Shipped July 7 — see CHANGELOG; needs
+  db/books_isbn_nullable.sql applied for no-ISBN books.)* The AI cover path
+  must stay as fast as the barcode path — it's what handles older books with
+  no barcode, which heavy shelves are full of. Cover candidates (including
+  pre-ISBN books with no ISBN at all) now land on the same found screen with
+  the same three actions as a barcode scan.
 - **Measure the loop.** Books captured per minute, and % of captures that
   become listings — these two numbers are the product's health metrics
   (feed §10).

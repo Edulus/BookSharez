@@ -46,11 +46,22 @@ UI is live but degrades silently until the table exists.
 3. Log back in as user A → the bell shows a red badge; clicking the entry
    opens the listing.
 
+### 3. Allow no-ISBN books (ToDo item 14)
+
+One-line schema change so pre-ISBN era books (older than ~1970, no barcode,
+found via the scanner's "Read Book Cover" path) can be shelved and listed.
+
+- [ ] **Apply the SQL** — SQL Editor → paste all of
+      [db/books_isbn_nullable.sql](db/books_isbn_nullable.sql) → Run.
+
+**Verify:** scan the cover of an old barcode-less book → confirm the candidate
+→ "Add & List for Sale" → the listing form submits with the ISBN field empty.
+
 ---
 
 ## 🟡 Decide (blocking a docs cleanup, not blocking features)
 
-### 3. ISBNdb subscription — yes or no?
+### 4. ISBNdb subscription — yes or no?
 
 The docs describe ISBNdb as the *primary* seller-side ISBN lookup, but it has
 never run (no subscription). The app works fine today on the fallback chain
@@ -69,7 +80,7 @@ another) is the only wrong state.
 
 ## 🟢 Optional / when convenient
 
-### 4. RLS test cleanup (ToDo item 4)
+### 5. RLS test cleanup (ToDo item 4)
 
 - [ ] Two leftover test users from the June RLS test. SQL Editor → run the
       CLEANUP block at the bottom of [db/rls_test.sql](db/rls_test.sql).
