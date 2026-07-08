@@ -14,6 +14,7 @@
       content="BookSharez is where readers meet, trade, and talk about books. Buy and sell used books with fellow readers - sellers keep 100% of the sale price."
     />
     <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://edulus.github.io/BookSharez/" />
     <meta property="og:site_name" content="BookSharez" />
     <meta property="og:title" content="BookSharez - Used Books Marketplace" />
     <meta
@@ -30,6 +31,23 @@
       rel="icon"
       href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📚</text></svg>"
     />
+    <script>
+      // Cloudflare Web Analytics (§8) — privacy-friendly page-level traffic:
+      // no cookies, no cross-site tracking, no product-event analytics.
+      // Paste the site token from Cloudflare Dashboard → Web Analytics to
+      // activate; empty string = fully disabled (nothing loads).
+      window.CF_ANALYTICS_TOKEN = "";
+      if (window.CF_ANALYTICS_TOKEN) {
+        var _cf = document.createElement("script");
+        _cf.defer = true;
+        _cf.src = "https://static.cloudflareinsights.com/beacon.min.js";
+        _cf.setAttribute(
+          "data-cf-beacon",
+          JSON.stringify({ token: window.CF_ANALYTICS_TOKEN })
+        );
+        document.head.appendChild(_cf);
+      }
+    </script>
     <link rel="stylesheet" href="css/style.css" />
     <link
       rel="stylesheet"

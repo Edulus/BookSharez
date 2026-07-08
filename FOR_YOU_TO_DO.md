@@ -70,16 +70,48 @@ found via the scanner's "Read Book Cover" path) can be shelved and listed.
       in the dashboard: `SELECT * FROM reports;`
 - [ ] **4c. Allow the reset-email redirect** — Dashboard → Authentication →
       URL Configuration → add `http://localhost:7654` to **Redirect URLs**
-      (and later your real domain, once hosted). Without this, the "Forgot
-      password?" email links back to the wrong place. **Verify:** login modal
-      → Forgot password? → follow the email link → "Set a New Password" form
-      appears → new password works.
+      (production URL is item 5a). Without this, the "Forgot password?" email
+      links back to the wrong place. **Verify:** login modal → Forgot
+      password? → follow the email link → "Set a New Password" form appears →
+      new password works.
+
+### 5. The site is LIVE — point Supabase + analytics at it
+
+The app deploys automatically to **<https://edulus.github.io/BookSharez/>**
+on every push to `main` (GitHub Pages was already enabled on the repo).
+Three follow-ups only you can do:
+
+- [ ] **5a. Supabase auth URLs** — Dashboard → Authentication → URL
+      Configuration → set **Site URL** to
+      `https://edulus.github.io/BookSharez/` and add it to **Redirect URLs**
+      (alongside `http://localhost:7654` from 4c). This makes password-reset
+      emails return to the live site, not localhost.
+      **Verify:** on the live site → Login → Forgot password? → the email
+      link opens edulus.github.io and shows "Set a New Password".
+- [ ] **5b. Cloudflare Web Analytics** (free, no cookies, no ad-tech) —
+      <https://dash.cloudflare.com/> → Web Analytics → Add a site → hostname
+      `edulus.github.io` → copy the **token** → paste it into the
+      `window.CF_ANALYTICS_TOKEN = ""` line near the top of
+      [index.html](index.html) (or just tell Claude the token) → push.
+      **Verify:** visit the live site once, then the Cloudflare dashboard
+      shows ≥ 1 visit within a few minutes.
+- [ ] **5c. Manual logged-in smoke test on the live site** (the automated
+      logged-out half is `node verify-production.js`):
+      1. Log in → dashboard loads with your shelves.
+      2. Scanner → manual ISBN or barcode → book found → **Books I Have** →
+         scanner stays open, chip counts.
+      3. Scanner → **Add & List for Sale** → pre-filled sell form → pick
+         condition (price auto-suggests) → List Book → listing appears in
+         browse.
+      4. Open someone else's listing → **Report this listing** → submit →
+         "Thanks" (needs 4b applied).
+      5. Log out → Forgot password? → complete a reset end-to-end (needs 5a).
 
 ---
 
 ## 🟡 Decide (blocking a docs cleanup, not blocking features)
 
-### 5. ISBNdb subscription — yes or no?
+### 6. ISBNdb subscription — yes or no?
 
 The docs describe ISBNdb as the *primary* seller-side ISBN lookup, but it has
 never run (no subscription). The app works fine today on the fallback chain
@@ -98,7 +130,7 @@ another) is the only wrong state.
 
 ## 🟢 Optional / when convenient
 
-### 6. RLS test cleanup (ToDo item 4)
+### 7. RLS test cleanup (ToDo item 4)
 
 - [ ] Two leftover test users from the June RLS test. SQL Editor → run the
       CLEANUP block at the bottom of [db/rls_test.sql](db/rls_test.sql).
@@ -116,9 +148,10 @@ These are listed so they don't get lost; no action today.
       email confirmation ON, leaked-password protection ON. (Claude builds the
       matching password-reset UI as a code step — improvement plan §6.5.)
 - [ ] **Turn on daily backups** (comes with Pro).
-- [ ] **Pick a host** so the site has a public URL — GitHub Pages, Cloudflare
-      Pages, or Netlify all serve this repo as-is (improvement plan §8). Tell
-      Claude which and the `og:url` / `og:image` meta tags get finished.
+- [x] **Pick a host** — ~~GitHub Pages, Cloudflare Pages, or Netlify~~ GitHub
+      Pages was already enabled on the repo; live at
+      <https://edulus.github.io/BookSharez/>, auto-deploys on push to `main`
+      (see item 5). A custom domain can come later (Settings → Pages).
 - [ ] **Review Supabase auth email templates** — Dashboard → Authentication →
       Email Templates (they say "Supabase" by default).
 

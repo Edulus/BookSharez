@@ -16,6 +16,14 @@ rationale lives inline in the relevant docs (e.g. the ADR in
 
 _Phase 1 backend foundation + documentation. Work to date: 2026-06-14 – 2026-07-04._
 
+### Added (July 8 — Hosting + analytics: the site is live)
+
+- **BookSharez is publicly deployed at <https://edulus.github.io/BookSharez/>** (improvement plan §8). GitHub Pages was already enabled on the repo (legacy branch deploy from `main` root) but serving a month-old build — pushing `main` now auto-deploys the current app. Added [.nojekyll](.nojekyll) so Pages serves the files as-is (no Jekyll processing). `og:url` meta finished with the production URL. Relative asset paths, hash routing, and the dynamic `location.origin + location.pathname` reset-redirect all work unchanged under the `/BookSharez/` subpath.
+- **Cloudflare Web Analytics loader** (token-gated) in `index.html`: privacy-friendly page-level traffic only — no cookies, no cross-site tracking, no product-event analytics. Fully disabled until the site token from the Cloudflare dashboard is pasted into `window.CF_ANALYTICS_TOKEN` (FOR_YOU_TO_DO 5b).
+- **Environment sanity re-verified before pushing:** client files carry only `SUPABASE_URL` + the publishable anon key (public by design, RLS-protected); no service-role keys, no billing-exposed API keys; `.env` gitignored and never committed; every push is scanned by the pre-commit hook + gitleaks Action.
+- **[verify-production.js](verify-production.js)** — production smoke harness against the real deployed site (no mocks, real Supabase; phone-sized viewport): title/og:url, all CDN deps loaded (supabase-js, Quagga, Html5Qrcode), ES module graph alive, browse grid painted with live data, login/signup/forgot-password/reset/report surfaces reachable, scanner modal with all four capture paths, logged-out `#/dashboard` deep link lands on login, zero console/page errors. The manual logged-in half (shelf add, Add & List, report submit, reset end-to-end) is documented as FOR_YOU_TO_DO 5c.
+- User steps documented (FOR_YOU_TO_DO 5a–5c): Supabase Site URL + Redirect URLs → production domain (so password reset returns to the live site), Cloudflare analytics token, manual smoke checklist.
+
 ### Added (July 8 — Security hardening: §6.1 catalog writes, §6.2 content reporting, §6.5 password reset)
 
 - **§6.1 Catalog (books) write hardening** — `books` is shared data; clients are now strictly **append-only**:
