@@ -112,9 +112,10 @@ function fakeSession() {
     access_token: "fake", token_type: "bearer", expires_in: 3600, expires_at: Math.floor(Date.now() / 1000) + 3600, refresh_token: "r",
     user: { id: "test-user-id", email: "t@e.com", aud: "authenticated", role: "authenticated", created_at: new Date().toISOString(), app_metadata: {}, user_metadata: {} },
   }));
-  // start each run with a clean per-day capture counter
+  // start each run with a clean per-day capture counter + loop metrics
   const key = "bsCaptures:" + new Date().toISOString().slice(0, 10);
   localStorage.removeItem(key);
+  sessionStorage.removeItem("bsLoopMetrics");
 }
 
 let failures = 0;
@@ -192,6 +193,13 @@ async function captureViaManualEntry(page, isbn) {
   await page.waitForTimeout(200);
   check("chip persists across reopen", (await txt(page, "scannerSessionCount")).trim() === "2 books added today", await txt(page, "scannerSessionCount"));
 
+  // loop metrics survive scanner close/reopen (session-scoped)
+  const midMetrics = await page.evaluate(() => window.loopMetricsSummary());
+  check("metrics survive close/reopen (captures 3, have 2, want 1, dup 1)",
+    midMetrics.captures === 3 && midMetrics.addsHave === 2 && midMetrics.addsWant === 1 &&
+    midMetrics.duplicates === 1 && midMetrics.listingsCreated === 0,
+    JSON.stringify(midMetrics));
+
   check("no dialogs during batch adds", dialogs.length === 0, dialogs.join(" | "));
 
   // ── Add & List: capture → one clean transition → confirm → listing ──
@@ -208,6 +216,11 @@ async function captureViaManualEntry(page, isbn) {
   check("Add&List: condition + price start EMPTY (no silent listing)",
     await page.evaluate(() => document.getElementById("bookCondition").value === "" && document.getElementById("bookPrice").value === ""));
   check("Add&List: no listing POST before user confirms", listingPosts.length === 0);
+  check("metrics: Add&List tap = intent only, not a created listing",
+    await page.evaluate(() => {
+      const m = window.loopMetricsSummary();
+      return m.addAndList === 1 && m.listingsCreated === 0;
+    }));
 
   // picking a condition auto-suggests a price (pricing fn mocked away → local fallback)
   await page.selectOption("#bookCondition", "good");
@@ -290,6 +303,19 @@ async function captureViaManualEntry(page, isbn) {
     return !!el && el.offsetParent !== null;
   }));
   await page.evaluate(() => window.closeBarcodeScanner());
+
+  // ── Loop metrics after the whole mixed session ──
+  // 6 captures (3 manual + 1 manual re-scan + 2 cover incl. no-ISBN),
+  // intents: have 2 / want 1 / add&list 2, 1 duplicate outcome, 2 listings.
+  const m = await page.evaluate(() => window.loopMetricsSummary());
+  check("metrics: captures = 6 (re-scans and no-ISBN cover count)", m.captures === 6, JSON.stringify(m));
+  check("metrics: intent split kept (have 2 / want 1 / addAndList 2)",
+    m.addsHave === 2 && m.addsWant === 1 && m.addAndList === 2, JSON.stringify(m));
+  check("metrics: exactly one duplicate outcome", m.duplicates === 1, String(m.duplicates));
+  check("metrics: listings created = 2 (only after seller submits)", m.listingsCreated === 2, String(m.listingsCreated));
+  check("metrics: listing rate = 2/6", Math.abs(m.listingRate - 0.333) < 0.005, String(m.listingRate));
+  check("metrics: captures/minute computed from open time", m.capturesPerMinute > 0 && m.activeMs > 0,
+    `rate=${m.capturesPerMinute} activeMs=${m.activeMs}`);
 
   check("no page errors", errors.length === 0, errors.join(" | "));
   await browser.close();

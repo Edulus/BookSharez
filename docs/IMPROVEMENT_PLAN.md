@@ -94,9 +94,11 @@ what's missing is making the *repetition* frictionless on a phone:
   no barcode, which heavy shelves are full of. Cover candidates (including
   pre-ISBN books with no ISBN at all) now land on the same found screen with
   the same three actions as a barcode scan.
-- **Measure the loop.** Books captured per minute, and % of captures that
-  become listings — these two numbers are the product's health metrics
-  (feed §10).
+- **Measure the loop.** *(Shipped July 7 — see CHANGELOG; session-scoped,
+  `loopMetricsSummary()` in the console.)* Books captured per minute, and % of
+  captures that become listings — these two numbers are the product's health
+  metrics (feed §10). Promoting them to a durable store rides the analytics
+  work in §8.
 
 Everything else in this section builds on the shelves this loop fills.
 

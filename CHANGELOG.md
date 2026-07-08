@@ -16,6 +16,14 @@ rationale lives inline in the relevant docs (e.g. the ADR in
 
 _Phase 1 backend foundation + documentation. Work to date: 2026-06-14 – 2026-07-04._
 
+### Added (July 7 — Loop metrics: the core loop's two health numbers)
+
+- **Session-scoped capture-funnel instrumentation** (improvement plan §3.0, final item) — deliberately light: `sessionStorage` + a `console.debug("[loop]", …)` line per event; no database table, no user-facing dashboard. Run `loopMetricsSummary()` in the browser console for the live numbers.
+- **Headline numbers:** `capturesPerMinute` (captures ÷ accumulated scanner-open time — the timer starts on modal open, stops on close, and survives close/reopen within the session) and `listingRate` (= `listingsCreated / captures`).
+- **Event definitions:** `captures` = a book reached the found screen (single choke point: `_showBookFound` — barcode, manual ISBN, and cover-confirmed candidates including no-ISBN all count); `addsHave` / `addsWant` / `addAndList` = which intent the user tapped, kept separate; `duplicates` = shelf adds that resolved to an existing entry (an outcome overlay — the intent counter still counts); `listingsCreated` = an Add & List flow whose listing POST actually succeeded. **Intent ≠ creation:** `_pendingLoopListing` is set on the Add & List tap, consumed by `handleSellBook` on successful insert, and cleared by `_resetSellLinkage` — an abandoned sell form never counts as a created listing.
+- **Verified:** [verify-batchscan.js](verify-batchscan.js) grew to 63 checks — after the mixed session (manual add-have, manual add-want, duplicate re-scan, manual Add & List, no-ISBN cover Add & List, with-ISBN cover capture) the summary reads captures 6, have 2 / want 1 / addAndList 2, duplicates 1, listingsCreated 2, listingRate 0.333, capturesPerMinute > 0; plus mid-session assertions that metrics survive scanner close/reopen and that the Add & List tap alone doesn't count as a listing. All six harnesses green.
+- Caveat (also in FOR_YOU_TO_DO): apply [db/books_isbn_nullable.sql](db/books_isbn_nullable.sql) before reading no-ISBN metrics from real users — until then a failed no-ISBN save measures the schema gap, not user friction.
+
 ### Changed (July 7 — Cover-path parity: "Read Book Cover" is a first-class capture path)
 
 - **Every capture path now lands on the same "book found" screen** with the same three choices (Books I Have / Books I Want / Add & List for Sale): new `_showBookFound(book)` is the single found-screen entry point for barcode, cover-candidate, and manual-ISBN captures. Confirming a cover candidate no longer re-routes through the barcode pipeline (`_onBarcodeDetected`) — that re-lookup discarded the title/author/cover the user had just confirmed and could downgrade to "Title unknown" on failure. `_confirmCoverCandidate` keeps the candidate's metadata and only does a cheap catalog-id lookup when an ISBN exists.

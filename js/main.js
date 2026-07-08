@@ -1358,6 +1358,12 @@ async function handleSellBook(e) {
       .single();
     if (error) throw error;
 
+    // metric: an Add & List flow completed — the seller actually submitted.
+    if (_pendingLoopListing) {
+      _pendingLoopListing = false;
+      _bumpLoopMetric("listingsCreated");
+    }
+
     // Photos must be uploaded AFTER the listing exists: the Storage + table RLS
     // policies require the path's first folder to be a listing the user owns.
     const photoWarning = await uploadListingPhotos(listing.id, photos);
@@ -2568,6 +2574,7 @@ function listShelfItemForSale(shelfEntryId) {
 function _resetSellLinkage() {
   currentListingShelfEntryId = null;
   currentListingBookId = null;
+  _pendingLoopListing = false; // cancelled/abandoned Add & List is not a created listing
 }
 
 // bookId (when known) lets handleSellBook skip the ISBN-keyed ensureBook —
@@ -2779,6 +2786,71 @@ async function handleSaveProfile(e) {
 let _scanStream = null;      // MediaStream from getUserMedia
 let _scanAnimFrame = null;   // requestAnimationFrame id
 let _scannerFallback = null; // html5-qrcode instance (fallback only)
+// ── Loop metrics (improvement plan §3.0 — the core loop's two health numbers) ──
+// Session-scoped instrumentation, deliberately light: sessionStorage + a
+// console.debug line per event. No database, no user-facing dashboard yet.
+// Definitions:
+//   captures        — a book reached the found screen (barcode, manual ISBN,
+//                     or cover-confirmed candidate — no-ISBN included)
+//   addsHave/Want/
+//   addAndList      — which of the three intents the user tapped (and it
+//                     succeeded). Kept separate: they mean different things.
+//   duplicates      — shelf adds that resolved to an already-existing entry
+//                     (marked as an outcome; the intent counter still counts)
+//   listingsCreated — an Add & List flow's listing POST actually succeeded
+//                     (intent ≠ creation; the seller must submit the form)
+//   activeMs        — accumulated time with the scanner open (rate basis)
+// Headline numbers: capturesPerMinute and listingRate (= listingsCreated/captures).
+
+const _LOOP_METRICS_KEY = "bsLoopMetrics";
+let _scannerOpenedAt = null; // in-progress open-time slice
+let _pendingLoopListing = false; // Add & List tapped; awaiting the seller's submit
+
+function _loopMetricsRaw() {
+  try { return JSON.parse(sessionStorage.getItem(_LOOP_METRICS_KEY)) || {}; }
+  catch (e) { return {}; }
+}
+
+function _bumpLoopMetric(field, n = 1) {
+  try {
+    const m = _loopMetricsRaw();
+    m[field] = (m[field] || 0) + n;
+    sessionStorage.setItem(_LOOP_METRICS_KEY, JSON.stringify(m));
+    console.debug("[loop]", JSON.stringify(loopMetricsSummary()));
+  } catch (e) { /* metrics must never break the loop */ }
+}
+
+function _loopTimerStart() {
+  if (_scannerOpenedAt === null) _scannerOpenedAt = Date.now();
+}
+
+function _loopTimerStop() {
+  if (_scannerOpenedAt !== null) {
+    _bumpLoopMetric("activeMs", Date.now() - _scannerOpenedAt);
+    _scannerOpenedAt = null;
+  }
+}
+
+// Debug/harness view — window.loopMetricsSummary() in the console.
+function loopMetricsSummary() {
+  const m = _loopMetricsRaw();
+  const captures = m.captures || 0;
+  const listingsCreated = m.listingsCreated || 0;
+  const activeMs = (m.activeMs || 0) + (_scannerOpenedAt !== null ? Date.now() - _scannerOpenedAt : 0);
+  const minutes = activeMs / 60000;
+  return {
+    captures,
+    addsHave: m.addsHave || 0,
+    addsWant: m.addsWant || 0,
+    addAndList: m.addAndList || 0,
+    duplicates: m.duplicates || 0,
+    listingsCreated,
+    activeMs,
+    capturesPerMinute: minutes > 0 ? Number((captures / minutes).toFixed(2)) : 0,
+    listingRate: captures > 0 ? Number((listingsCreated / captures).toFixed(3)) : 0,
+  };
+}
+
 let _scannerTarget = null;   // 'shelf' | 'sell' | 'dashboard'
 let _scannedBookData = null;
 let _lastScanFile = null;    // File kept for AI barcode retry after Quagga/BarcodeDetector fails
@@ -2834,6 +2906,7 @@ function openBarcodeScanner(target) {
 }
 
 function _openScannerModal() {
+  _loopTimerStart();
   _scannedBookData = null;
   _showScannerState("scanning");
   _resetCameraView();
@@ -2949,6 +3022,7 @@ const SCANNER_COVER_FALLBACK =
 // every successful capture path (barcode, cover candidate, manual ISBN), so
 // all of them expose the same three choices: Have / Want / Add & List.
 function _showBookFound(book) {
+  _bumpLoopMetric("captures"); // metric: any capture path reaching this screen
   _scannedBookData = book;
   document.getElementById("scannerBookCover").src = book.cover_url || SCANNER_COVER_FALLBACK;
   document.getElementById("scannerBookTitle").textContent = book.title || "Unknown Title";
@@ -3144,6 +3218,9 @@ async function addScannedBook(shelfType) {
   if (!result) return;
   const { book, isDuplicate } = result;
 
+  _bumpLoopMetric(shelfType === "have" ? "addsHave" : "addsWant"); // metric: intent
+  if (isDuplicate) _bumpLoopMetric("duplicates"); // metric: outcome overlay
+
   // Batch capture (core loop): stay in the scanner and go straight back to
   // capture — the next book must cost zero extra taps. The shelf refreshes in
   // the background; the modal closes only when the user decides they're done.
@@ -3170,6 +3247,11 @@ async function addScannedBook(shelfType) {
 async function addScannedBookAndList() {
   const result = await _addScannedToShelf("have");
   if (!result) return;
+
+  _bumpLoopMetric("addAndList"); // metric: listing INTENT (creation counts on submit)
+  if (result.isDuplicate) _bumpLoopMetric("duplicates");
+  _pendingLoopListing = true; // consumed by handleSellBook on successful insert
+
   if (!result.isDuplicate) _bumpCaptureCount();
   loadShelfHave(); // background refresh
 
@@ -3197,6 +3279,7 @@ async function scannerReset() {
 }
 
 async function closeBarcodeScanner() {
+  _loopTimerStop();
   await _stopLiveScanner();
   _lastCaptureLive = false;
   clearTimeout(_addedMsgTimer);
@@ -3455,6 +3538,8 @@ Object.assign(window, {
   openBookScanner, openBarcodeScanner, startLiveCamera, scanFromPhoto,
   scanCoverPhoto, retryWithVision, addScannedBook, addScannedBookAndList,
   scannerReset, closeBarcodeScanner, scannerManualLookup,
+  // loop metrics (debug: run loopMetricsSummary() in the console)
+  loopMetricsSummary,
   // internal, but probed by verify-vision.js
   _compressAndEncode, _callVisionExtract,
 });
