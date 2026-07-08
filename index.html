@@ -272,6 +272,10 @@
             >
               <i class="fas fa-cart-plus"></i> Buy Now
             </button>
+            <!-- shown on the single-listing view; onclick set by viewListing -->
+            <button type="button" class="report-link" id="detailReportBtn" style="display: none">
+              <i class="fas fa-flag"></i> Report this listing
+            </button>
             <div id="detailOffers" class="detail-offers" style="display: none">
               <h3 class="detail-offers-heading">Available on BookSharez</h3>
               <div id="detailOffersGrid" class="detail-offers-grid"></div>
@@ -388,6 +392,10 @@
             onclick="toggleFollow()" style="display:none; align-self:flex-start;">
             Follow
           </button>
+          <!-- onclick set by viewProfile; hidden on your own profile -->
+          <button type="button" class="report-link" id="profileReportBtn" style="display: none">
+            <i class="fas fa-flag"></i> Report user
+          </button>
         </div>
         <h3 style="margin-bottom:0.75rem;">Books I Have</h3>
         <div id="profileShelfHave" style="margin-bottom:2rem;"></div>
@@ -418,10 +426,42 @@
               Login
             </button>
           </form>
-          <p style="text-align: center; margin-top: 1rem">
+          <p style="text-align: center; margin-top: 0.75rem">
+            <a href="#" onclick="handleForgotPassword(); return false;">Forgot password?</a>
+          </p>
+          <p style="text-align: center; margin-top: 0.5rem">
             Don't have an account?
             <a href="#" onclick="showSignup()">Sign up here</a>
           </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Reset Password Modal (§6.5) — opened by the PASSWORD_RECOVERY auth
+         event when the user lands here from the reset email -->
+    <div id="resetPasswordModal" class="modal">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3>Set a New Password</h3>
+          <span class="close" onclick="closeModal('resetPasswordModal')">&times;</span>
+        </div>
+        <div class="modal-body">
+          <div id="resetPasswordMessage" class="form-message"></div>
+          <form id="resetPasswordForm">
+            <div class="form-group">
+              <label for="newPassword">New password:</label>
+              <input type="password" id="newPassword" name="newPassword"
+                minlength="8" required autocomplete="new-password" />
+            </div>
+            <div class="form-group">
+              <label for="newPasswordConfirm">Confirm new password:</label>
+              <input type="password" id="newPasswordConfirm" name="newPasswordConfirm"
+                minlength="8" required autocomplete="new-password" />
+            </div>
+            <button type="submit" class="btn btn-primary" style="width: 100%">
+              Save New Password
+            </button>
+          </form>
         </div>
       </div>
     </div>
@@ -646,6 +686,40 @@
             </div>
             <button type="submit" class="btn btn-primary" style="width: 100%">
               List Book
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- Report Content Modal (§6.2) — subject set by openReportModal() -->
+    <div id="reportModal" class="modal">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3><i class="fas fa-flag"></i> <span id="reportModalTitle">Report</span></h3>
+          <span class="close" onclick="closeModal('reportModal')">&times;</span>
+        </div>
+        <div class="modal-body">
+          <form id="reportForm">
+            <div class="form-group">
+              <label for="reportReason">Why are you reporting this?</label>
+              <select id="reportReason" name="reportReason" required>
+                <option value="">Select a reason</option>
+                <option value="spam">Spam or scam</option>
+                <option value="inappropriate">Inappropriate content</option>
+                <option value="misleading">Misleading or wrong information</option>
+                <option value="harassment">Harassment or abuse</option>
+                <option value="other">Something else</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="reportDetails">Details (optional):</label>
+              <textarea id="reportDetails" name="reportDetails" rows="3" maxlength="1000"
+                placeholder="Anything that helps us understand the problem"></textarea>
+            </div>
+            <p class="report-status" id="reportStatus"></p>
+            <button type="submit" class="btn btn-primary" style="width: 100%">
+              Submit Report
             </button>
           </form>
         </div>

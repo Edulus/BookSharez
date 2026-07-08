@@ -57,11 +57,29 @@ found via the scanner's "Read Book Cover" path) can be shelved and listed.
 **Verify:** scan the cover of an old barcode-less book → confirm the candidate
 → "Add & List for Sale" → the listing form submits with the ISBN field empty.
 
+### 4. Security hardening SQL (ToDo items 15 + 16)
+
+- [ ] **4a. Apply [db/books_rls_harden.sql](db/books_rls_harden.sql)** — SQL
+      Editor → paste → Run. Asserts the catalog has no client write policies
+      and adds integrity constraints. **Verify:** `node verify-rls-live.js`
+      from the repo (hits the live project with the public key) — all checks
+      should pass.
+- [ ] **4b. Apply [db/reports.sql](db/reports.sql)** — creates the content-
+      reporting table. **Verify:** in the app, open someone else's listing →
+      "Report this listing" → pick a reason → submit → "Thanks" message; then
+      in the dashboard: `SELECT * FROM reports;`
+- [ ] **4c. Allow the reset-email redirect** — Dashboard → Authentication →
+      URL Configuration → add `http://localhost:7654` to **Redirect URLs**
+      (and later your real domain, once hosted). Without this, the "Forgot
+      password?" email links back to the wrong place. **Verify:** login modal
+      → Forgot password? → follow the email link → "Set a New Password" form
+      appears → new password works.
+
 ---
 
 ## 🟡 Decide (blocking a docs cleanup, not blocking features)
 
-### 4. ISBNdb subscription — yes or no?
+### 5. ISBNdb subscription — yes or no?
 
 The docs describe ISBNdb as the *primary* seller-side ISBN lookup, but it has
 never run (no subscription). The app works fine today on the fallback chain
@@ -80,7 +98,7 @@ another) is the only wrong state.
 
 ## 🟢 Optional / when convenient
 
-### 5. RLS test cleanup (ToDo item 4)
+### 6. RLS test cleanup (ToDo item 4)
 
 - [ ] Two leftover test users from the June RLS test. SQL Editor → run the
       CLEANUP block at the bottom of [db/rls_test.sql](db/rls_test.sql).

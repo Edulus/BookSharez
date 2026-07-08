@@ -102,6 +102,16 @@ function setupEventListeners() {
     .getElementById("profileSettingsForm")
     .addEventListener("submit", handleSaveProfile);
 
+  // Content report form (§6.2)
+  document
+    .getElementById("reportForm")
+    .addEventListener("submit", handleSubmitReport);
+
+  // Password reset form (§6.5)
+  document
+    .getElementById("resetPasswordForm")
+    .addEventListener("submit", handleResetPassword);
+
   // Search functionality
   document
     .getElementById("searchInput")
@@ -489,6 +499,7 @@ function _renderBookPage(book, offers) {
   document.getElementById("detailWantCount").textContent = "";
   document.getElementById("detailGallery").innerHTML = "";
   document.getElementById("detailBuyBtn").style.display = "none";
+  document.getElementById("detailReportBtn").style.display = "none";
   document.getElementById("detailDiscussion").style.display = "none";
 
   // Community offers (primary). Each tile routes to its listing via renderBook.
@@ -833,6 +844,8 @@ function initAuth() {
   // every sign in / sign out, so a page refresh keeps the user logged in.
   supabaseClient.auth.onAuthStateChange((_event, session) => {
     applyAuthState(session);
+    // Arriving from a password-reset email: prompt for the new password.
+    if (_event === "PASSWORD_RECOVERY") _openResetPasswordModal();
     // Apply the URL's route only after the first auth state is known, so a
     // direct link to #/dashboard works when a session is restored (and the
     // logged-out homepage reset above doesn't clobber a public deep link).
@@ -932,6 +945,62 @@ async function handleSignup(e) {
     );
     e.target.reset();
   }
+}
+
+// ── Password reset (§6.5) ────────────────────────────────────────────────────
+// Request: "Forgot password?" on the login modal emails a reset link
+// (redirects back to this site). Completion: Supabase fires the
+// PASSWORD_RECOVERY auth event on arrival, which opens the set-new-password
+// modal; updateUser({ password }) finishes the job.
+
+async function handleForgotPassword() {
+  const email = document.getElementById("email").value.trim();
+  if (!email) {
+    showAuthMessage("loginMessage", "Enter your email above first, then tap “Forgot password?”.", "error");
+    document.getElementById("email").focus();
+    return;
+  }
+  const { error } = await supabaseClient.auth.resetPasswordForEmail(email, {
+    redirectTo: location.origin + location.pathname,
+  });
+  if (error) {
+    console.error("Password reset request failed:", error);
+    showAuthMessage("loginMessage", "Couldn't send the reset email right now. Please try again later.", "error");
+    return;
+  }
+  // Same message either way — never leak whether an account exists.
+  showAuthMessage("loginMessage", "If an account exists for that email, a reset link is on its way.", "success");
+}
+
+function _openResetPasswordModal() {
+  closeModal("loginModal");
+  clearAuthMessage("resetPasswordMessage");
+  document.getElementById("newPassword").value = "";
+  document.getElementById("newPasswordConfirm").value = "";
+  document.getElementById("resetPasswordModal").style.display = "block";
+}
+
+async function handleResetPassword(e) {
+  e.preventDefault();
+  const pw = document.getElementById("newPassword").value;
+  const confirm = document.getElementById("newPasswordConfirm").value;
+  if (pw.length < 8) {
+    showAuthMessage("resetPasswordMessage", "Password must be at least 8 characters.", "error");
+    return;
+  }
+  if (pw !== confirm) {
+    showAuthMessage("resetPasswordMessage", "Passwords do not match.", "error");
+    return;
+  }
+  const { error } = await supabaseClient.auth.updateUser({ password: pw });
+  if (error) {
+    console.error("Password update failed:", error);
+    showAuthMessage("resetPasswordMessage", mapAuthError(error), "error");
+    return;
+  }
+  closeModal("resetPasswordModal");
+  e.target.reset();
+  alert("Password updated — you're logged in.");
 }
 
 // Handle logout. onAuthStateChange resets the UI to the logged-out state.
@@ -1073,6 +1142,76 @@ async function markAllNotificationsRead() {
     .is("read_at", null);
   refreshNotifBadge();
   loadNotifications();
+}
+
+// ---------------------------------------------------------------------------
+// Content reporting (§6.2 — db/reports.sql)
+// ---------------------------------------------------------------------------
+// Lightweight moderation intake: logged-in users flag a listing / profile /
+// discussion post via one shared modal. The snapshot captures what the
+// reporter saw, so the report stays actionable if the subject is edited or
+// deleted. Clients can only INSERT (RLS); review happens in the dashboard.
+// Degrades to a friendly message if db/reports.sql isn't applied yet.
+
+let _reportSubject = null; // { type, id, snapshot }
+
+function openReportModal(subjectType, subjectId, snapshot, label) {
+  if (!isLoggedIn) {
+    showLogin();
+    return;
+  }
+  _reportSubject = { type: subjectType, id: subjectId, snapshot: snapshot || {} };
+  document.getElementById("reportModalTitle").textContent = label || "Report";
+  document.getElementById("reportReason").value = "";
+  document.getElementById("reportDetails").value = "";
+  document.getElementById("reportStatus").textContent = "";
+  document.getElementById("reportModal").style.display = "block";
+}
+
+async function handleSubmitReport(e) {
+  e.preventDefault();
+  if (!_reportSubject) return;
+  const statusEl = document.getElementById("reportStatus");
+  const reason = document.getElementById("reportReason").value;
+  if (!reason) {
+    statusEl.textContent = "Pick a reason first.";
+    return;
+  }
+  statusEl.textContent = "Submitting…";
+
+  const { error } = await supabaseClient.from("reports").insert({
+    reporter_id: currentUserId,
+    subject_type: _reportSubject.type,
+    subject_id: _reportSubject.id,
+    reason,
+    details: document.getElementById("reportDetails").value.trim() || null,
+    snapshot: _reportSubject.snapshot,
+  });
+
+  if (error && error.code === "23505") {
+    statusEl.textContent = "You've already reported this — thank you.";
+    return;
+  }
+  if (error) {
+    console.error("Report failed:", error);
+    statusEl.textContent = "Couldn't submit the report right now. Please try again later.";
+    return;
+  }
+  closeModal("reportModal");
+  _reportSubject = null;
+  alert("Thanks — a moderator will take a look.");
+}
+
+// Generated-markup entry point for discussion posts (UUID args only — the
+// text excerpt is read from the DOM to avoid HTML-quoting bugs).
+function reportDiscussionPost(postId, authorId) {
+  const postEl = document.querySelector(`.discussion-post[data-id="${postId}"] .discussion-post-body`);
+  openReportModal(
+    "discussion_post",
+    postId,
+    { owner_id: authorId, excerpt: (postEl ? postEl.textContent : "").slice(0, 300) },
+    "Report post"
+  );
 }
 
 const DASHBOARD_TABS = ["shelf-have", "shelf-want", "listings", "profile"];
@@ -1790,6 +1929,7 @@ async function viewListing(listingId) {
     document.getElementById("discussionForm").style.display = "none";
     document.getElementById("discussionAuthPrompt").style.display = "none";
     document.getElementById("detailBuyBtn").style.display = "none";
+    document.getElementById("detailReportBtn").style.display = "none";
     return;
   }
 
@@ -1801,6 +1941,21 @@ async function viewListing(listingId) {
     description: data.description,
     isListedLocally: true,
   }, "full");
+
+  // Report link (§6.2) — for other people's listings only
+  const reportBtn = document.getElementById("detailReportBtn");
+  if (currentUserId && currentUserId !== data.user_id) {
+    reportBtn.style.display = "inline-flex";
+    reportBtn.onclick = () =>
+      openReportModal("listing", data.id, {
+        owner_id: data.user_id,
+        title: data.books?.title || null,
+        isbn: data.books?.isbn || null,
+        price: data.price,
+      }, "Report listing");
+  } else {
+    reportBtn.style.display = "none";
+  }
 
   // Hardcover enrichment (non-blocking; fills in below the ISBN line).
   runBookEnrichment(data.books?.isbn, data.id, data.books?.title, data.books?.author);
@@ -1949,12 +2104,17 @@ function _renderDiscussionPosts(posts, profileMap) {
       ? `<button type="button" class="discussion-delete" onclick="deleteDiscussionPost('${p.id}')">` +
         `<i class="fas fa-trash"></i></button>`
       : "";
+    // UUID args only — reportDiscussionPost reads the excerpt from the DOM
+    const report = !isOwn && isLoggedIn
+      ? `<button type="button" class="discussion-report" onclick="reportDiscussionPost('${p.id}', '${p.user_id}')">` +
+        `<i class="fas fa-flag"></i> Report</button>`
+      : "";
     return `<div class="discussion-post" data-id="${p.id}">
       <div class="discussion-post-header">
         <a href="#" class="discussion-username"
            onclick="viewProfile('${p.user_id}'); return false;">${name}</a>
         <span class="discussion-time">${time}</span>
-        ${del}
+        ${del}${report}
       </div>
       <div class="discussion-post-body">${body}</div>
     </div>`;
@@ -2652,8 +2812,12 @@ async function viewProfile(userId) {
   document.getElementById("profileFollowingCount").textContent =
     `${followingRes.count || 0} following`;
 
-  // Follow button — only for other users when logged in
+  // Follow + report buttons — only for other users when logged in
+  const profileReportBtn = document.getElementById("profileReportBtn");
   if (isLoggedIn && currentUserId && currentUserId !== userId) {
+    profileReportBtn.style.display = "inline-flex";
+    profileReportBtn.onclick = () =>
+      openReportModal("profile", userId, { username: profile?.username || null }, "Report user");
     const { data: existingFollow } = await supabaseClient
       .from("follows")
       .select("id")
@@ -2664,6 +2828,8 @@ async function viewProfile(userId) {
     const followBtn = document.getElementById("followBtn");
     followBtn.textContent = currentProfileIsFollowed ? "Unfollow" : "Follow";
     followBtn.style.display = "inline-flex";
+  } else {
+    profileReportBtn.style.display = "none";
   }
 
   const listedIsbns = new Set(
@@ -3533,6 +3699,9 @@ Object.assign(window, {
   // header / nav / auth
   showHomePage, showBuyBooks, showSellModal, showLogin, showSignup,
   handleLogout, showDashboard, showDashboardTab, closeModal,
+  handleForgotPassword,
+  // internal, but invoked by verify-security.js to simulate PASSWORD_RECOVERY
+  _openResetPasswordModal,
   // notifications
   toggleNotifications, markAllNotificationsRead,
   // browse / search / detail
@@ -3540,6 +3709,7 @@ Object.assign(window, {
   viewListing, browseBookById, browseBook, viewProfile, backFromProfile,
   searchByAuthor, searchByGenre, viewExternalBook, openExternalBookOptions,
   buyBook, submitDiscussionPost, deleteDiscussionPost, toggleFollow,
+  reportDiscussionPost,
   // sell / shelf
   lookupISBN, suggestPrice, showAddToShelfModal, searchShelfBooks,
   searchSellBooks, lookupShelfISBN, editListing, markAsSold, deleteListing,

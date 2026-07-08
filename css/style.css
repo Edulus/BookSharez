@@ -1363,3 +1363,44 @@ footer {
 .scanner-add-list-btn:hover {
   opacity: 0.92;
 }
+
+/* ── Content reporting (§6.2) ─────────────────────────────────────────────── */
+.report-link {
+  background: none;
+  border: none;
+  color: #999;
+  font-size: 0.85rem;
+  cursor: pointer;
+  padding: 0.5rem 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 0.5rem;
+}
+
+.report-link:hover {
+  color: #e74c3c;
+  text-decoration: underline;
+}
+
+.report-status {
+  min-height: 1.2em;
+  font-size: 0.9rem;
+  color: #666;
+  margin: 0 0 0.75rem;
+}
+
+.discussion-report {
+  background: none;
+  border: none;
+  color: #bbb;
+  font-size: 0.75rem;
+  cursor: pointer;
+  padding: 0;
+  margin-left: 0.75rem;
+}
+
+.discussion-report:hover {
+  color: #e74c3c;
+  text-decoration: underline;
+}
