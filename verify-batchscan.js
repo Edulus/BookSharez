@@ -39,6 +39,7 @@ let shelfInsertCount = 0;
 let duplicateMode = false; // when true, shelf insert returns 23505
 const listingPosts = []; // captured POST bodies to /rest/v1/listings
 const shelfPosts = []; // captured POST bodies to /rest/v1/shelf_entries
+const booksWriteViolations = []; // §6.1: any upsert/PATCH/DELETE against books
 
 async function installRoutes(page) {
   await page.route("**/auth/v1/**", (route) => {
@@ -52,6 +53,11 @@ async function installRoutes(page) {
   await page.route("**/rest/v1/books*", (route) => {
     const req = route.request();
     const url = req.url();
+    // §6.1 guard: catalog writes are append-only for clients. An upsert
+    // (on_conflict) or PATCH/DELETE from the app is a security regression.
+    if (url.includes("on_conflict") || req.method() === "PATCH" || req.method() === "DELETE") {
+      booksWriteViolations.push(req.method() + " " + url);
+    }
     if (req.method() === "POST") {
       // upsert/insert from _addScannedToShelf — echo back an id from payload
       const body = req.postData() || "";
@@ -316,6 +322,9 @@ async function captureViaManualEntry(page, isbn) {
   check("metrics: listing rate = 2/6", Math.abs(m.listingRate - 0.333) < 0.005, String(m.listingRate));
   check("metrics: captures/minute computed from open time", m.capturesPerMinute > 0 && m.activeMs > 0,
     `rate=${m.capturesPerMinute} activeMs=${m.activeMs}`);
+
+  check("§6.1: no catalog upsert/PATCH/DELETE from the client (append-only)",
+    booksWriteViolations.length === 0, booksWriteViolations.join(" | "));
 
   check("no page errors", errors.length === 0, errors.join(" | "));
   await browser.close();

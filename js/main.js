@@ -3157,13 +3157,23 @@ async function _addScannedToShelf(shelfType) {
   let bookId = book.id;
 
   if (!bookId && book.isbn) {
-    const { data: upserted, error } = await supabaseClient
-      .from("books")
-      .upsert({ isbn: book.isbn, title: book.title, author: book.author, cover_url: book.cover_url },
-               { onConflict: "isbn" })
-      .select("id").single();
-    if (error || !upserted) { alert("Couldn't save book. Please try again."); return null; }
-    bookId = upserted.id;
+    // Reuse the shared select→insert helper. NEVER upsert here: catalog rows
+    // are append-only for clients (§6.1) — an upsert's ON CONFLICT DO UPDATE
+    // would let any user overwrite the canonical title/author/cover for a
+    // shared ISBN (and is denied by RLS anyway, since books has no client
+    // UPDATE policy).
+    try {
+      bookId = await ensureBook({
+        isbn: book.isbn,
+        title: book.title,
+        author: book.author,
+        coverUrl: book.cover_url,
+      });
+    } catch (e) {
+      console.error("Couldn't ensure catalog book:", e);
+      alert("Couldn't save book. Please try again.");
+      return null;
+    }
   } else if (!bookId) {
     // No ISBN (pre-ISBN era books from the cover path). There is no key to
     // upsert on — never upsert with isbn:"" (all such books would collapse
