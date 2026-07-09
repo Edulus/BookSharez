@@ -16,6 +16,12 @@ rationale lives inline in the relevant docs (e.g. the ADR in
 
 _Phase 1 backend foundation + documentation. Work to date: 2026-06-14 – 2026-07-04._
 
+### Changed (July 8 — Module split §5.2 phase 3: scanner extracted to js/scanner.js)
+
+- The barcode/cover scanner cluster (~740 lines: scanner modal + live camera, photo/barcode scanning, vision OCR cover capture, manual ISBN fallback, batch-capture session chip, loop metrics) moved from [js/main.js](js/main.js) to **[js/scanner.js](js/scanner.js)** — behavior unchanged, code moved verbatim. Follows the established injection pattern: main.js wires the nine cross-boundary callbacks (`ensureBook`, shelf loaders, `lookupISBN`/`lookupShelfISBN`, `renderBookSearchResults`, `selectSellBook`/`selectShelfBook`, `_openSellModalPrefilled`) via `initScanner(deps)`; scanner.js never imports main.js. The sell-flow helpers (`_resetSellLinkage`, `_openSellModalPrefilled`) stay in main.js for the future sell extraction.
+- The `_pendingLoopListing` Add & List flag is now private to scanner.js behind two tiny exports: `loopListingCreated()` (consume + bump the `listingsCreated` metric, called by `handleSellBook` on successful insert) and `loopListingCancelled()` (called by `_resetSellLinkage`) — all loop-metrics knowledge now lives in one module. Window exports are unchanged (main.js re-exports the scanner functions HTML/harnesses call).
+- **Verified:** full sweep green — batchscan (63), vision, routing, mobile, security, notifications, bookflow, enrichment, live RLS.
+
 ### Added (July 8 — Project-level model tiering: scout + mech-editor agents)
 
 - Two project agents in [.claude/agents/](.claude/agents/) implement the "expensive model for judgment, cheap models for legwork" principle **project-scoped** (deliberately not the third-party pilotfish global install — evaluated and declined in favor of copying the principle): `scout` (haiku, read-only Read/Glob/Grep, repo-oriented recon) and `mech-editor` (sonnet, fully-specified mechanical work only, primed with the house rules — §6A renderer, books append-only, window-export block, port 7654). Delegation policy added to CLAUDE.md: judgment/security/final review stay in the main session; ad-hoc spawns set `model` explicitly; two failed delegations → take over, never a third retry; no bypassPermissions. Agents load at session start (restart to activate); the haiku-tier mechanism itself verified live via a model-pinned Explore run.
