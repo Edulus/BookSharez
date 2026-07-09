@@ -454,21 +454,96 @@ function setViewMoreBtn(show, remaining) {
   if (show) btn.textContent = `View ${Math.min(remaining, SEARCH_PAGE_SIZE)} more`;
 }
 
-// When a user clicks an external (not-yet-listed) book card, open the add-to-shelf
-// modal pre-filled so they can add it to their shelf or list it for sale.
-function openExternalBookOptions(book) {
+// ── One-tap Want/Have on the book page (plan §3.3) ──────────────────────────
+// The book page is the canonical hub; building shelf identity from it must be
+// one tap, not a detour through the Add Book modal. Duplicates are safe: the
+// same user_id+book_id+shelf_type upsert handleAddToShelf uses (shelf_entries
+// only — never a books upsert, §6.1; unknown external books go through the
+// shared ensureBook select→insert).
+
+function _shelfBtn(shelfType) {
+  return document.getElementById(shelfType === "have" ? "detailHaveBtn" : "detailWantBtn");
+}
+
+function _setShelfBtnAdded(shelfType) {
+  const btn = _shelfBtn(shelfType);
+  if (!btn) return;
+  btn.disabled = true;
+  btn.classList.add("shelf-btn-added");
+  btn.innerHTML =
+    shelfType === "have"
+      ? '<i class="fas fa-check"></i> On “Books I Have”'
+      : '<i class="fas fa-check"></i> On “Books I Want”';
+}
+
+// Reset both buttons for a fresh book, wire their clicks, then (logged in,
+// known catalog book) pre-mark the shelves it's already on. The token guards
+// the async pre-check against navigate-away, like every detail-page fill.
+function _wireShelfButtons(book, token) {
+  [["have", '<i class="fas fa-bookmark"></i> I have this'],
+   ["want", '<i class="fas fa-heart"></i> I want this']].forEach(([type, label]) => {
+    const btn = _shelfBtn(type);
+    if (!btn) return;
+    btn.disabled = false;
+    btn.classList.remove("shelf-btn-added");
+    btn.innerHTML = label;
+    btn.onclick = () => addBookToShelf(book, type, token);
+  });
+  if (isLoggedIn && book.bookId) _markShelfState(book.bookId, token);
+}
+
+async function _markShelfState(bookId, token) {
+  const { data } = await supabaseClient
+    .from("shelf_entries")
+    .select("shelf_type")
+    .eq("user_id", currentUserId)
+    .eq("book_id", bookId);
+  if (currentDetailId !== token || !data) return;
+  data.forEach((e) => {
+    if (e.shelf_type === "have" || e.shelf_type === "want") _setShelfBtnAdded(e.shelf_type);
+  });
+}
+
+async function addBookToShelf(book, shelfType, token) {
   if (!isLoggedIn) { showLogin(); return; }
-  const modal = document.getElementById("addToShelfModal");
-  document.getElementById("shelfType").value = "have";
-  document.getElementById("shelfISBN").value = book.isbn || "";
-  document.getElementById("shelfTitle").value = book.title || "";
-  document.getElementById("shelfAuthor").value = book.author || "";
-  document.getElementById("shelfIsbnStatus").textContent = book.isbn ? "ISBN filled from search ✓" : "";
-  document.getElementById("shelfSearchQuery").value = book.title || "";
-  document.getElementById("shelfSearchStatus").textContent = `"${escapeHTML(book.title)}" selected ✓`;
-  document.getElementById("shelfSearchResults").style.display = "none";
-  pendingCover = { isbn: book.isbn || null, url: book.coverUrl || null };
-  modal.style.display = "block";
+  const btn = _shelfBtn(shelfType);
+  if (btn) btn.disabled = true;
+  let added = false;
+  try {
+    let bookId = book.bookId || null;
+    if (!bookId) {
+      if (!book.isbn) {
+        // Pre-ISBN external books can't be catalog-matched here (needs the
+        // scanner's cover-confirm path, which carries verified metadata).
+        alert("This edition has no ISBN — add it with the scanner's cover capture instead.");
+        return;
+      }
+      bookId = await ensureBook({
+        isbn: book.isbn,
+        title: book.title,
+        author: book.author,
+        coverUrl: book.coverUrl || null,
+      });
+    }
+    const { data: { user } } = await supabaseClient.auth.getUser();
+    const { error } = await supabaseClient
+      .from("shelf_entries")
+      .upsert(
+        { user_id: user.id, book_id: bookId, shelf_type: shelfType },
+        { onConflict: "user_id,book_id,shelf_type" }
+      );
+    if (error) throw error;
+    added = true;
+    _setShelfBtnAdded(shelfType);
+    if (shelfType === "have") loadShelfHave(); else loadShelfWant(); // background refresh
+    // The want-count on this very page just changed — repaint it.
+    if (shelfType === "want" && token) _loadBookSocial(bookId, token);
+  } catch (err) {
+    console.error("Failed to add to shelf:", err);
+    alert("Sorry, couldn't add to your shelf. Please try again.");
+  } finally {
+    if (!added && btn) btn.disabled = false;
+  }
 }
 
 // Open the rich book detail page for a book with no local listing yet (an
@@ -533,9 +608,9 @@ function _renderBookPage(book, offers) {
   // Community offers (primary). Each tile routes to its listing via renderBook.
   renderBookOffers(offers);
 
-  // Add to Shelf + affiliate buy links (secondary).
+  // One-tap Want/Have (§3.3) + affiliate buy links (secondary).
   document.getElementById("detailExternalActions").style.display = "block";
-  document.getElementById("detailAddShelfBtn").onclick = () => openExternalBookOptions(book);
+  _wireShelfButtons(book, token);
   renderAffiliateLinks(book);
 
   // Community want-count + discussion. Use the known catalog id directly, or
@@ -1802,8 +1877,31 @@ function ensureDetailStyles() {
       grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
       gap: 1.25rem;
     }
-    #detailAddShelfBtn {
+    .detail-shelf-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
       margin-bottom: 1rem;
+    }
+    .detail-shelf-actions .btn {
+      min-height: 44px;
+    }
+    /* .btn-secondary is white-outline (built for the purple header) —
+       restyle it for the white page so "I want this" is actually visible. */
+    .detail-shelf-actions .btn-secondary {
+      background: white;
+      color: #667eea;
+      border: 2px solid #667eea;
+    }
+    .detail-shelf-actions .btn-secondary:hover {
+      background: #f0f2ff;
+    }
+    .detail-shelf-actions .btn.shelf-btn-added {
+      background: #e8f5e9;
+      color: #2e7d32;
+      border: 1px solid #a5d6a7;
+      cursor: default;
+      opacity: 1;
     }
     .detail-affiliates {
       display: flex;
@@ -3060,7 +3158,7 @@ Object.assign(window, {
   searchBooks, showMoreSearchResults, applyControls, backToBrowse,
   viewListing, browseBookById, browseBook, viewProfile, backFromProfile,
   showMembers, backFromMembers,
-  searchByAuthor, searchByGenre, viewExternalBook, openExternalBookOptions,
+  searchByAuthor, searchByGenre, viewExternalBook,
   buyBook, submitDiscussionPost, deleteDiscussionPost, toggleFollow,
   reportDiscussionPost,
   // sell / shelf

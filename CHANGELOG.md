@@ -16,6 +16,13 @@ rationale lives inline in the relevant docs (e.g. the ADR in
 
 _Phase 1 backend foundation + documentation. Work to date: 2026-06-14 – 2026-07-04._
 
+### Added (July 9 — One-tap Want/Have buttons on the book page, plan §3.3)
+
+- The book page (both catalog and external variants of `_renderBookPage`) now has **"I have this" / "I want this" one-tap buttons** — building shelf identity from anywhere in browse, no detour through the Add Book modal (the Hardcover interaction pattern; shelf data feeds want-match notifications and future recommendations). `addBookToShelf()` resolves a catalog id (known `bookId`, else the shared `ensureBook` select→insert by ISBN — never a books upsert, §6.1), then the same duplicate-safe `shelf_entries` upsert `handleAddToShelf` uses. On success the button flips to a disabled "✓ On Books I Have/Want" state, the dashboard shelf refreshes in the background, and a Want tap repaints the page's own want-count. Logged-out tap → login modal. For logged-in users, `_markShelfState` pre-marks shelves the book is already on (token-guarded like every async detail fill).
+- **Replaced, not added alongside:** the old `detailAddShelfBtn` ("Add to Shelf" → pre-filled modal) and its only caller `openExternalBookOptions()` are deleted — the two direct buttons cover both shelf types with fewer taps, and the modal remains reachable from the dashboard/header. Buttons are 44px tap targets; `.btn-secondary` got a scoped restyle in the detail styles (it's a white-outline style built for the purple header — the Want button was white-on-white until then).
+- **Not in this pass** (still §3.3 backlog): Want/Have on browse *tiles*, and aggregating multiple listings of the same ISBN into one browse card.
+- **Verified:** [verify-bookflow.js](verify-bookflow.js) extended — one-tap buttons visible on external + catalog book pages, external Have tap resolves via ensureBook and upserts `shelf_entries` (payload + `Prefer: resolution=merge-duplicates` asserted), catalog Want tap upserts and flips state without leaving the page (52 ✅); full sweep green; live-data probe at 390px confirmed buttons, 44px height, and logged-out → login modal.
+
 ### Added (July 9 — "How BookSharez Works" cards made actionable + member directory)
 
 - User UX pass on the homepage's six "How It Works" step cards, which were static (no click affordance despite the hover lift). This reconciles two independent implementations built in parallel — a container session's `030b518` (keyboard-accessible cards + a "Start Your Bookshelf" CTA) and this session's work (member directory + card-6 decision) — into a best-of-both:

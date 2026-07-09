@@ -317,9 +317,15 @@
               <div id="detailOffersGrid" class="detail-offers-grid"></div>
             </div>
             <div id="detailExternalActions" style="display: none">
-              <button class="btn btn-primary" id="detailAddShelfBtn">
-                <i class="fas fa-plus"></i> Add to Shelf
-              </button>
+              <!-- One-tap shelf building (§3.3) — wired by _renderBookPage -->
+              <div class="detail-shelf-actions">
+                <button class="btn btn-primary" id="detailHaveBtn">
+                  <i class="fas fa-bookmark"></i> I have this
+                </button>
+                <button class="btn btn-secondary" id="detailWantBtn">
+                  <i class="fas fa-heart"></i> I want this
+                </button>
+              </div>
               <div class="detail-affiliates" id="detailAffiliates"></div>
             </div>
           </div>

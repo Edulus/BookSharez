@@ -23,6 +23,8 @@ const GBOOKS = { items: [
 function isSingle(route) { return (route.request().headers()['accept'] || '').includes('vnd.pgrst.object'); }
 const json = (route, body, headers = {}) => route.fulfill({ status: 200, contentType: 'application/json', headers, body: JSON.stringify(body) });
 
+const shelfPosts = []; // captured POST bodies to /rest/v1/shelf_entries (one-tap Want/Have, §3.3)
+
 async function installRoutes(page) {
   await page.route('**/auth/v1/**', (route) => {
     if (route.request().url().includes('/auth/v1/user')) {
@@ -41,7 +43,14 @@ async function installRoutes(page) {
     return json(route, [BOOK_A]);
   });
   await page.route('**/rest/v1/shelf_entries*', (route) => {
-    if (route.request().method() === 'HEAD') return json(route, [], { 'content-range': '0-2/3' }); // want-count = 3
+    const req = route.request();
+    if (req.method() === 'POST') { // one-tap Want/Have upsert (§3.3)
+      const body = JSON.parse(req.postData() || '{}');
+      shelfPosts.push({ body, prefer: req.headers()['prefer'] || '' });
+      return json(route, Array.isArray(body) ? body : [body]);
+    }
+    if (req.method() === 'HEAD') return json(route, [], { 'content-range': '0-2/3' }); // want-count = 3
+    if (/user_id=eq\./.test(req.url())) return json(route, []); // my-shelf / ownership pre-check: owns nothing
     return json(route, [{ book_id: 'book-A', books: { id: 'book-A', title: 'The Way of Zen', author: 'Alan Watts', cover_url: null } }]);
   });
   await page.route('**/rest/v1/discussion_posts*', (route) => json(route, []));
@@ -101,13 +110,14 @@ async function run() {
   const detailVisible = await page.locator('#bookDetail').isVisible();
   const modalVisible = await page.locator('#addToShelfModal').isVisible().catch(() => false);
   const extActionsVis = await page.locator('#detailExternalActions').isVisible();
-  const addShelfVis = await page.locator('#detailAddShelfBtn').isVisible();
+  const haveBtnVis = await page.locator('#detailHaveBtn').isVisible();
+  const wantBtnVis = await page.locator('#detailWantBtn').isVisible();
   const offersVis = await page.locator('#detailOffers').isVisible().catch(() => false);
   const buyBtnVis = await page.locator('#detailBuyBtn').isVisible().catch(() => false);
   const affLinks = await page.locator('#detailAffiliates a').evaluateAll(as => as.map(a => ({ text: a.textContent.trim(), href: a.href })));
   step(detailVisible ? '✅' : '❌', `bookDetail visible: ${detailVisible}`);
   step(!modalVisible ? '✅' : '❌', `Add-to-Shelf MODAL visible (should be false): ${modalVisible}`);
-  step(addShelfVis && extActionsVis ? '✅' : '❌', `Add to Shelf button visible: ${addShelfVis}`);
+  step(haveBtnVis && wantBtnVis && extActionsVis ? '✅' : '❌', `one-tap Have/Want buttons visible (have:${haveBtnVis} want:${wantBtnVis})`);
   step(!offersVis ? '✅' : '❌', `community offers hidden for external book: ${!offersVis}`);
   step(!buyBtnVis ? '✅' : '❌', `single-listing Buy button hidden: ${!buyBtnVis}`);
   step(affLinks.length === 2 ? '✅' : '❌', `affiliate links: ${JSON.stringify(affLinks)}`);
@@ -115,6 +125,19 @@ async function run() {
   const abeOk = affLinks.some(l => /AbeBooks/i.test(l.text) && /abebooks\.com/.test(l.href) && /9780222222222/.test(l.href));
   step(amazonOk ? '✅' : '❌', `Amazon link targets ISBN: ${amazonOk}`);
   step(abeOk ? '✅' : '❌', `AbeBooks link targets ISBN: ${abeOk}`);
+
+  // One-tap "I have this" on an EXTERNAL book: must resolve a catalog id via
+  // ensureBook (select-by-ISBN here), then upsert shelf_entries — never a
+  // books upsert (§6.1).
+  await page.locator('#detailHaveBtn').click();
+  await page.waitForTimeout(500);
+  const f2HavePost = shelfPosts.find(p => p.body.shelf_type === 'have');
+  const f2HaveOk = f2HavePost && f2HavePost.body.user_id === 'test-user-id' && f2HavePost.body.book_id === 'book-A';
+  step(f2HaveOk ? '✅' : '❌', `external Have tap → shelf_entries upsert: ${JSON.stringify(f2HavePost && f2HavePost.body)}`);
+  step(f2HavePost && /merge-duplicates/.test(f2HavePost.prefer) ? '✅' : '❌', `upsert is duplicate-safe (Prefer: ${f2HavePost && f2HavePost.prefer})`);
+  const f2HaveLabel = await page.locator('#detailHaveBtn').innerText();
+  const f2HaveDisabled = await page.locator('#detailHaveBtn').isDisabled();
+  step(/Books I Have/.test(f2HaveLabel) && f2HaveDisabled ? '✅' : '❌', `Have button flipped to added state: "${f2HaveLabel}" disabled:${f2HaveDisabled}`);
   await page.screenshot({ path: ss('02-external-book-page'), fullPage: true });
 
   // ── FLOW 3: catalog/shelf book → unified page with seller offer tiles ──────
@@ -136,6 +159,20 @@ async function run() {
   step(f3OffersVis && f3OfferTiles === 2 ? '✅' : '❌', `community offers visible with ${f3OfferTiles} seller tiles, prices: ${JSON.stringify(f3Prices)}`);
   step(f3AffVis ? '✅' : '❌', `affiliate/add-to-shelf section also shown (secondary): ${f3AffVis}`);
   step('🔍', `want-count social proof: "${f3WantCount}"`);
+
+  // One-tap "I want this" on a CATALOG book: known book id, no ensureBook —
+  // straight to the shelf_entries upsert, button flips, stays on the page.
+  const f3PostsBefore = shelfPosts.length;
+  await page.locator('#detailWantBtn').click();
+  await page.waitForTimeout(500);
+  const f3WantPost = shelfPosts.slice(f3PostsBefore).find(p => p.body.shelf_type === 'want');
+  const f3WantOk = f3WantPost && f3WantPost.body.user_id === 'test-user-id' && f3WantPost.body.book_id === 'book-A';
+  step(f3WantOk ? '✅' : '❌', `catalog Want tap → shelf_entries upsert: ${JSON.stringify(f3WantPost && f3WantPost.body)}`);
+  const f3WantLabel = await page.locator('#detailWantBtn').innerText();
+  const f3WantDisabled = await page.locator('#detailWantBtn').isDisabled();
+  step(/Books I Want/.test(f3WantLabel) && f3WantDisabled ? '✅' : '❌', `Want button flipped to added state: "${f3WantLabel}" disabled:${f3WantDisabled}`);
+  const f3StillOnPage = await page.locator('#bookDetail').isVisible();
+  step(f3StillOnPage ? '✅' : '❌', `still on the book page after tap (no modal, no navigation): ${f3StillOnPage}`);
   await page.screenshot({ path: ss('03-unified-book-page'), fullPage: true });
 
   // ── FLOW 4: click an offer tile → single-listing detail page ──────────────
