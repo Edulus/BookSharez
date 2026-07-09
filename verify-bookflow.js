@@ -21,7 +21,11 @@ const GBOOKS = { items: [
 ] };
 
 function isSingle(route) { return (route.request().headers()['accept'] || '').includes('vnd.pgrst.object'); }
-const json = (route, body, headers = {}) => route.fulfill({ status: 200, contentType: 'application/json', headers, body: JSON.stringify(body) });
+// access-control-expose-headers is required or the browser hides content-range
+// from supabase-js, so every { count: 'exact', head: true } query silently
+// resolves count: null (see verify-notifications.js's fix for the same gotcha).
+const json = (route, body, headers = {}) =>
+  route.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-expose-headers': 'content-range', ...headers }, body: JSON.stringify(body) });
 
 const shelfPosts = []; // captured POST bodies to /rest/v1/shelf_entries (one-tap Want/Have, §3.3)
 
@@ -33,7 +37,9 @@ async function installRoutes(page) {
     return route.continue();
   });
   await page.route('**/rest/v1/listings*', (route) => {
-    const url = route.request().url();
+    const req = route.request();
+    const url = req.url();
+    if (req.method() === 'HEAD') return json(route, [], { 'content-range': '0-1/2' }); // seller trust: 2 active listings
     if (isSingle(route) && /id=eq\.list-1/.test(url)) return json(route, LISTING_1);
     if (isSingle(route) && /id=eq\.list-2/.test(url)) return json(route, LISTING_2);
     return json(route, [LISTING_1, LISTING_2]);
@@ -55,7 +61,12 @@ async function installRoutes(page) {
   });
   await page.route('**/rest/v1/discussion_posts*', (route) => json(route, []));
   await page.route('**/rest/v1/notifications*', (route) => json(route, [])); // bell badge query (July 4)
-  await page.route('**/rest/v1/profiles*', (route) => isSingle(route) ? json(route, { id: 'seller-1', username: 'zenfan' }) : json(route, []));
+  const PROFILE = { id: 'seller-1', username: 'zenfan', created_at: '2026-01-15T00:00:00Z' };
+  await page.route('**/rest/v1/profiles*', (route) => isSingle(route) ? json(route, PROFILE) : json(route, [PROFILE]));
+  await page.route('**/rest/v1/follows*', (route) => {
+    if (route.request().method() === 'HEAD') return json(route, [], { 'content-range': '0-4/5' }); // seller trust: 5 followers
+    return json(route, []);
+  });
   await page.route('**/rest/v1/listing_photos*', (route) => json(route, []));
   await page.route('**/books/v1/volumes*', (route) => json(route, GBOOKS));
   await page.route('**/openlibrary.org/**', (route) => json(route, { docs: [] }));
@@ -191,7 +202,25 @@ async function run() {
   step(!f4OffersVis && !f4ExtVis ? '✅' : '❌', `book-page sections hidden on listing view (offers:${f4OffersVis} ext:${f4ExtVis})`);
   step(f4BuyVis ? '✅' : '❌', `Buy Now button restored: ${f4BuyVis}`);
   step('🔍', `seller: "${f4Seller}", condition badge: "${f4Cond}"`);
+
+  // Trust signals (§3.2) — waits for the async Promise.all fetch to resolve.
+  await page.waitForFunction(
+    () => (document.getElementById('detailSellerTrust').textContent || '').length > 0,
+    { timeout: 5000 }
+  );
+  const f4Trust = await page.locator('#detailSellerTrust').innerText();
+  step(/Member since Jan 2026/.test(f4Trust) ? '✅' : '❌', `member-since shown: "${f4Trust}"`);
+  step(/3 books on shelf/.test(f4Trust) ? '✅' : '❌', `shelf size shown: "${f4Trust}"`);
+  step(/5 followers/.test(f4Trust) ? '✅' : '❌', `follower count shown: "${f4Trust}"`);
+  step(/2 active listings/.test(f4Trust) ? '✅' : '❌', `active listings count shown: "${f4Trust}"`);
   await page.screenshot({ path: ss('04-single-listing'), fullPage: true });
+
+  // Trust signals must NOT bleed onto the unified book page (offers/external
+  // sections) — it clears detailSellerTrust just like detailSeller.
+  await page.goBack();
+  await page.waitForTimeout(400);
+  const f3bTrust = await page.locator('#detailSellerTrust').innerText().catch(() => '');
+  step(f3bTrust === '' ? '✅' : '❌', `trust line cleared on the unified book page: "${f3bTrust}"`);
 
   // ── 🔍 Probe: external dedupe — "The Way of Zen" not an external card ──────
   step('──', 'PROBES');

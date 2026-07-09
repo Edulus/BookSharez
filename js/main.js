@@ -599,6 +599,7 @@ function _renderBookPage(book, offers) {
   document.getElementById("detailCondition").textContent = "";
   document.getElementById("detailPrice").textContent = "";
   document.getElementById("detailSeller").textContent = "";
+  document.getElementById("detailSellerTrust").textContent = "";
   document.getElementById("detailWantCount").textContent = "";
   document.getElementById("detailGallery").innerHTML = "";
   document.getElementById("detailBuyBtn").style.display = "none";
@@ -1846,6 +1847,11 @@ function ensureDetailStyles() {
       font-size: 0.9rem;
       margin-bottom: 0.5rem;
     }
+    .detail-seller-trust {
+      color: #999;
+      font-size: 0.82rem;
+      margin: -0.25rem 0 0.75rem;
+    }
     .detail-want-count {
       color: #e74c3c;
       font-size: 0.9rem;
@@ -2105,22 +2111,38 @@ async function viewListing(listingId) {
       });
   }
 
-  // Show seller name with profile link (async; page is already visible)
+  // Show seller name + trust signals (§3.2: member-since, shelf size,
+  // follower count, active listings — reader identity, not just a name).
+  // Async; page is already visible. Guarded on data.id like the want-count
+  // fetch above, so a fast navigate-away can't paint a stale listing.
   const sellerEl = document.getElementById("detailSeller");
+  const trustEl = document.getElementById("detailSellerTrust");
   if (sellerEl && data.user_id) {
     sellerEl.textContent = "Sold by a BookSharez seller";
-    supabaseClient
-      .from("profiles")
-      .select("username")
-      .eq("id", data.user_id)
-      .maybeSingle()
-      .then(({ data: profile }) => {
-        if (!profile) return;
-        const name = profile.username || "BookSharez seller";
-        sellerEl.innerHTML =
-          `Sold by <a href="#" onclick="viewProfile('${data.user_id}'); return false;"
-            style="color:#667eea;">${escapeHTML(name)}</a>`;
-      });
+    const sellerId = data.user_id;
+    Promise.all([
+      supabaseClient.from("profiles").select("username, created_at").eq("id", sellerId).maybeSingle(),
+      supabaseClient.from("shelf_entries").select("*", { count: "exact", head: true }).eq("user_id", sellerId),
+      supabaseClient.from("follows").select("*", { count: "exact", head: true }).eq("followed_id", sellerId),
+      supabaseClient.from("listings").select("*", { count: "exact", head: true }).eq("user_id", sellerId).eq("status", "active"),
+    ]).then(([profileRes, shelfRes, followerRes, listingsRes]) => {
+      if (currentDetailId !== data.id) return;
+      const profile = profileRes.data;
+      const name = profile?.username || "BookSharez seller";
+      sellerEl.innerHTML =
+        `Sold by <a href="#" onclick="viewProfile('${sellerId}'); return false;"
+          style="color:#667eea;">${escapeHTML(name)}</a>`;
+      if (!trustEl) return;
+      const parts = [];
+      if (profile?.created_at) parts.push("Member since " + _formatMemberSince(profile.created_at));
+      const shelfCount = shelfRes.count || 0;
+      if (shelfCount) parts.push(`${shelfCount} book${shelfCount === 1 ? "" : "s"} on shelf`);
+      const followerCount = followerRes.count || 0;
+      if (followerCount) parts.push(`${followerCount} follower${followerCount === 1 ? "" : "s"}`);
+      const listingCount = listingsRes.count || 0;
+      if (listingCount) parts.push(`${listingCount} active listing${listingCount === 1 ? "" : "s"}`);
+      trustEl.textContent = parts.join(" · ");
+    });
   }
 
   renderDetailGallery(data.id);
@@ -2281,6 +2303,12 @@ async function deleteDiscussionPost(postId) {
     .delete()
     .eq("id", postId);
   if (!error) loadDiscussion(currentDiscussionBookId, currentDetailId);
+}
+
+// "Member since Jul 2026" — coarser than _relativeTime on purpose; a seller
+// trust signal cares about tenure, not precise recency.
+function _formatMemberSince(iso) {
+  return new Date(iso).toLocaleDateString(undefined, { month: "short", year: "numeric" });
 }
 
 function _relativeTime(iso) {
