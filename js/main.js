@@ -834,16 +834,7 @@ function showBuyBooks() {
   document.querySelector(".hero").scrollIntoView({ behavior: "smooth" });
 }
 
-// "How BookSharez Works" step 4 (Browse & Search) — the search bar already
-// lives on the homepage, so the actionable move is scrolling to it and
-// focusing the input rather than navigating anywhere.
-function focusHomeSearch() {
-  showBuyBooks();
-  const input = document.getElementById("searchInput");
-  if (input) setTimeout(() => input.focus(), 300); // after the smooth scroll
-}
-
-// "How BookSharez Works" step 1 (Sign Up Free) — already-registered users
+// "How BookSharez Works" step 1 (Register) — already-registered users
 // clicking this should land on their shelf, not see a signup form.
 function goRegisterOrDashboard() {
   if (isLoggedIn) showDashboard(); else showSignup();
@@ -3058,7 +3049,7 @@ async function handleSaveProfile(e) {
 Object.assign(window, {
   // header / nav / auth
   showHomePage, showBuyBooks, showSellModal, showLogin, showSignup,
-  focusHomeSearch, goRegisterOrDashboard,
+  goRegisterOrDashboard,
   handleLogout, showDashboard, showDashboardTab, closeModal,
   handleForgotPassword,
   // internal, but invoked by verify-security.js to simulate PASSWORD_RECOVERY

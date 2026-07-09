@@ -154,7 +154,7 @@
       </section>
 
       <!-- Books Our Members Are Selling -->
-      <section class="featured">
+      <section class="featured" id="memberListingsSection">
         <div class="container">
           <h2 class="section-title" id="featuredTitle">Books Our Members Are Selling</h2>
           <div class="browse-controls">
@@ -209,7 +209,9 @@
         <div class="container">
           <h2 class="section-title">How BookSharez Works</h2>
           <div class="steps-grid">
-            <div class="step-card clickable" onclick="goRegisterOrDashboard()">
+            <div class="step-card" role="button" tabindex="0" style="cursor:pointer;"
+              onclick="goRegisterOrDashboard()"
+              onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}">
               <div class="step-icon">
                 <i class="fas fa-user-plus"></i>
                 <div class="step-number">1</div>
@@ -217,7 +219,9 @@
               <h3>Register</h3>
               <p>Create a free account and join a community of readers buying, selling, and sharing books.</p>
             </div>
-            <div class="step-card clickable" onclick="showAddToShelfModal('have')">
+            <div class="step-card" role="button" tabindex="0" style="cursor:pointer;"
+              onclick="document.getElementById('logoutBtn').style.display === 'none' ? showSignup() : showAddToShelfModal('have')"
+              onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}">
               <div class="step-icon">
                 <i class="fas fa-bookmark"></i>
                 <div class="step-number">2</div>
@@ -225,7 +229,9 @@
               <h3>Build Your Bookshelf</h3>
               <p>Add books you own, books you want, and books you may be willing to sell.</p>
             </div>
-            <div class="step-card clickable" onclick="showSellModal()">
+            <div class="step-card" role="button" tabindex="0" style="cursor:pointer;"
+              onclick="showSellModal()"
+              onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}">
               <div class="step-icon">
                 <i class="fas fa-tag"></i>
                 <div class="step-number">3</div>
@@ -233,7 +239,9 @@
               <h3>List What You Want to Sell</h3>
               <p>Choose the condition, set a price, upload photos, and make your book available to buyers.</p>
             </div>
-            <div class="step-card clickable" onclick="focusHomeSearch()">
+            <div class="step-card" role="button" tabindex="0" style="cursor:pointer;"
+              onclick="showBuyBooks(); setTimeout(function(){document.getElementById('memberListingsSection').scrollIntoView({behavior:'smooth',block:'start'});}, 50);"
+              onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}">
               <div class="step-icon">
                 <i class="fas fa-search"></i>
                 <div class="step-number">4</div>
@@ -241,7 +249,9 @@
               <h3>Browse for What You Want to Buy</h3>
               <p>Search by title, author, or ISBN and discover books available from other readers.</p>
             </div>
-            <div class="step-card clickable" onclick="showMembers()">
+            <div class="step-card" role="button" tabindex="0" style="cursor:pointer;"
+              onclick="showMembers()"
+              onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}">
               <div class="step-icon">
                 <i class="fas fa-users"></i>
                 <div class="step-number">5</div>
@@ -249,6 +259,8 @@
               <h3>Explore Profiles</h3>
               <p>Browse member shelves, see what fellow readers have and want, and follow them.</p>
             </div>
+            <!-- Card 6 is a payoff/value statement, not a step with an action
+                 (deliberately non-clickable — describes the outcome of a sale). -->
             <div class="step-card">
               <div class="step-icon">
                 <i class="fas fa-heart"></i>
@@ -257,6 +269,12 @@
               <h3>Books Find New Homes</h3>
               <p>Every book sold is a book loved again — keeping stories alive and readers connected.</p>
             </div>
+          </div>
+          <div style="text-align:center;margin-top:2.5rem;">
+            <button class="btn btn-primary"
+              onclick="document.getElementById('logoutBtn').style.display === 'none' ? showSignup() : showAddToShelfModal('have')">
+              <i class="fas fa-bookmark"></i> Start Your Bookshelf
+            </button>
           </div>
         </div>
       </section>

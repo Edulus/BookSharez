@@ -266,10 +266,6 @@ header {
   transform: translateY(-10px);
 }
 
-.step-card.clickable {
-  cursor: pointer;
-}
-
 .step-icon {
   position: relative;
   margin-bottom: 1.5rem;
