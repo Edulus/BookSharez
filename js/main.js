@@ -51,6 +51,7 @@ initRouter({
   listing: (id) => viewListing(id),
   book: (id) => browseBookById(id),
   profile: (id) => viewProfile(id),
+  members: () => showMembers(),
   dashboard: (tab) => showDashboard(tab),
 });
 
@@ -831,6 +832,21 @@ function showBuyBooks() {
   document.getElementById("bookDetail").style.display = "none";
   document.getElementById("profilePage").style.display = "none";
   document.querySelector(".hero").scrollIntoView({ behavior: "smooth" });
+}
+
+// "How BookSharez Works" step 4 (Browse & Search) — the search bar already
+// lives on the homepage, so the actionable move is scrolling to it and
+// focusing the input rather than navigating anywhere.
+function focusHomeSearch() {
+  showBuyBooks();
+  const input = document.getElementById("searchInput");
+  if (input) setTimeout(() => input.focus(), 300); // after the smooth scroll
+}
+
+// "How BookSharez Works" step 1 (Sign Up Free) — already-registered users
+// clicking this should land on their shelf, not see a signup form.
+function goRegisterOrDashboard() {
+  if (isLoggedIn) showDashboard(); else showSignup();
 }
 
 function showHomePage() { showBuyBooks(); }
@@ -2885,6 +2901,63 @@ function backFromProfile() {
   currentProfileUserId = null;
 }
 
+// Member directory ("How BookSharez Works" step 5, Explore Profiles). Public
+// profiles only (visibility='public', RLS: "Anyone can view profiles" already
+// allows this select — no schema change needed) with a username set, so
+// blank just-signed-up rows don't clutter the list.
+async function showMembers() {
+  setRoute("#/members");
+  document.getElementById("homepage").style.display = "none";
+  document.getElementById("dashboard").style.display = "none";
+  document.getElementById("bookDetail").style.display = "none";
+  document.getElementById("profilePage").style.display = "none";
+  document.getElementById("membersPage").style.display = "block";
+  window.scrollTo({ top: 0, behavior: "smooth" });
+
+  const grid = document.getElementById("membersGrid");
+  const status = document.getElementById("membersStatus");
+  grid.innerHTML = "";
+  status.textContent = "Loading members…";
+
+  const { data, error } = await supabaseClient
+    .from("profiles")
+    .select("id, username, bio")
+    .eq("visibility", "public")
+    .not("username", "is", null)
+    .order("username")
+    .limit(48);
+
+  if (error) {
+    console.error("Members load failed:", error);
+    status.textContent = "Couldn't load members. Please try again.";
+    return;
+  }
+  if (!data || !data.length) {
+    status.textContent = "No members to show yet.";
+    return;
+  }
+  status.textContent = "";
+  grid.innerHTML = data
+    .map(
+      (p) => `
+    <div class="member-card" data-user-id="${escapeHTML(p.id)}">
+      <div class="member-avatar">${escapeHTML(p.username[0].toUpperCase())}</div>
+      <div class="member-name">${escapeHTML(p.username)}</div>
+      ${p.bio ? `<div class="member-bio">${escapeHTML(p.bio)}</div>` : ""}
+    </div>`
+    )
+    .join("");
+  grid.querySelectorAll(".member-card").forEach((card) => {
+    card.addEventListener("click", () => viewProfile(card.dataset.userId));
+  });
+}
+
+function backFromMembers() {
+  setRoute("#/");
+  document.getElementById("membersPage").style.display = "none";
+  document.getElementById("homepage").style.display = "block";
+}
+
 async function toggleFollow() {
   if (!isLoggedIn) { showLogin(); return; }
   const followBtn = document.getElementById("followBtn");
@@ -2985,6 +3058,7 @@ async function handleSaveProfile(e) {
 Object.assign(window, {
   // header / nav / auth
   showHomePage, showBuyBooks, showSellModal, showLogin, showSignup,
+  focusHomeSearch, goRegisterOrDashboard,
   handleLogout, showDashboard, showDashboardTab, closeModal,
   handleForgotPassword,
   // internal, but invoked by verify-security.js to simulate PASSWORD_RECOVERY
@@ -2994,6 +3068,7 @@ Object.assign(window, {
   // browse / search / detail
   searchBooks, showMoreSearchResults, applyControls, backToBrowse,
   viewListing, browseBookById, browseBook, viewProfile, backFromProfile,
+  showMembers, backFromMembers,
   searchByAuthor, searchByGenre, viewExternalBook, openExternalBookOptions,
   buyBook, submitDiscussionPost, deleteDiscussionPost, toggleFollow,
   reportDiscussionPost,

@@ -266,6 +266,10 @@ header {
   transform: translateY(-10px);
 }
 
+.step-card.clickable {
+  cursor: pointer;
+}
+
 .step-icon {
   position: relative;
   margin-bottom: 1.5rem;
@@ -302,6 +306,58 @@ header {
 .step-card p {
   color: #666;
   line-height: 1.6;
+}
+
+/* Members directory */
+.members-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 1.25rem;
+}
+
+.member-card {
+  background: white;
+  border: 1px solid #e9ecef;
+  border-radius: 10px;
+  padding: 1.25rem;
+  text-align: center;
+  cursor: pointer;
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.member-card:hover {
+  box-shadow: 0 5px 20px rgba(0, 0, 0, 0.1);
+  transform: translateY(-3px);
+}
+
+.member-avatar {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: #667eea;
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin: 0 auto 0.75rem;
+}
+
+.member-name {
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 0.35rem;
+}
+
+.member-bio {
+  color: #888;
+  font-size: 0.85rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
 }
 
 /* Dashboard */

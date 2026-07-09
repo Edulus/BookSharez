@@ -122,7 +122,14 @@ const vis = (page, id) => page.evaluate((i) => { const el = document.getElementB
   const name = await page.evaluate(() => document.getElementById("profileDisplayName").textContent);
   check("profile data loaded", name === "zenfan", name);
 
-  // 10. Dashboard with restored session: deep link + tab hash behavior
+  // 10. Deep link to the member directory
+  await page.goto(APP + "#/members", { waitUntil: "networkidle" });
+  await page.waitForTimeout(600);
+  check("deep link #/members → members page visible", await vis(page, "membersPage"));
+  const memberCount = await page.evaluate(() => document.querySelectorAll("#membersGrid .member-card").length);
+  check("members grid populated", memberCount === 1, "cards: " + memberCount);
+
+  // 11. Dashboard with restored session: deep link + tab hash behavior
   await page.goto(APP + "#/dashboard", { waitUntil: "networkidle" });
   await page.waitForTimeout(800);
   check("deep link #/dashboard → dashboard visible (logged in)", await vis(page, "dashboard"));
@@ -141,7 +148,7 @@ const vis = (page, id) => page.evaluate((i) => { const el = document.getElementB
     !(await vis(page, "dashboard")) && !afterBackHash.startsWith("#/dashboard"),
     "hash now: " + afterBackHash);
 
-  // 11. Unknown route → homepage fallback
+  // 12. Unknown route → homepage fallback
   await page.goto(APP + "#/garbage/xyz", { waitUntil: "networkidle" });
   await page.waitForTimeout(400);
   check("unknown route falls back to homepage", await vis(page, "homepage"));

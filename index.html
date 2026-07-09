@@ -209,7 +209,7 @@
         <div class="container">
           <h2 class="section-title">How BookSharez Works</h2>
           <div class="steps-grid">
-            <div class="step-card">
+            <div class="step-card clickable" onclick="goRegisterOrDashboard()">
               <div class="step-icon">
                 <i class="fas fa-user-plus"></i>
                 <div class="step-number">1</div>
@@ -217,7 +217,7 @@
               <h3>Sign Up Free</h3>
               <p>Create your account in seconds and join a growing community of book lovers.</p>
             </div>
-            <div class="step-card">
+            <div class="step-card clickable" onclick="showAddToShelfModal('have')">
               <div class="step-icon">
                 <i class="fas fa-bookmark"></i>
                 <div class="step-number">2</div>
@@ -225,7 +225,7 @@
               <h3>Curate Your Shelf</h3>
               <p>Track books you own and books you're looking for on your personal shelf.</p>
             </div>
-            <div class="step-card">
+            <div class="step-card clickable" onclick="showSellModal()">
               <div class="step-icon">
                 <i class="fas fa-tag"></i>
                 <div class="step-number">3</div>
@@ -233,7 +233,7 @@
               <h3>List for Sale</h3>
               <p>Set your condition and price — our AI suggests a fair value — and add up to 5 photos.</p>
             </div>
-            <div class="step-card">
+            <div class="step-card clickable" onclick="focusHomeSearch()">
               <div class="step-icon">
                 <i class="fas fa-search"></i>
                 <div class="step-number">4</div>
@@ -241,7 +241,7 @@
               <h3>Browse &amp; Search</h3>
               <p>Find books by title, author, or ISBN and see what your community is selling.</p>
             </div>
-            <div class="step-card">
+            <div class="step-card clickable" onclick="showMembers()">
               <div class="step-icon">
                 <i class="fas fa-users"></i>
                 <div class="step-number">5</div>
@@ -419,6 +419,18 @@
         <div id="profileShelfHave" style="margin-bottom:2rem;"></div>
         <h3 style="margin-bottom:0.75rem;">Books I Want</h3>
         <div id="profileShelfWant"></div>
+      </div>
+    </div>
+
+    <!-- Members directory ("How BookSharez Works" step 5, Explore Profiles) -->
+    <div id="membersPage" style="display: none;">
+      <div class="container" style="padding: 2rem 0 4rem;">
+        <button class="btn btn-secondary btn-small" onclick="backFromMembers()">
+          <i class="fas fa-arrow-left"></i> Back
+        </button>
+        <h2 style="margin: 1.5rem 0 1.5rem;">Explore Members</h2>
+        <p id="membersStatus" style="color: #666;"></p>
+        <div class="members-grid" id="membersGrid"></div>
       </div>
     </div>
 
