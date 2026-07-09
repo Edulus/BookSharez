@@ -7,6 +7,7 @@
 // via initScanner(deps) — never imported back (same pattern as book-render).
 import { searchBooksAPI } from "./api-lookup.js";
 import { escapeHTML } from "./dom-utils.js";
+import { FALLBACK_COVER } from "./book-render.js";
 
 // Callbacks into main.js, injected once at startup.
 let deps = {};
@@ -247,16 +248,13 @@ async function _stopLiveScanner() {
   }
 }
 
-const SCANNER_COVER_FALLBACK =
-  "https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=140&h=190&fit=crop";
-
 // Land a capture on the "book found" screen — the single destination for
 // every successful capture path (barcode, cover candidate, manual ISBN), so
 // all of them expose the same three choices: Have / Want / Add & List.
 function _showBookFound(book) {
   _bumpLoopMetric("captures"); // metric: any capture path reaching this screen
   _scannedBookData = book;
-  document.getElementById("scannerBookCover").src = book.cover_url || SCANNER_COVER_FALLBACK;
+  document.getElementById("scannerBookCover").src = book.cover_url || FALLBACK_COVER;
   document.getElementById("scannerBookTitle").textContent = book.title || "Unknown Title";
   document.getElementById("scannerBookAuthor").textContent = book.author ? "by " + book.author : "";
   _showScannerState("found");

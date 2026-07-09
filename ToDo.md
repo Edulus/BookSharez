@@ -19,6 +19,7 @@ Supabase SQL editor:
 - [x] **1. [db/condition_5grade.sql](db/condition_5grade.sql)** — switch the DB to the 5 grades. *(Applied June 15.)*
 - [x] **2. [db/books_insert_policy.sql](db/books_insert_policy.sql)** — let logged-in users add catalog books, so the **sell flow can save**. *(Applied June 15.)*
 - [x] **3. [db/seed.sql](db/seed.sql)** — demo listings so browse/search shows data. *(Applied June 15.)*
+- [ ] **17. Apply [db/remove_seed_data.sql](db/remove_seed_data.sql)** — removes the 6 demo books/listings from item 3. Found July 9: their placeholder Unsplash stock-photo covers are indistinguishable from real listings on the live site, undermining the trust story. Cascades from the seed user through listings/profiles automatically; caveat + manual verification steps are in the SQL file's comments.
 - [ ] **4. (optional) RLS test cleanup** — remove the 2 leftover test users from the RLS test: see the CLEANUP block at the bottom of [db/rls_test.sql](db/rls_test.sql).
 - [x] **8. Apply [db/discussions.sql](db/discussions.sql)** — creates `discussion_posts` table with RLS (public read, auth insert, owner delete). Required for the Discuss section on the book detail page to work. *(Applied June 21; Discuss section verified working.)*
 - [x] **5. Deploy the `pricing` Edge Function** — pasted into Supabase Dashboard → Edge Functions (name `pricing`). *(Applied June 16.)*

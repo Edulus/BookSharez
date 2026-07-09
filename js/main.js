@@ -2718,9 +2718,6 @@ async function handleAddToShelf(e) {
 // Build one shelf tile (cover, title/author, management actions) for the Have /
 // Want shelves. Laid out in a horizontal .shelf-grid so a shelf reads like a row
 // of books, not a column of full-width cards. `isListed` only applies to "have".
-const SHELF_COVER_FALLBACK =
-  "https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=70&h=95&fit=crop";
-
 function _renderShelfTile(book, entryId, shelfType, isListed) {
   const card = document.createElement("div");
   card.className = "shelf-card";
@@ -2733,7 +2730,7 @@ function _renderShelfTile(book, entryId, shelfType, isListed) {
   img.loading = "lazy";
   img.src = book.cover_url || "";
   img.alt = book.title || "";
-  img.onerror = () => { img.src = SHELF_COVER_FALLBACK; };
+  img.onerror = () => { img.src = FALLBACK_COVER; };
   coverWrap.appendChild(img);
 
   if (isListed) {

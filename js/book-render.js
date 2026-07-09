@@ -11,8 +11,22 @@
 
 import { escapeHTML } from "./dom-utils.js";
 
-export const FALLBACK_COVER =
-  "https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=400&h=600&fit=crop";
+// A generic book glyph, not a photo of any real book — the previous fallback
+// (an Unsplash lifestyle photo that happened to depict a specific real book,
+// "milk and honey") misread as "this is the cover" for unrelated listings.
+// Inline SVG: no network dependency, scales via the img tag like any cover.
+// The sole shared constant (§6A) — main.js/scanner.js import this rather
+// than keeping their own differently-cropped copies of the old photo URL.
+export const FALLBACK_COVER = `data:image/svg+xml,${encodeURIComponent(
+  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 400">' +
+    '<rect width="300" height="400" fill="#f0f0f0"/>' +
+    '<rect x="90" y="110" width="120" height="180" rx="6" fill="#dcdcdc"/>' +
+    '<rect x="90" y="110" width="18" height="180" rx="6" fill="#c8c8c8"/>' +
+    '<line x1="130" y1="150" x2="190" y2="150" stroke="#b7b7b7" stroke-width="6" stroke-linecap="round"/>' +
+    '<line x1="130" y1="175" x2="190" y2="175" stroke="#b7b7b7" stroke-width="6" stroke-linecap="round"/>' +
+    '<line x1="130" y1="200" x2="190" y2="200" stroke="#b7b7b7" stroke-width="6" stroke-linecap="round"/>' +
+  "</svg>"
+)}`;
 
 let _actions = {
   viewListing: () => {},
