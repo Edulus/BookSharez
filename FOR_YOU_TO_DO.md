@@ -17,20 +17,23 @@ The feature is fully coded and verified; it's just dark until these three steps.
 Book pages will gain description, community rating, genres, series info, and
 the "More on Hardcover →" link.
 
-- [ ] **1a. Apply the SQL** — Supabase Dashboard → SQL Editor → New query →
-      paste all of [db/book_enrichment_columns.sql](db/book_enrichment_columns.sql) → Run.
-- [ ] **1b. Deploy the function** — Dashboard → Edge Functions → Deploy new
+- [x] **1a. Apply the SQL** — Supabase Dashboard → SQL Editor → New query →
+      paste all of [db/book_enrichment_columns.sql](db/book_enrichment_columns.sql) → Run. *(Done July 9.)*
+- [x] **1b. Deploy the function** — Dashboard → Edge Functions → Deploy new
       function → name it exactly `book-enrichment` → paste all of
-      [supabase/functions/book-enrichment/index.ts](supabase/functions/book-enrichment/index.ts) → Deploy.
-- [ ] **1c. Set the secret** — get your token from
+      [supabase/functions/book-enrichment/index.ts](supabase/functions/book-enrichment/index.ts) → Deploy. *(Done July 9.)*
+- [x] **1c. Set the secret** — get your token from
       <https://hardcover.app/account/api> → Dashboard → Edge Functions →
       Secrets → add `HARDCOVER_API_TOKEN` = the token (with or without the
-      leading `Bearer ` — both work).
+      leading `Bearer ` — both work). *(Done July 9.)*
 
-**Verify:** open any book detail page in the app (a well-known ISBN works
-best). Within a second or two a description/rating/genres block should fill in
-between the ISBN line and the price. No block = no Hardcover match for that
-book (normal for obscure titles) — try a popular one.
+**Verified July 9:** columns present, function live and JWT-gated (anon call →
+401), and real Hardcover data is being cached (e.g. Project Hail Mary rating
+4.5, The Hobbit 4.31, plus a fresh enrichment cached July 9). Client render
+path (description / rating / genres / series / meta pills) confirmed green.
+Final logged-in eyeball is yours: open a popular book (e.g. **Project Hail
+Mary** — guaranteed cache hit) and the block should fill in between the ISBN
+line and the price. No block = no Hardcover match (normal for obscure titles).
 
 ### 2. Turn on notifications (ToDo item 13)
 
