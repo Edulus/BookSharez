@@ -51,9 +51,9 @@ The biggest structural facts shaping this plan:
 | 2.2 | **Fix `<title>` typo** — `index.html` says "**Booke**Sharez" | It's the browser tab and the first Google result line | S |
 | 2.3 | **Add basic SEO/social meta** — `<meta name="description">`, Open Graph + Twitter card tags, favicon | Zero-cost credibility when links are shared | S |
 | 2.4 | **`loading="lazy"` on all book cover `<img>`** in the three renderers | Free performance on grid-heavy pages | S |
-| 2.5 | **Decide the ISBNdb question** — either subscribe ($10/mo) or formally demote it in docs and make Google Books/Open Library the documented primary | The docs describe a primary lookup path that has never run; resolve the drift one way or the other | S |
+| 2.5 | **Done July 10:** ISBNdb demoted to an optional paid enhancement; Google Books is the default external provider and Open Library the browser fallback | Removes the mismatch between the working runtime and documented defaults without deleting future ISBNdb support | S |
 | 2.6 | **Delete `css/style_B.css`** (unlinked duplicate) and prune stale verify screenshot folders from the repo root | Housekeeping; repo is public | S |
-| 2.7 | **Storage orphan cleanup** — deleting/marking-sold a listing leaves photo objects behind (known follow-up from June 16). A small scheduled Edge Function or a delete-time cleanup call | Unbounded storage growth on the Free plan; costs later | M |
+| 2.7 | **Done July 10:** Storage orphan cleanup removes objects and metadata on mark-sold/delete and rolls back uploads whose metadata insert fails; owner DELETE policies are in `db/listing_photo_cleanup.sql` | Prevents unbounded private Storage growth | M |
 
 ---
 

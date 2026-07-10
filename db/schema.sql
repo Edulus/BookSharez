@@ -125,6 +125,16 @@ CREATE POLICY "Users can insert photos for their listings"
     )
   );
 
+CREATE POLICY "Users can delete photos for their listings"
+  ON listing_photos FOR DELETE
+  USING (
+    EXISTS (
+      SELECT 1 FROM listings
+      WHERE listings.id = listing_photos.listing_id
+      AND listings.user_id = auth.uid()
+    )
+  );
+
 -- ============================================================
 -- STORAGE POLICIES  (source: docs/SECURITY_CHECKLIST.md)
 -- ============================================================
@@ -155,6 +165,17 @@ USING (
 CREATE POLICY "Users can upload to their listings"
 ON storage.objects FOR INSERT
 WITH CHECK (
+  bucket_id = 'listing-photos' AND
+  EXISTS (
+    SELECT 1 FROM listings
+    WHERE listings.id::text = (storage.foldername(name))[1]
+    AND listings.user_id = auth.uid()
+  )
+);
+
+CREATE POLICY "Users can delete photos for their listings"
+ON storage.objects FOR DELETE
+USING (
   bucket_id = 'listing-photos' AND
   EXISTS (
     SELECT 1 FROM listings

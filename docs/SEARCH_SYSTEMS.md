@@ -18,7 +18,7 @@ BookSharez has two separate things called "search." They share almost nothing.
 |---|---|---|
 | Purpose | Auto-fill book data when listing a book | Find books already listed on BookSharez |
 | Trigger | Seller enters/scans an ISBN in the sell flow | Buyer types in the homepage / browse search bar |
-| Data source | **External APIs** — ISBNdb → Google Books | **Local Supabase DB ONLY** — no external calls |
+| Data source | **External APIs** — Google Books by default; ISBNdb optional | **Local Supabase DB ONLY** — no external calls |
 | Where keys live | Edge Function secrets | none (pure DB query) |
 | Design doc | [ISBN_LOOKUP_DESIGN.md](ISBN_LOOKUP_DESIGN.md) | this doc, §2 |
 
@@ -29,7 +29,7 @@ BookSharez has two separate things called "search." They share almost nothing.
 Fully designed in **[ISBN_LOOKUP_DESIGN.md](ISBN_LOOKUP_DESIGN.md)**. Summary:
 
 - **Purpose:** auto-fill book data when a seller enters/scans an ISBN.
-- **Flow:** cache-check `books` table → ISBNdb (`api2.isbndb.com`) → Google Books
+- **Flow:** cache-check `books` table → optional ISBNdb when configured → Google Books; browser fallback → Open Library → Google Books
   fallback on 404/429/timeout → normalize → upsert into `books` → return.
 - **Keys (Edge Function secrets, never client-side):** `ISBNDB_API_KEY`
   ($10/mo Basic, 1 req/sec), `GOOGLE_BOOKS_API_KEY` (free, 1000/day).

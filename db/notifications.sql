@@ -9,7 +9,7 @@
 
 -- ── notifications ─────────────────────────────────────────────────────────────
 
-CREATE TABLE notifications (
+CREATE TABLE IF NOT EXISTS notifications (
   id           UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   user_id      UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL, -- recipient
   type         TEXT NOT NULL CHECK (type IN
@@ -23,22 +23,25 @@ CREATE TABLE notifications (
   created_at   TIMESTAMP DEFAULT NOW()
 );
 
-CREATE INDEX idx_notifications_user_created ON notifications(user_id, created_at DESC);
-CREATE INDEX idx_notifications_user_unread  ON notifications(user_id) WHERE read_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_notifications_user_created ON notifications(user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_notifications_user_unread  ON notifications(user_id) WHERE read_at IS NULL;
 
 -- ── RLS ───────────────────────────────────────────────────────────────────────
 
 ALTER TABLE notifications ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Users can view their own notifications" ON notifications;
 CREATE POLICY "Users can view their own notifications"
   ON notifications FOR SELECT
   USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can mark their own notifications read" ON notifications;
 CREATE POLICY "Users can mark their own notifications read"
   ON notifications FOR UPDATE
   USING (auth.uid() = user_id)
   WITH CHECK (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can delete their own notifications" ON notifications;
 CREATE POLICY "Users can delete their own notifications"
   ON notifications FOR DELETE
   USING (auth.uid() = user_id);
@@ -86,6 +89,7 @@ BEGIN
 END;
 $$;
 
+DROP TRIGGER IF EXISTS on_listing_want_match ON listings;
 CREATE TRIGGER on_listing_want_match
   AFTER INSERT ON listings
   FOR EACH ROW

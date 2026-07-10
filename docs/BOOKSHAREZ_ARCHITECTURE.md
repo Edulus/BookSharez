@@ -90,7 +90,7 @@ book
 └── updated_at
 ```
 
-**Source:** Populated via ISBNdb (primary) with Google Books API fallback. One canonical record per ISBN.
+**Source:** Populated from the local cache first, then Google Books by default. ISBNdb is an optional paid enhancement; Open Library is the browser fallback. One canonical record per ISBN.
 
 ### 2.4 Listing (Marketplace Item)
 
@@ -198,7 +198,7 @@ Constraint: UNIQUE(follower_id, followed_id). No self-follows.
 | Service | Responsibility |
 |---------|---------------|
 | **User Service** | Auth, profiles, shelf management, privacy settings |
-| **Book Catalog Service** | Canonical book records, ISBN lookup (ISBNdb + Google Books), metadata enrichment |
+| **Book Catalog Service** | Canonical book records, cache-first ISBN lookup (Google Books by default; optional ISBNdb), metadata enrichment |
 | **Listing Service** | CRUD for marketplace listings, condition/pricing, photo management |
 | **Affiliate Service** | External offer aggregation, caching, display logic |
 | **Search Service** | Full-text search across books, users, discussions |

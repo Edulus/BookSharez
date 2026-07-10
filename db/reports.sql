@@ -8,7 +8,7 @@
 -- reporter saw at report time, so a report stays actionable even if the
 -- subject is later edited or deleted.
 
-CREATE TABLE reports (
+CREATE TABLE IF NOT EXISTS reports (
   id           UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   reporter_id  UUID REFERENCES auth.users(id) ON DELETE SET NULL NOT NULL,
   subject_type TEXT NOT NULL CHECK (subject_type IN ('listing', 'profile', 'discussion_post')),
@@ -22,8 +22,8 @@ CREATE TABLE reports (
   UNIQUE (reporter_id, subject_type, subject_id)
 );
 
-CREATE INDEX idx_reports_status_created ON reports(status, created_at DESC);
-CREATE INDEX idx_reports_subject ON reports(subject_type, subject_id);
+CREATE INDEX IF NOT EXISTS idx_reports_status_created ON reports(status, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_reports_subject ON reports(subject_type, subject_id);
 
 -- ── RLS ───────────────────────────────────────────────────────────────────────
 ALTER TABLE reports ENABLE ROW LEVEL SECURITY;
@@ -32,6 +32,7 @@ ALTER TABLE reports ENABLE ROW LEVEL SECURITY;
 -- capability: no SELECT (reports aren't public and reporters don't need to
 -- browse their own), no UPDATE/DELETE (moderation state changes happen in
 -- the dashboard with the service role).
+DROP POLICY IF EXISTS "Users can file reports" ON reports;
 CREATE POLICY "Users can file reports"
   ON reports FOR INSERT
   TO authenticated
