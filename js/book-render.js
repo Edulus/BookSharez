@@ -73,20 +73,36 @@ export function renderBook(book, context, density) {
   return _renderTile(book, context);
 }
 
+// Universal Book-object invariant: every compact/standard rendering navigates
+// to the canonical book page. Listing actions remain explicit child controls.
+function _bookPageAction(book, context) {
+  if (book.bookId) return () => _actions.browseBookById(book.bookId, book.title);
+  if (book.isbn || book.title) return () => _actions.viewExternalBook(book);
+  if (context.myListingId) return () => _actions.viewListing(context.myListingId);
+  return null;
+}
+
+function _makeBookInteractive(element, book, context) {
+  const action = _bookPageAction(book, context);
+  if (!action) return;
+  element.tabIndex = 0;
+  element.setAttribute("role", "link");
+  element.setAttribute("aria-label", `View book: ${book.title || "Untitled"}`);
+  element.addEventListener("click", action);
+  element.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      action();
+    }
+  });
+}
+
 function _renderTile(book, context) {
   _ensureBookCardStyles();
   const card = document.createElement("div");
   card.className = "book-card";
 
-  if (context.myListingId) {
-    card.onclick = () => _actions.viewListing(context.myListingId);
-  } else if (book.bookId) {
-    card.style.cursor = "pointer";
-    card.addEventListener("click", () => _actions.browseBookById(book.bookId, book.title));
-  } else {
-    card.style.cursor = "pointer";
-    card.addEventListener("click", () => _actions.viewExternalBook(book));
-  }
+  _makeBookInteractive(card, book, context);
 
   let badgeHtml = "";
   if (context.condition) {
@@ -152,6 +168,7 @@ function _renderTile(book, context) {
 
 function _renderThumb(book, context) {
   const item = document.createElement("div");
+  item.className = "book-thumb";
   item.style.cssText = "text-align:center;width:90px;cursor:pointer;";
   item.title = book.title || "";
 
@@ -186,9 +203,7 @@ function _renderThumb(book, context) {
 
   item.appendChild(imgWrapper);
   item.appendChild(titleEl);
-  if (book.bookId) {
-    item.addEventListener("click", () => _actions.browseBookById(book.bookId, book.title));
-  }
+  _makeBookInteractive(item, book, context);
   return item;
 }
 
@@ -253,6 +268,7 @@ function _ensureBookCardStyles() {
   style.textContent = `
     .book-card { background:white; border-radius:15px; overflow:hidden; box-shadow:0 5px 20px rgba(0,0,0,0.1); transition:transform 0.3s ease,box-shadow 0.3s ease; cursor:pointer; }
     .book-card:hover { transform:translateY(-5px); box-shadow:0 10px 30px rgba(0,0,0,0.15); }
+    .book-card:focus-visible, .book-thumb:focus-visible { outline:3px solid #667eea; outline-offset:4px; }
     .book-image { position:relative; height:288px; overflow:hidden; }
     .book-image img { width:100%; height:100%; object-fit:contain; background:#f5f5f5; }
     .book-condition { position:absolute; top:10px; right:10px; background:rgba(102,126,234,0.9); color:white; padding:0.25rem 0.5rem; border-radius:12px; font-size:0.8rem; font-weight:500; }

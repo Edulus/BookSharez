@@ -2,6 +2,10 @@
 
 ## July 10, 2026
 
+- Enforced the Book-object interaction invariant across tile and thumbnail
+  renderings: every book now opens its canonical book page by click, Enter, or
+  Space with visible focus and link semantics. Profile shelves now select the
+  canonical `books.id`, fixing their previously inert thumbnails.
 - Added a full-resolution cover lightbox to book/listing detail pages. Covers
   open by click, Enter, or Space; common Google Books/Open Library URLs request
   their larger variant and fall back to the displayed image if unavailable.
