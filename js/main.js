@@ -3118,12 +3118,12 @@ async function viewProfile(userId) {
     supabaseClient.from("follows").select("*", { count: "exact", head: true }).eq("follower_id", userId),
     supabaseClient
       .from("shelf_entries")
-      .select("id, books!inner(isbn, title, author, cover_url)")
+      .select("id, books!inner(id, isbn, title, author, cover_url)")
       .eq("user_id", userId).eq("shelf_type", "have").eq("visibility", "public")
       .order("added_at", { ascending: false }).limit(24),
     supabaseClient
       .from("shelf_entries")
-      .select("id, books!inner(isbn, title, author, cover_url)")
+      .select("id, books!inner(id, isbn, title, author, cover_url)")
       .eq("user_id", userId).eq("shelf_type", "want").eq("visibility", "public")
       .order("added_at", { ascending: false }).limit(24),
     supabaseClient
