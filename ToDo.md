@@ -82,6 +82,12 @@ live too (quick filter/sort behavior not yet explicitly retested).
 
 ## 🚧 QUEUED — BLOCKED
 
+- [ ] **Phase 5: Sharez platform** — after BookSharez validates the marketplace
+  loop and one second vertical demonstrates demand/catalog viability, follow
+  [docs/SHAREZ_PLATFORM_ROADMAP.md](docs/SHAREZ_PLATFORM_ROADMAP.md) to extract
+  a shared core for CDSharez, DVDSharez, VinylSharez, and GameSharez. Do not
+  start by cloning the current app.
+
 - [x] **Book-as-object renderer consolidation** — `renderBook(book, context, density)` is live. All five old renderers replaced; `normalizeListing`, `createBookCard`, `createExternalBookCard`, `displayedListings` removed. One `FALLBACK_COVER`; one field name per concept. *(Done June 20.)*
 - [x] **Vision OCR** — `vision-extract` Edge Function deployed, `GEMINI_API_KEY` set, client-side wiring complete (barcode recovery + cover photo paths), verified by Playwright harness. *(Done June 20.)*
 

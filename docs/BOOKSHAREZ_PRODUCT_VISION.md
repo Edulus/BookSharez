@@ -195,7 +195,19 @@ Once the model is proven on one campus, expansion follows campus by campus — e
 
 BookSharez starts with books because books reveal who people are. Your bookshelf says more about you than any bio ever could.
 
-The long-term vision extends this model beyond books to other media — CDs, DVDs, vinyl records — anywhere personal collections define taste and community. But books are the foundation, and the college campus is the proving ground.
+The long-term vision extends this model beyond books to other physical media —
+CDs, DVDs/Blu-rays, vinyl records, and video games — anywhere personal
+collections define taste and community. The candidate products are CDSharez,
+DVDSharez, VinylSharez, and GameSharez.
+
+These are not intended to become copied websites that drift apart. BookSharez
+is the proving ground for a reusable **Sharez platform**: a shared community
+marketplace core with vertical-specific branding, identifiers, catalog
+providers, metadata, conditions, and edition rules. Platform extraction begins
+only after BookSharez validates its core loop and a second vertical demonstrates
+real demand. See [SHAREZ_PLATFORM_ROADMAP.md](SHAREZ_PLATFORM_ROADMAP.md).
+
+Books remain the foundation, and the college campus remains the proving ground.
 
 **BookSharez is not just a place to buy and sell books. It's a place where readers find each other.**
 

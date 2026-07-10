@@ -460,8 +460,27 @@ This architecture describes the full product vision. Implementation is phased:
 | Discussion forums, reviews, affiliate integration | Phase 3-4 |
 | Recommendation engine, activity feeds, notifications | Phase 4 |
 | SHAREZ credit system, multi-campus expansion | Phase 4+ |
+| Sharez platform extraction + first second vertical | Phase 5 (post-validation) |
 
 **Phase 1 MVP builds the marketplace foundation. All subsequent phases layer onto this base.**
+
+### Phase 5 — Sharez Platform
+
+After BookSharez validates the capture → collection → listing → match loop, the
+architecture may be extracted into a reusable core for CDSharez, DVDSharez,
+VinylSharez, and GameSharez. This is a configuration-and-contract boundary, not
+a license to clone the repository.
+
+The shared core owns identity, collections, listings, trust, moderation,
+notifications, and marketplace behavior. Vertical modules own branding,
+terminology, identifiers, catalog/enrichment providers, metadata, conditions,
+and edition identity. A work and a sellable edition must remain distinct domain
+concepts across all verticals.
+
+The extraction gate, target package boundaries, rollout phases, and non-goals
+are defined in [SHAREZ_PLATFORM_ROADMAP.md](SHAREZ_PLATFORM_ROADMAP.md). Any
+framework or monorepo migration remains governed by
+[GRADUATION_CRITERIA.md](GRADUATION_CRITERIA.md).
 
 ---
 

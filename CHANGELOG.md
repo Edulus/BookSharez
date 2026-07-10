@@ -2,6 +2,11 @@
 
 ## July 10, 2026
 
+- Formalized the long-term Sharez platform direction across the product vision,
+  canonical architecture roadmap, improvement sequence, and master backlog.
+  Added [docs/SHAREZ_PLATFORM_ROADMAP.md](docs/SHAREZ_PLATFORM_ROADMAP.md) with
+  shared-core boundaries, vertical contracts, validation gates, Phase 5A–D,
+  and named CD/DVD/Vinyl/Game candidate products.
 - Added a full-resolution cover lightbox to book/listing detail pages. Covers
   open by click, Enter, or Space; common Google Books/Open Library URLs request
   their larger variant and fall back to the displayed image if unavailable.
