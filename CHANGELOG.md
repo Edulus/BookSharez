@@ -8,8 +8,8 @@
   The modal supports 100–500% cursor-centered mouse-wheel zoom, double-click
   reset, and Escape/backdrop/close-button dismissal.
 - Deduplicated the homepage's “Books Our Members Want/Have” grids by normalized
-  ISBN, with normalized title + author as a fallback. Multiple members—or
-  duplicate legacy catalog rows—now produce one book card per work.
+  title + author first, with ISBN as the fallback for incomplete metadata.
+  Different editions of the same work now produce one community card.
 - Added listing-photo lifecycle cleanup: marking a listing sold or deleting it
   now removes its private `listing-photos` Storage objects and metadata rows.
   Failed metadata inserts also roll back the uploaded object immediately.

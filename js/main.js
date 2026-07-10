@@ -385,13 +385,11 @@ async function loadFeaturedBooks() {
   renderListings(data);
 }
 
-// Treat duplicate catalog rows as the same displayed work. ISBN is strongest;
-// title + author catches legacy/API rows that were inserted under different ids.
+// Treat duplicate catalog rows as the same displayed work. Community grids are
+// work-centric rather than edition-centric, so matching title + author wins
+// even when two members scanned editions with different ISBNs.
 function communityBookKey(entry) {
   const book = entry.books || {};
-  const isbn = String(book.isbn || "").replace(/[^0-9X]/gi, "").toUpperCase();
-  if (isbn) return `isbn:${isbn}`;
-
   const normalizeText = (value) => String(value || "")
     .normalize("NFKC")
     .toLocaleLowerCase()
@@ -399,7 +397,13 @@ function communityBookKey(entry) {
     .trim();
   const title = normalizeText(book.title);
   const author = normalizeText(book.author);
-  return title ? `work:${title}|${author}` : `id:${entry.book_id}`;
+  if (title && author) return `work:${title}|${author}`;
+
+  // ISBN is the safest fallback when either half of the work identity is
+  // missing. Last-resort title/id keys keep incomplete legacy rows stable.
+  const isbn = String(book.isbn || "").replace(/[^0-9X]/gi, "").toUpperCase();
+  if (isbn) return `isbn:${isbn}`;
+  return title ? `title:${title}` : `id:${entry.book_id}`;
 }
 
 // Load a community shelf section (want or have) with deduplicated books.
