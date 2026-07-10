@@ -293,6 +293,23 @@ async function loadFeaturedBooks() {
   renderListings(data);
 }
 
+// Treat duplicate catalog rows as the same displayed work. ISBN is strongest;
+// title + author catches legacy/API rows that were inserted under different ids.
+function communityBookKey(entry) {
+  const book = entry.books || {};
+  const isbn = String(book.isbn || "").replace(/[^0-9X]/gi, "").toUpperCase();
+  if (isbn) return `isbn:${isbn}`;
+
+  const normalizeText = (value) => String(value || "")
+    .normalize("NFKC")
+    .toLocaleLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .trim();
+  const title = normalizeText(book.title);
+  const author = normalizeText(book.author);
+  return title ? `work:${title}|${author}` : `id:${entry.book_id}`;
+}
+
 // Load a community shelf section (want or have) with deduplicated books.
 async function loadCommunityShelfSection(shelfType, gridId) {
   const grid = document.getElementById(gridId);
@@ -301,7 +318,7 @@ async function loadCommunityShelfSection(shelfType, gridId) {
 
   const { data, error } = await supabaseClient
     .from("shelf_entries")
-    .select("book_id, books!inner(id, title, author, cover_url)")
+    .select("book_id, books!inner(id, isbn, title, author, cover_url)")
     .eq("shelf_type", shelfType)
     .order("added_at", { ascending: false })
     .limit(54);
@@ -314,8 +331,9 @@ async function loadCommunityShelfSection(shelfType, gridId) {
   const seen = new Set();
   const unique = [];
   for (const entry of data) {
-    if (!seen.has(entry.book_id)) {
-      seen.add(entry.book_id);
+    const key = communityBookKey(entry);
+    if (!seen.has(key)) {
+      seen.add(key);
       unique.push(entry.books);
       if (unique.length >= 9) break;
     }

@@ -2,6 +2,9 @@
 
 ## July 10, 2026
 
+- Deduplicated the homepage's “Books Our Members Want/Have” grids by normalized
+  ISBN, with normalized title + author as a fallback. Multiple members—or
+  duplicate legacy catalog rows—now produce one book card per work.
 - Added listing-photo lifecycle cleanup: marking a listing sold or deleting it
   now removes its private `listing-photos` Storage objects and metadata rows.
   Failed metadata inserts also roll back the uploaded object immediately.
