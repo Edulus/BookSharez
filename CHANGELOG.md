@@ -2,6 +2,11 @@
 
 ## July 10, 2026
 
+- Public book pages now read cached Hardcover enrichment directly from the
+  public `books` catalog, so logged-out visitors see descriptions, ratings,
+  genres, series, and the Hardcover link without spending external API quota.
+  Authenticated sessions alone refresh stale or missing cache. Login now uses
+  password-manager autocomplete hints and can remember only the email locally.
 - Enforced the Book-object interaction invariant across tile and thumbnail
   renderings: every book now opens its canonical book page by click, Enter, or
   Space with visible focus and link semantics. Profile shelves now select the

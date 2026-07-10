@@ -770,17 +770,65 @@ function renderBookOffers(offers) {
 // (_renderFull via viewListing, and _renderBookPage). Section styles live in
 // css/style.css; the data source is the book-enrichment Edge Function.
 
+function enrichmentPayloadFromBookRow(row) {
+  if (!row?.hc_enriched_at) return null;
+  return {
+    enriched: true,
+    source: "public-cache",
+    description: row.description ?? null,
+    rating: row.hc_rating ?? null,
+    ratingCount: row.hc_rating_count ?? null,
+    usersRead: row.hc_users_read ?? null,
+    genres: Array.isArray(row.hc_genres) ? row.hc_genres : null,
+    seriesName: row.hc_series_name ?? null,
+    seriesPosition: row.hc_series_pos ?? null,
+    category: row.hc_book_category ?? null,
+    slug: row.hc_slug ?? null,
+    pageCount: row.page_count ?? null,
+    publisher: row.publisher ?? null,
+    publishDate: row.publish_date ?? null,
+    enrichedAt: row.hc_enriched_at,
+  };
+}
+
+async function fetchPublicCachedEnrichment(isbn) {
+  const { data, error } = await supabaseClient
+    .from("books")
+    .select(
+      "description, page_count, publisher, publish_date, hc_rating, " +
+      "hc_rating_count, hc_users_read, hc_genres, hc_series_name, " +
+      "hc_series_pos, hc_slug, hc_book_category, hc_enriched_at"
+    )
+    .eq("isbn", isbn)
+    .maybeSingle();
+  if (error) {
+    console.error("Public enrichment cache read failed:", error);
+    return null;
+  }
+  return enrichmentPayloadFromBookRow(data);
+}
+
 async function fetchBookEnrichment(isbn, title, author) {
   if (!isbn) return null;
+  const cached = await fetchPublicCachedEnrichment(isbn);
+  const cacheAge = cached?.enrichedAt
+    ? Date.now() - new Date(cached.enrichedAt).getTime()
+    : Infinity;
+  if (cached && cacheAge < 30 * 24 * 60 * 60 * 1000) return cached;
+
+  // Anonymous visitors may read cached enrichment but cannot spend Hardcover
+  // API quota. Only authenticated sessions may refresh stale/missing cache.
+  const { data: { session } } = await supabaseClient.auth.getSession();
+  if (!session) return cached;
   try {
     const resp = await supabaseClient.functions.invoke("book-enrichment", {
       body: { isbn, title, author },
     });
-    if (resp.error || !resp.data?.enriched) return null;
+    if (resp.error || !resp.data?.enriched) return cached;
     return resp.data;
   } catch (e) {
     console.error("Enrichment fetch failed:", e);
-    return null;
+    return cached;
   }
 }
 
@@ -1048,7 +1096,13 @@ function showHomePage() { showBuyBooks(); }
 function showLogin() {
   closeModal("signupModal");
   clearAuthMessage("loginMessage");
+  const rememberedEmail = localStorage.getItem("booksharez:login-email");
+  const emailInput = document.getElementById("email");
+  const rememberInput = document.getElementById("rememberLoginEmail");
+  if (rememberedEmail) emailInput.value = rememberedEmail;
+  rememberInput.checked = Boolean(rememberedEmail) || rememberInput.checked;
   document.getElementById("loginModal").style.display = "block";
+  (rememberedEmail ? document.getElementById("password") : emailInput).focus();
 }
 
 // Show signup modal
@@ -1133,6 +1187,12 @@ async function handleLogin(e) {
   if (error) {
     showAuthMessage("loginMessage", mapAuthError(error), "error");
     return;
+  }
+
+  if (document.getElementById("rememberLoginEmail").checked) {
+    localStorage.setItem("booksharez:login-email", email);
+  } else {
+    localStorage.removeItem("booksharez:login-email");
   }
 
   // onAuthStateChange updates the UI; just close the modal and reset the form.

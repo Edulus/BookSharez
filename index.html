@@ -472,12 +472,18 @@
           <form id="loginForm">
             <div class="form-group">
               <label for="email">Email:</label>
-              <input type="email" id="email" name="email" required />
+              <input type="email" id="email" name="email" required
+                autocomplete="username" autocapitalize="none" spellcheck="false" />
             </div>
             <div class="form-group">
               <label for="password">Password:</label>
-              <input type="password" id="password" name="password" required />
+              <input type="password" id="password" name="password" required
+                autocomplete="current-password" />
             </div>
+            <label style="display:flex;align-items:center;gap:0.5rem;margin:-0.25rem 0 1rem;cursor:pointer;">
+              <input type="checkbox" id="rememberLoginEmail" checked />
+              <span>Remember my email on this device</span>
+            </label>
             <button type="submit" class="btn btn-primary" style="width: 100%">
               Login
             </button>
