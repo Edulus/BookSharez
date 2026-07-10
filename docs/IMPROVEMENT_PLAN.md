@@ -374,6 +374,12 @@ framework migration (graduation criteria govern), native apps, email
 infrastructure (in-app notifications first), Hardcover Tier 2 social sync
 (blocked on their OAuth — [HARDCOVER_INTEGRATION.md](HARDCOVER_INTEGRATION.md)).
 
+**After BookSharez validation — Phase 5:** begin the Sharez platform work in
+[SHAREZ_PLATFORM_ROADMAP.md](SHAREZ_PLATFORM_ROADMAP.md). Define neutral domain
+contracts and configurable vertical seams, then prove them with one demanded
+second vertical before extracting shared packages. CDSharez, DVDSharez,
+VinylSharez, and GameSharez are long-term candidates, not parallel MVPs.
+
 ---
 
 ## 10. Metrics That Should Exist Before Launch
