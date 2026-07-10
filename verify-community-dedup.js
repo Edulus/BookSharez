@@ -11,8 +11,10 @@ function check(label, condition) {
 const helper = main.match(/function communityBookKey[\s\S]*?\r?\n}\r?\n/);
 const loader = main.match(/async function loadCommunityShelfSection[\s\S]*?\r?\n}\r?\n/);
 check("community identity helper exists", Boolean(helper));
-check("ISBN is normalized for identity", helper && helper[0].includes('replace(/[^0-9X]/gi'));
-check("title and author provide fallback identity", helper && helper[0].includes('`work:${title}|${author}`'));
+check("ISBN is normalized for fallback identity", helper && helper[0].includes('replace(/[^0-9X]/gi'));
+check("title and author provide primary work identity", helper && helper[0].includes('if (title && author) return `work:${title}|${author}`'));
+check("work identity wins over differing ISBNs", helper && helper[0].indexOf("if (title && author)") < helper[0].indexOf("if (isbn)"));
+check("ISBN is used when work metadata is incomplete", helper && helper[0].includes('if (isbn) return `isbn:${isbn}`'));
 check("community query loads ISBN", loader && loader[0].includes("id, isbn, title, author, cover_url"));
 check("renderer deduplicates by community identity", loader && loader[0].includes("communityBookKey(entry)"));
 check("deduplication happens before nine-card limit", loader && loader[0].indexOf("seen.has(key)") < loader[0].indexOf("unique.length >= 9"));
