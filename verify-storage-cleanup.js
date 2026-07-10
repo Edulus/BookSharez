@@ -11,7 +11,7 @@ function check(label, condition) {
   if (!condition) failures++;
 }
 
-const cleanup = main.match(/async function cleanupListingPhotos[\s\S]*?\n}\n/);
+const cleanup = main.match(/async function cleanupListingPhotos[\s\S]*?\r?\n}\r?\n/);
 check("cleanup helper exists", Boolean(cleanup));
 check("cleanup loads photo paths", cleanup && cleanup[0].includes('.select("photo_url")'));
 check("cleanup removes Storage objects", cleanup && cleanup[0].includes('.remove(paths)'));

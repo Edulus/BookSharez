@@ -34,6 +34,7 @@ let _actions = {
   viewExternalBook: () => {},
   searchByAuthor: () => {},
   buyBook: () => {},
+  openCoverLightbox: () => {},
 };
 
 export function initBookRender(actions) {
@@ -195,6 +196,18 @@ function _renderFull(book, context) {
   const cover = document.getElementById("detailCover");
   cover.src = book.coverUrl || FALLBACK_COVER;
   cover.onerror = () => { cover.src = FALLBACK_COVER; };
+  cover.classList.toggle("cover-zoomable", Boolean(book.coverUrl));
+  cover.tabIndex = book.coverUrl ? 0 : -1;
+  cover.setAttribute("role", book.coverUrl ? "button" : "img");
+  cover.setAttribute("aria-label", book.coverUrl ? `Enlarge cover for ${book.title || "this book"}` : "Book cover unavailable");
+  cover.title = book.coverUrl ? "Click to enlarge cover" : "";
+  cover.onclick = book.coverUrl ? () => _actions.openCoverLightbox(book.coverUrl, book.title) : null;
+  cover.onkeydown = book.coverUrl ? (event) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      _actions.openCoverLightbox(book.coverUrl, book.title);
+    }
+  } : null;
 
   document.getElementById("detailTitle").textContent = book.title || "Untitled";
 

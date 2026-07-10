@@ -63,7 +63,89 @@ initBookRender({
   viewExternalBook: (book) => viewExternalBook(book),
   searchByAuthor: (author) => searchByAuthor(author),
   buyBook: (id, price, title) => buyBook(id, price, title),
+  openCoverLightbox: (src, title) => openCoverLightbox(src, title),
 });
+
+let coverLightboxReturnFocus = null;
+let coverLightboxScale = 1;
+
+function setCoverLightboxZoom(scale, originX = 50, originY = 50) {
+  const image = document.getElementById("coverLightboxImage");
+  coverLightboxScale = Math.min(5, Math.max(1, scale));
+  image.style.transformOrigin = `${originX}% ${originY}%`;
+  image.style.transform = `scale(${coverLightboxScale})`;
+  image.classList.toggle("is-zoomed", coverLightboxScale > 1);
+  document.getElementById("coverLightboxZoom").textContent =
+    `${Math.round(coverLightboxScale * 100)}%`;
+}
+
+function handleCoverLightboxWheel(event) {
+  event.preventDefault();
+  const image = event.currentTarget;
+  const rect = image.getBoundingClientRect();
+  const originX = ((event.clientX - rect.left) / rect.width) * 100;
+  const originY = ((event.clientY - rect.top) / rect.height) * 100;
+  const step = event.deltaY < 0 ? 0.25 : -0.25;
+  setCoverLightboxZoom(coverLightboxScale + step, originX, originY);
+}
+
+// Request the largest version exposed by common cover providers. If that URL
+// fails, the lightbox falls back to the exact cover already shown on the page.
+function highResolutionCoverUrl(src) {
+  if (!src) return "";
+  if (/books\.google\./i.test(src) || /googleusercontent\.com/i.test(src)) {
+    try {
+      const url = new URL(src, window.location.href);
+      url.protocol = "https:";
+      url.searchParams.set("zoom", "3");
+      url.searchParams.delete("edge");
+      return url.href;
+    } catch {
+      return src;
+    }
+  }
+  if (/covers\.openlibrary\.org/i.test(src)) {
+    return src.replace(/-[SM]\.(jpg|png)$/i, "-L.$1").replace(/^http:/, "https:");
+  }
+  return src.replace(/^http:/, "https:");
+}
+
+function openCoverLightbox(src, title = "") {
+  if (!src || src === FALLBACK_COVER) return;
+  const lightbox = document.getElementById("coverLightbox");
+  const image = document.getElementById("coverLightboxImage");
+  const heading = document.getElementById("coverLightboxTitle");
+  coverLightboxReturnFocus = document.activeElement;
+  heading.textContent = title ? `Enlarged cover for ${title}` : "Enlarged book cover";
+  image.alt = title ? `Cover of ${title}` : "Enlarged book cover";
+  let triedFallback = false;
+  image.onerror = () => {
+    if (!triedFallback) {
+      triedFallback = true;
+      image.src = src;
+    } else {
+      image.onerror = null;
+    }
+  };
+  image.src = highResolutionCoverUrl(src);
+  setCoverLightboxZoom(1);
+  lightbox.classList.add("is-open");
+  lightbox.setAttribute("aria-hidden", "false");
+  document.body.style.overflow = "hidden";
+  document.getElementById("coverLightboxClose").focus();
+}
+
+function closeCoverLightbox() {
+  const lightbox = document.getElementById("coverLightbox");
+  if (!lightbox.classList.contains("is-open")) return;
+  lightbox.classList.remove("is-open");
+  lightbox.setAttribute("aria-hidden", "true");
+  document.getElementById("coverLightboxImage").src = "";
+  setCoverLightboxZoom(1);
+  document.body.style.overflow = "";
+  coverLightboxReturnFocus?.focus?.();
+  coverLightboxReturnFocus = null;
+}
 
 // js/scanner.js drives the scanner modal itself; everything that crosses the
 // module boundary — catalog writes, shelf refreshes, sell pre-fill, the
@@ -107,6 +189,16 @@ async function loadCommunityStats() {
 
 // Setup event listeners
 function setupEventListeners() {
+  const coverLightboxImage = document.getElementById("coverLightboxImage");
+  coverLightboxImage?.addEventListener("wheel", handleCoverLightboxWheel, { passive: false });
+  coverLightboxImage?.addEventListener("dblclick", () => setCoverLightboxZoom(1));
+  document.getElementById("coverLightboxClose")?.addEventListener("click", closeCoverLightbox);
+  document.getElementById("coverLightbox")?.addEventListener("click", (event) => {
+    if (event.target.id === "coverLightbox") closeCoverLightbox();
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") closeCoverLightbox();
+  });
   // Login form
   document.getElementById("loginForm").addEventListener("submit", handleLogin);
 
@@ -596,6 +688,18 @@ function _renderBookPage(book, offers) {
   const cover = document.getElementById("detailCover");
   cover.src = book.coverUrl || FALLBACK_COVER;
   cover.onerror = () => { cover.src = FALLBACK_COVER; };
+  cover.classList.toggle("cover-zoomable", Boolean(book.coverUrl));
+  cover.tabIndex = book.coverUrl ? 0 : -1;
+  cover.setAttribute("role", book.coverUrl ? "button" : "img");
+  cover.setAttribute("aria-label", book.coverUrl ? `Enlarge cover for ${book.title || "this book"}` : "Book cover unavailable");
+  cover.title = book.coverUrl ? "Click to enlarge cover" : "";
+  cover.onclick = book.coverUrl ? () => openCoverLightbox(book.coverUrl, book.title) : null;
+  cover.onkeydown = book.coverUrl ? (event) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      openCoverLightbox(book.coverUrl, book.title);
+    }
+  } : null;
   document.getElementById("detailTitle").textContent = book.title || "Untitled";
 
   const authorEl = document.getElementById("detailAuthor");
