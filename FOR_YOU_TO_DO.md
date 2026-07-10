@@ -1,6 +1,6 @@
 # For You To Do
 
-**Updated:** July 4, 2026
+**Updated:** July 9, 2026
 Everything in this file needs **your hands** (Supabase dashboard access, money
 decisions) — none of it can be done from code. Each item says exactly where to
 click, how to verify it worked, and what to tell Claude afterward.
@@ -107,11 +107,29 @@ Three follow-ups only you can do:
          "Thanks" (needs 4b applied).
       5. Log out → Forgot password? → complete a reset end-to-end (needs 5a).
 
+### 6. Remove the demo seed data from the live site (ToDo item 17)
+
+The 6 demo books from June's `db/seed.sql` (The Great Gatsby, To Kill a
+Mockingbird, 1984, Pride and Prejudice, The Catcher in the Rye, Harry Potter)
+are still **live in production** — seeded with random stock-photo covers under
+a fake "demo_seller" account, mixed in with real listings. The code-side cover
+fallback is already fixed and deployed; this removes the leftover demo *data*.
+
+- [ ] **Apply the SQL** — SQL Editor → paste all of
+      [db/remove_seed_data.sql](db/remove_seed_data.sql) → Run. (Deleting the
+      demo seller cascades to its 6 listings automatically.)
+
+**Verify:** the two SELECTs at the bottom of the SQL file both return 0 rows;
+in the app, browse no longer shows those 6 stock-photo books.
+**Caveat** (in the file's comments): if a real user has since added one of those
+6 exact books to their own shelf, that shelf entry cascades away too — small,
+acceptable blast radius at the current catalog size, but worth knowing.
+
 ---
 
 ## 🟡 Decide (blocking a docs cleanup, not blocking features)
 
-### 6. ISBNdb subscription — yes or no?
+### 7. ISBNdb subscription — yes or no?
 
 The docs describe ISBNdb as the *primary* seller-side ISBN lookup, but it has
 never run (no subscription). The app works fine today on the fallback chain
@@ -130,7 +148,7 @@ another) is the only wrong state.
 
 ## 🟢 Optional / when convenient
 
-### 7. RLS test cleanup (ToDo item 4)
+### 8. RLS test cleanup (ToDo item 4)
 
 - [ ] Two leftover test users from the June RLS test. SQL Editor → run the
       CLEANUP block at the bottom of [db/rls_test.sql](db/rls_test.sql).
