@@ -1,5 +1,17 @@
 # Changelog
 
+## July 10, 2026
+
+- Added listing-photo lifecycle cleanup: marking a listing sold or deleting it
+  now removes its private `listing-photos` Storage objects and metadata rows.
+  Failed metadata inserts also roll back the uploaded object immediately.
+- Added rerunnable owner DELETE policies in
+  [db/listing_photo_cleanup.sql](db/listing_photo_cleanup.sql), pending Supabase
+  application (ToDo 18), and included the policies in the baseline schema.
+- Made `ToDo.md` the explicit master backlog and reduced `FOR_YOU_TO_DO.md` to
+  active user-only actions. Demoted ISBNdb to an optional paid enhancement and
+  made the pending SQL scripts safer to rerun.
+
 All notable changes to BookSharez are recorded here — an **internal engineering
 record**, not all entries are user-facing.
 
@@ -20,7 +32,7 @@ _Phase 1 backend foundation + documentation. Work to date: 2026-06-14 – 2026-0
 
 - User-reported: browsing the live site, some listing covers looked like generic stock photos rather than the actual book. Root cause: `FALLBACK_COVER` (shown whenever `cover_url` is missing/broken) was a fixed Unsplash lifestyle photo that happens to depict a real, recognizable book — "milk and honey" by Rupi Kaur — so any *unrelated* listing with no cover looked like it was showing that book's cover. Confirmed live on a genuine listing ("RLS Test Book," `cover_url: null`).
 - Replaced with an inline SVG book glyph (light-gray background, a simple book-with-spine icon) — no network dependency, and it can't be mistaken for real cover art. **Consolidated three near-duplicate fallback constants into the one CLAUDE.md already calls for** (`FALLBACK_COVER`, §6A): main.js's `SHELF_COVER_FALLBACK` and scanner.js's `SCANNER_COVER_FALLBACK` (both pointing at the same photo at different crop sizes — no longer needed since SVG scales via the `<img>` element itself) are deleted in favor of importing the one export from [js/book-render.js](js/book-render.js).
-- **Separately, `db/seed.sql`'s demo data was found live in production** with the same class of problem (6 books seeded with random Unsplash stock photos as placeholder covers, mixed into real listings under a fake seller). New [db/remove_seed_data.sql](db/remove_seed_data.sql) — **pending apply, ToDo item 17** — removes it; cascades through listings/profiles automatically via existing FK constraints.
+- **Separately, `db/seed.sql`'s demo data was found live in production** with the same class of problem (6 books seeded with random Unsplash stock photos as placeholder covers, mixed into real listings under a fake seller). New [db/remove_seed_data.sql](db/remove_seed_data.sql) — **pending apply, ToDo item 17** — removes the demo seller/listings while preserving seed catalog books that acquired real listings, shelf entries, or discussions.
 - **Verified:** full 8-harness sweep green (batchscan, vision, bookflow, mobile, routing, security, notifications, enrichment); live screenshots of both the raw SVG and the real listing that exposed the bug, confirming the fix.
 
 ### Added (July 9 — Trust signals on the listing detail page, plan §3.2)

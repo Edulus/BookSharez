@@ -5,7 +5,7 @@
 // (docs/SEARCH_SYSTEMS.md §1 — never used for buyer-side browse, which is
 // local-DB only). No DOM access in this module; callers own all UI.
 //
-// Primary path is the isbn-lookup Edge Function (cache → ISBNdb → Google
+// Primary path is the isbn-lookup Edge Function (cache → optional ISBNdb → Google
 // Books, all server-side; keys never reach the browser). Everything else here
 // is the keyless/free client-side fallback chain.
 //

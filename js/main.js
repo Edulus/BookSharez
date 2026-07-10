@@ -1364,7 +1364,7 @@ function showDashboardTab(tabName) {
 }
 
 // Handle sell book form
-// ISBN auto-fill: calls the isbn-lookup Edge Function (cache → ISBNdb →
+// ISBN auto-fill: calls the isbn-lookup Edge Function (cache → optional ISBNdb →
 // Google Books, all server-side; keys never reach the browser). Falls back to
 // the old client-side pipeline only if the function itself is unreachable.
 function setLookupStatus(message) {
@@ -1494,7 +1494,7 @@ async function lookupISBN() {
 
   setLookupStatus("Looking up…");
 
-  // Primary: Edge Function (cache → ISBNdb → Google Books, server-side).
+  // Primary: Edge Function (cache → optional ISBNdb → Google Books, server-side).
   try {
     const result = await lookupViaEdgeFunction(isbn);
     if (result && result.title) {
@@ -1691,11 +1691,53 @@ async function uploadListingPhotos(listingId, photos) {
       .insert({ listing_id: listingId, photo_url: path, display_order: i });
     if (rowErr) {
       console.error("Photo record insert failed:", rowErr);
+      // Do not leave an object behind when its metadata row cannot be saved.
+      const { error: cleanupErr } = await supabaseClient.storage
+        .from("listing-photos")
+        .remove([path]);
+      if (cleanupErr) console.error("Failed to roll back photo upload:", cleanupErr);
       hadFailure = true;
     }
   }
 
   return hadFailure;
+}
+
+// Remove a listing's private Storage objects before its DB row disappears or
+// becomes sold. Storage is not covered by Postgres ON DELETE CASCADE, and the
+// DELETE policy needs the owning listing row to exist while removal happens.
+async function cleanupListingPhotos(listingId) {
+  const { data: photos, error: loadErr } = await supabaseClient
+    .from("listing_photos")
+    .select("photo_url")
+    .eq("listing_id", listingId);
+  if (loadErr) {
+    console.error("Photo cleanup lookup failed:", loadErr);
+    return false;
+  }
+
+  const paths = (photos || []).map((photo) => photo.photo_url).filter(Boolean);
+  if (paths.length > 0) {
+    const { error: storageErr } = await supabaseClient.storage
+      .from("listing-photos")
+      .remove(paths);
+    if (storageErr) {
+      console.error("Photo Storage cleanup failed:", storageErr);
+      return false;
+    }
+  }
+
+  // Needed for sold listings, which remain in the DB. Delete listings cascade
+  // these rows, but doing it here makes the helper safe for both paths.
+  const { error: rowsErr } = await supabaseClient
+    .from("listing_photos")
+    .delete()
+    .eq("listing_id", listingId);
+  if (rowsErr) {
+    console.error("Photo metadata cleanup failed:", rowsErr);
+    return false;
+  }
+  return true;
 }
 
 // Load user listings
@@ -2383,14 +2425,22 @@ async function markAsSold(listingId) {
     alert("Couldn't update the listing. Please try again.");
     return;
   }
+  const photosRemoved = await cleanupListingPhotos(listingId);
   await loadUserListings();
   loadFeaturedBooks();
-  alert("Marked as sold.");
+  alert(photosRemoved
+    ? "Marked as sold."
+    : "Marked as sold, but some photo cleanup failed. Delete the listing later to retry cleanup.");
 }
 
 // Delete a listing for good.
 async function deleteListing(listingId) {
   if (!confirm("Are you sure you want to delete this listing?")) return;
+
+  if (!(await cleanupListingPhotos(listingId))) {
+    alert("Couldn't remove the listing photos, so the listing was not deleted. Please try again.");
+    return;
+  }
 
   const { error } = await supabaseClient
     .from("listings")

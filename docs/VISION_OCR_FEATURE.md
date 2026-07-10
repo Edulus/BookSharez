@@ -11,7 +11,7 @@
 
 Let a user list a book from a **photo** instead of a working barcode scan. Two entry points:
 
-- **A. Cover photo** — user takes/uploads a picture of the front cover. Vision model reads visible text (title, author). Result feeds the existing ISBNdb → Google Books lookup to fetch canonical metadata.
+- **A. Cover photo** — user takes/uploads a picture of the front cover. Vision model reads visible text (title, author). Result feeds the existing catalog lookup (Google Books by default; optional ISBNdb) to fetch canonical metadata.
 - **B. Barcode recovery** — user attempts a barcode scan; if the scan fails (`html5-qrcode` live camera or Quagga2 file path both return no result), the uploaded barcode image is sent to the vision model to recover the ISBN digits, which then routes to the existing ISBN lookup.
 
 This is a **fallback path**, not a replacement for the working barcode scanner. The scanner remains the primary, fastest route.
@@ -21,7 +21,7 @@ This is a **fallback path**, not a replacement for the working barcode scanner. 
 ## 2. Why this architecture
 
 - **Vision LLM, not a separate OCR vendor.** A multimodal model returns structured JSON in one call. No Google Cloud Vision / Tesseract / separate OCR service to add and maintain.
-- **Never trust the raw read.** The model's output is treated as a *search hint*, not final metadata. Final book data always comes from the canonical catalog (ISBNdb primary, Google Books fallback) — consistent with the existing `isbn-lookup` flow and the architecture doc's "one canonical record per ISBN" rule.
+- **Never trust the raw read.** The model's output is treated as a *search hint*, not final metadata. Final book data comes from the canonical catalog (Google Books by default, with ISBNdb as an optional enhancement) — consistent with the existing `isbn-lookup` flow and the architecture doc's "one canonical record per ISBN" rule.
 - **Same Edge Function pattern.** Mirrors the deployed `pricing` and `isbn-lookup` functions: Deno runtime, key read via `Deno.env.get()`, deployed via Supabase Dashboard editor (no CLI). No new infrastructure.
 
 ---

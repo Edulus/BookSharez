@@ -37,14 +37,25 @@ END $$;
 -- ── 2. Integrity constraints on INSERT ────────────────────────────────────────
 -- NOT VALID = enforced for new rows only; existing rows are grandfathered
 -- (run the validation queries below when convenient).
-ALTER TABLE books ADD CONSTRAINT books_title_length
-  CHECK (char_length(btrim(title)) BETWEEN 1 AND 500) NOT VALID;
-ALTER TABLE books ADD CONSTRAINT books_author_length
-  CHECK (author IS NULL OR char_length(author) <= 500) NOT VALID;
-ALTER TABLE books ADD CONSTRAINT books_isbn_format
-  CHECK (isbn IS NULL OR isbn ~ '^[0-9]{13}$' OR isbn ~ '^[0-9]{9}[0-9Xx]$') NOT VALID;
-ALTER TABLE books ADD CONSTRAINT books_cover_url_length
-  CHECK (cover_url IS NULL OR char_length(cover_url) <= 2000) NOT VALID;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = 'public.books'::regclass AND conname = 'books_title_length') THEN
+    ALTER TABLE books ADD CONSTRAINT books_title_length
+      CHECK (char_length(btrim(title)) BETWEEN 1 AND 500) NOT VALID;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = 'public.books'::regclass AND conname = 'books_author_length') THEN
+    ALTER TABLE books ADD CONSTRAINT books_author_length
+      CHECK (author IS NULL OR char_length(author) <= 500) NOT VALID;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = 'public.books'::regclass AND conname = 'books_isbn_format') THEN
+    ALTER TABLE books ADD CONSTRAINT books_isbn_format
+      CHECK (isbn IS NULL OR isbn ~ '^[0-9]{13}$' OR isbn ~ '^[0-9]{9}[0-9Xx]$') NOT VALID;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = 'public.books'::regclass AND conname = 'books_cover_url_length') THEN
+    ALTER TABLE books ADD CONSTRAINT books_cover_url_length
+      CHECK (cover_url IS NULL OR char_length(cover_url) <= 2000) NOT VALID;
+  END IF;
+END $$;
 
 -- Optional: validate existing rows too (fails if legacy data violates —
 -- fix the rows, then re-run):

@@ -189,7 +189,7 @@ collapse into the shape above.
 - [ ] Set `ISBNDB_API_KEY`, `GOOGLE_BOOKS_API_KEY` as Edge Function secrets
 - [ ] Scaffold `supabase/functions/isbn-lookup/`
 - [ ] ISBN normalize/validate helper (10/13, hyphen strip, isbn13 canonical)
-- [ ] Cache check → ISBNdb → Google Books → upsert pipeline
+- [x] Cache check → optional ISBNdb when configured → Google Books → upsert pipeline
 - [ ] In-memory rate gate (option B)
 - [ ] Wire `functions.invoke('isbn-lookup')` into the sell form in js/main.js
 - [ ] Test: cache hit, ISBNdb hit, 404 fallback, 429 fallback, total miss

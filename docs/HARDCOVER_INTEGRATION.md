@@ -135,7 +135,7 @@ Hardcover response  →  normalizeEnrichment()  →  BookSharez enrichment objec
 |---|---|---|
 | Book enrichment (ratings, tags, description) | `books` table columns (`hc_*`) | 30 days, refresh-on-miss |
 | Series info | Same | 30 days |
-| Cover / images | Prefer canonical ISBNdb/Google source; Hardcover as fallback only | n/a |
+| Cover / images | Prefer the canonical Google Books source (or ISBNdb when configured); Hardcover as fallback only | n/a |
 
 **Rule:** A book detail page must render fully from the local DB cache. Hardcover is consulted only on cache miss or stale entry, never synchronously blocking the page.
 
