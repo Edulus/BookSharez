@@ -104,8 +104,10 @@ async function run() {
   // ── FLOW 1: full enrichment payload → all five elements render ─────────────
   step('──', 'FLOW 1: open Dune book page, full enrichment payload');
   await openBookPage(page);
-  // enrichment fills in async; wait for the Hardcover link (the last thing painted)
-  await page.waitForSelector('#detailEnrichment .detail-hc-link', { timeout: 6000 }).catch(() => {});
+  // enrichment fills in async; wait for the Hardcover link — it's the last thing
+  // painted, and now lives in the affiliate buy row (renderHardcoverBuyLink),
+  // not inside #detailEnrichment.
+  await page.waitForSelector('#detailAffiliates a[data-hc-link]', { timeout: 6000 }).catch(() => {});
   await page.waitForTimeout(300);
 
   const descText = await page.locator('#detailEnrichment .detail-book-description').innerText().catch(() => '');
@@ -116,7 +118,9 @@ async function run() {
   const genrePills = await page.locator('#detailEnrichment .detail-genre-pill').evaluateAll(els => els.map(e => e.textContent.trim()));
   const seriesText = await page.locator('#detailEnrichment .detail-series').innerText().catch(() => '');
   const metaPills = await page.locator('#detailEnrichment .detail-pill').evaluateAll(els => els.map(e => e.textContent.trim()));
-  const hcLink = await page.locator('#detailEnrichment .detail-hc-link').evaluateAll(as => as.map(a => ({ text: a.textContent.trim(), href: a.href, target: a.target })));
+  // Hardcover link now sits in the affiliate buy row (alongside Amazon/AbeBooks),
+  // rendered by renderHardcoverBuyLink(slug) — not inside #detailEnrichment.
+  const hcLink = await page.locator('#detailAffiliates a[data-hc-link]').evaluateAll(as => as.map(a => ({ text: a.textContent.trim(), href: a.href, target: a.target })));
 
   step(descText.length > 100 ? '✅' : '❌', `description rendered (${descText.length} chars), starts: "${descText.slice(0, 60)}…"`);
   step(descText.includes('Read more') ? '✅' : '⚠️', `long description shows "Read more" toggle: ${descText.includes('Read more')}`);
@@ -126,8 +130,8 @@ async function run() {
   step(genrePills.length === 5 ? '✅' : '❌', `genre pills: ${genrePills.length} → ${JSON.stringify(genrePills)}`);
   step(/Book 1 in Dune/.test(seriesText) ? '✅' : '❌', `series line: "${seriesText}"`);
   step('🔍', `meta pills (pages/publisher/year/category): ${JSON.stringify(metaPills)}`);
-  step(hcLink.length === 1 && hcLink[0].href === 'https://hardcover.app/books/dune' && hcLink[0].target === '_blank' ? '✅' : '❌',
-    `Hardcover link: ${JSON.stringify(hcLink)}`);
+  step(hcLink.length === 1 && hcLink[0].href === 'https://hardcover.app/books/dune' && hcLink[0].target === '_blank' && /View on Hardcover/.test(hcLink[0].text) ? '✅' : '❌',
+    `Hardcover link (in affiliate row): ${JSON.stringify(hcLink)}`);
   await page.screenshot({ path: ss('01-enrichment-full'), fullPage: true });
   // tight crop of just the enrichment block for the report
   await page.locator('#detailEnrichment').screenshot({ path: ss('01b-enrichment-only') }).catch(() => {});
@@ -138,9 +142,9 @@ async function run() {
   await openBookPage(page);
   await page.waitForTimeout(800);
   const emptyHTML = await page.locator('#detailEnrichment').innerHTML();
-  const emptyHcLink = await page.locator('#detailEnrichment .detail-hc-link').count();
+  const emptyHcLink = await page.locator('#detailAffiliates a[data-hc-link]').count();
   step(emptyHTML.trim() === '' ? '🔍' : '⚠️', `enrichment container empty on no-match (len=${emptyHTML.trim().length})`);
-  step(emptyHcLink === 0 ? '🔍' : '❌', `no Hardcover link when slug absent: ${emptyHcLink === 0}`);
+  step(emptyHcLink === 0 ? '✅' : '❌', `no Hardcover link when enrichment misses: ${emptyHcLink === 0}`);
   await page.screenshot({ path: ss('02-graceful-degradation'), fullPage: true });
 
   if (consoleErrors.length === 0) step('🔍', 'Zero JS console errors during run');
