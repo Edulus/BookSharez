@@ -8,8 +8,8 @@ function check(label, condition) {
   if (!condition) failures++;
 }
 
-const helper = main.match(/function communityBookKey[\s\S]*?\n}\n/);
-const loader = main.match(/async function loadCommunityShelfSection[\s\S]*?\n}\n/);
+const helper = main.match(/function communityBookKey[\s\S]*?\r?\n}\r?\n/);
+const loader = main.match(/async function loadCommunityShelfSection[\s\S]*?\r?\n}\r?\n/);
 check("community identity helper exists", Boolean(helper));
 check("ISBN is normalized for identity", helper && helper[0].includes('replace(/[^0-9X]/gi'));
 check("title and author provide fallback identity", helper && helper[0].includes('`work:${title}|${author}`'));
