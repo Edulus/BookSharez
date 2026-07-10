@@ -67,6 +67,27 @@ initBookRender({
 });
 
 let coverLightboxReturnFocus = null;
+let coverLightboxScale = 1;
+
+function setCoverLightboxZoom(scale, originX = 50, originY = 50) {
+  const image = document.getElementById("coverLightboxImage");
+  coverLightboxScale = Math.min(5, Math.max(1, scale));
+  image.style.transformOrigin = `${originX}% ${originY}%`;
+  image.style.transform = `scale(${coverLightboxScale})`;
+  image.classList.toggle("is-zoomed", coverLightboxScale > 1);
+  document.getElementById("coverLightboxZoom").textContent =
+    `${Math.round(coverLightboxScale * 100)}%`;
+}
+
+function handleCoverLightboxWheel(event) {
+  event.preventDefault();
+  const image = event.currentTarget;
+  const rect = image.getBoundingClientRect();
+  const originX = ((event.clientX - rect.left) / rect.width) * 100;
+  const originY = ((event.clientY - rect.top) / rect.height) * 100;
+  const step = event.deltaY < 0 ? 0.25 : -0.25;
+  setCoverLightboxZoom(coverLightboxScale + step, originX, originY);
+}
 
 // Request the largest version exposed by common cover providers. If that URL
 // fails, the lightbox falls back to the exact cover already shown on the page.
@@ -107,6 +128,7 @@ function openCoverLightbox(src, title = "") {
     }
   };
   image.src = highResolutionCoverUrl(src);
+  setCoverLightboxZoom(1);
   lightbox.classList.add("is-open");
   lightbox.setAttribute("aria-hidden", "false");
   document.body.style.overflow = "hidden";
@@ -119,6 +141,7 @@ function closeCoverLightbox() {
   lightbox.classList.remove("is-open");
   lightbox.setAttribute("aria-hidden", "true");
   document.getElementById("coverLightboxImage").src = "";
+  setCoverLightboxZoom(1);
   document.body.style.overflow = "";
   coverLightboxReturnFocus?.focus?.();
   coverLightboxReturnFocus = null;
@@ -166,6 +189,9 @@ async function loadCommunityStats() {
 
 // Setup event listeners
 function setupEventListeners() {
+  const coverLightboxImage = document.getElementById("coverLightboxImage");
+  coverLightboxImage?.addEventListener("wheel", handleCoverLightboxWheel, { passive: false });
+  coverLightboxImage?.addEventListener("dblclick", () => setCoverLightboxZoom(1));
   document.getElementById("coverLightboxClose")?.addEventListener("click", closeCoverLightbox);
   document.getElementById("coverLightbox")?.addEventListener("click", (event) => {
     if (event.target.id === "coverLightbox") closeCoverLightbox();

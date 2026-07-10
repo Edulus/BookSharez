@@ -5,7 +5,8 @@
 - Added a full-resolution cover lightbox to book/listing detail pages. Covers
   open by click, Enter, or Space; common Google Books/Open Library URLs request
   their larger variant and fall back to the displayed image if unavailable.
-  The modal supports Escape, backdrop, and close-button dismissal.
+  The modal supports 100–500% cursor-centered mouse-wheel zoom, double-click
+  reset, and Escape/backdrop/close-button dismissal.
 - Deduplicated the homepage's “Books Our Members Want/Have” grids by normalized
   ISBN, with normalized title + author as a fallback. Multiple members—or
   duplicate legacy catalog rows—now produce one book card per work.

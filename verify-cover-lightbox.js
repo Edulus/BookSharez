@@ -21,6 +21,11 @@ check("Escape dismisses", /event\.key === "Escape"[\s\S]*?closeCoverLightbox/.te
 check("listing detail cover is interactive", /openCoverLightbox: \(\) => \{\}/.test(renderer) && /_actions\.openCoverLightbox\(book\.coverUrl, book\.title\)/.test(renderer));
 check("book detail cover is interactive", /cover\.onclick = book\.coverUrl \? \(\) => openCoverLightbox/.test(main));
 check("keyboard activation supports Enter and Space", (main.match(/event\.key === "Enter" \|\| event\.key === " "/g) || []).length >= 1 && (renderer.match(/event\.key === "Enter" \|\| event\.key === " "/g) || []).length >= 1);
+check("mouse wheel zoom is non-passive", /addEventListener\("wheel", handleCoverLightboxWheel, \{ passive: false \}\)/.test(main));
+check("zoom is clamped from 100% to 500%", /Math\.min\(5, Math\.max\(1, scale\)\)/.test(main));
+check("zoom follows cursor position", /event\.clientX - rect\.left/.test(main) && /event\.clientY - rect\.top/.test(main));
+check("double-click resets zoom", /addEventListener\("dblclick", \(\) => setCoverLightboxZoom\(1\)\)/.test(main));
+check("modal open and close reset zoom", (main.match(/setCoverLightboxZoom\(1\)/g) || []).length >= 3);
 
 if (failures) process.exit(1);
 console.log("\nAll cover lightbox checks passed.");
