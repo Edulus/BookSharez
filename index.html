@@ -460,6 +460,128 @@
       </div>
     </div>
 
+    <!-- Terms of Service -->
+    <div id="termsPage" style="display: none;">
+      <div class="container" style="padding: 2rem 0 4rem; max-width: 760px; margin: 0 auto; line-height: 1.6;">
+        <button class="btn btn-secondary btn-small" onclick="backFromLegal()">
+          <i class="fas fa-arrow-left"></i> Back
+        </button>
+        <h2 style="margin: 1.5rem 0 0.5rem;">Terms of Service</h2>
+        <p style="color: #888;">Effective Date: [PLACEHOLDER — set at launch]</p>
+
+        <h3>1. Acceptance of Terms</h3>
+        <p>By using BookSharez, you agree to these Terms of Service. If you don't agree, don't use our service.</p>
+
+        <h3>2. Eligibility</h3>
+        <ul>
+          <li>You must be 18 or older, or have parental consent.</li>
+          <li>You must provide accurate account information.</li>
+          <li>One account per person.</li>
+        </ul>
+
+        <h3>3. User Responsibilities</h3>
+        <p><strong>As a Seller, you agree to:</strong></p>
+        <ul>
+          <li>List only books you actually own.</li>
+          <li>Accurately describe book condition.</li>
+          <li>Upload truthful photos.</li>
+        </ul>
+        <p><strong>As a Buyer, you agree to:</strong></p>
+        <ul>
+          <li>Meet agreed-upon pickup terms.</li>
+          <li>Not harass sellers.</li>
+          <li>Report issues promptly.</li>
+        </ul>
+
+        <h3>4. Prohibited Conduct</h3>
+        <p>You may NOT:</p>
+        <ul>
+          <li>Post non-book items.</li>
+          <li>Use BookSharez for any illegal purpose.</li>
+          <li>Harass, threaten, or impersonate others.</li>
+          <li>Scrape or data mine our platform.</li>
+          <li>Attempt to circumvent security measures.</li>
+          <li>List pirated or photocopied copyrighted material.</li>
+        </ul>
+
+        <h3>5. Content Ownership</h3>
+        <p>You own your listings, photos, and descriptions. You grant BookSharez a license to display your content. BookSharez owns the platform and code. We may remove content that violates these terms.</p>
+
+        <h3>6. Disputes</h3>
+        <p>Disputes between users should be resolved directly. We may assist in dispute resolution but are not obligated to. We reserve the right to suspend accounts involved in disputes.</p>
+
+        <h3>7. Limitation of Liability</h3>
+        <p>BookSharez is provided "as is." We are not liable for lost, stolen, or damaged books; user conduct or disputes; technical issues or downtime; or inaccurate listings.</p>
+
+        <h3>8. Termination</h3>
+        <p>You may delete your account anytime. We may suspend or terminate accounts that violate these terms.</p>
+
+        <h3>9. Changes to Terms</h3>
+        <p>We may update these terms. Continued use of BookSharez means you accept the new terms.</p>
+
+        <h3>10. Governing Law</h3>
+        <p>These terms are governed by the laws of [PLACEHOLDER — state/country].</p>
+
+        <h3>11. Contact</h3>
+        <p>Questions? Email <a href="mailto:legal@booksharez.com">legal@booksharez.com</a> [PLACEHOLDER — confirm this inbox exists before launch].</p>
+      </div>
+    </div>
+
+    <!-- Privacy Policy -->
+    <div id="privacyPage" style="display: none;">
+      <div class="container" style="padding: 2rem 0 4rem; max-width: 760px; margin: 0 auto; line-height: 1.6;">
+        <button class="btn btn-secondary btn-small" onclick="backFromLegal()">
+          <i class="fas fa-arrow-left"></i> Back
+        </button>
+        <h2 style="margin: 1.5rem 0 0.5rem;">Privacy Policy</h2>
+        <p style="color: #888;">Effective Date: [PLACEHOLDER — set at launch]</p>
+
+        <p>BookSharez ("we," "us," "our") respects your privacy. This policy explains what information we collect and how we use it.</p>
+
+        <h3>Information We Collect</h3>
+        <ul>
+          <li><strong>Account information:</strong> email address, username, password (never stored in plain text).</li>
+          <li><strong>Listing information:</strong> books you list (title, condition, price, photos).</li>
+          <li><strong>Technical information:</strong> IP address, browser type, device information, usage data.</li>
+        </ul>
+
+        <h3>How We Use Your Information</h3>
+        <ul>
+          <li>Provide and improve our services.</li>
+          <li>Authenticate your account.</li>
+          <li>Display your listings to other users.</li>
+          <li>Send important service notifications.</li>
+          <li>Prevent fraud and abuse.</li>
+          <li>Comply with legal obligations.</li>
+        </ul>
+
+        <h3>Information Sharing</h3>
+        <p>We do NOT sell your personal information. We share data only with other users (public listings, username), with service providers (Supabase for hosting), and when required by law.</p>
+
+        <h3>Your Rights</h3>
+        <ul>
+          <li>Access your data.</li>
+          <li>Correct inaccurate data (edit your profile or listings).</li>
+          <li>Delete your account (contact support).</li>
+        </ul>
+
+        <h3>Data Security</h3>
+        <p>HTTPS encryption for all traffic. Passwords hashed with industry-standard algorithms. Row Level Security on the database restricts what other users and the app itself can read or change.</p>
+
+        <h3>Cookies</h3>
+        <p>We use essential cookies/local storage for authentication. No advertising cookies.</p>
+
+        <h3>Age Requirement</h3>
+        <p>You must be 18 or older to use BookSharez. Signup requires confirming this.</p>
+
+        <h3>Changes to This Policy</h3>
+        <p>We may update this policy. Changes will be posted on this page with a new effective date.</p>
+
+        <h3>Contact Us</h3>
+        <p>Questions? Email <a href="mailto:privacy@booksharez.com">privacy@booksharez.com</a> [PLACEHOLDER — confirm this inbox exists before launch].</p>
+      </div>
+    </div>
+
     <!-- Login Modal -->
     <div id="loginModal" class="modal">
       <div class="modal-content">
@@ -568,6 +690,10 @@
                 required
               />
             </div>
+            <label style="display:flex;align-items:center;gap:0.5rem;margin:-0.25rem 0 1rem;cursor:pointer;">
+              <input type="checkbox" id="signupAgeConfirm" name="signupAgeConfirm" required />
+              <span>I confirm I am 18 years of age or older.</span>
+            </label>
             <button type="submit" class="btn btn-primary" style="width: 100%">
               Sign Up
             </button>
@@ -903,6 +1029,11 @@
       <div class="container">
         <p>
           &copy; 2025 BookSharez Marketplace. Connecting book lovers worldwide.
+        </p>
+        <p style="margin-top: 0.5rem;">
+          <a href="#" onclick="showTerms(); return false;">Terms of Service</a>
+          &nbsp;&middot;&nbsp;
+          <a href="#" onclick="showPrivacy(); return false;">Privacy Policy</a>
         </p>
       </div>
     </footer>

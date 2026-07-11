@@ -13,6 +13,38 @@
   alert on the live site ([js/main.js:2566-2572](js/main.js#L2566-L2572)) —
   flagged as immediate gate #0, not yet fixed.
 
+### Added (July 11 — Launch-readiness quick wins: gates #0 and #6)
+
+- **Fixed the fake "Purchase successful" alert** (gate #0): `buyBook()`
+  ([js/main.js](js/main.js)) now tells the buyer to contact the seller shown
+  on the listing instead of falsely confirming a completed purchase.
+- **18+ self-declaration on signup** (part of gate #6): a required checkbox
+  (`#signupAgeConfirm`) blocks form submission until checked (native HTML5
+  validation, same pattern as the existing password fields); on success the
+  confirmation is stored in the user's Supabase auth metadata
+  (`age_confirmed_18: true`) via `signUp({ options: { data } } )` — no schema
+  change needed.
+- **Terms of Service + Privacy Policy pages live** (gate #6): new `#/terms`
+  and `#/privacy` routes ([js/router.js](js/router.js), new
+  `showTerms()`/`showPrivacy()`/`backFromLegal()` in [js/main.js](js/main.js),
+  following the existing page-toggle + hash-routing convention), linked from
+  the site footer. Content is the existing PHASE_1_OPERATIONS.md templates;
+  effective date, governing-law state, and contact emails are left as
+  clearly-marked `[PLACEHOLDER]` text pending founder input and a legal
+  review before real launch.
+- **Spec ADR updated** (gate #1 scope note): [docs/PHASE_1_MVP_SPEC.md](docs/PHASE_1_MVP_SPEC.md)
+  now records that launch scope includes payments/shipping (formerly Phase 3)
+  per the founder's launch-readiness conditions, pointing to
+  [docs/LAUNCH_READINESS.md](docs/LAUNCH_READINESS.md) for the full picture.
+- **Verified:** `verify-routing.js`, `verify-mobile.js`, and
+  `verify-security.js` all pass unchanged (no regression). An ad-hoc Playwright
+  smoke check (not a permanent harness) confirmed: the age checkbox blocks
+  signup until checked and sends the metadata on success; both legal pages
+  render, link from the footer, and deep-link correctly via their hash routes;
+  Buy Now no longer claims a completed purchase. (`verify-bookflow.js`'s Flow 4
+  failure was confirmed pre-existing on a clean tree via `git stash` — unrelated
+  to this work.)
+
 ## July 10, 2026
 
 - Public book pages now read cached Hardcover enrichment directly from the

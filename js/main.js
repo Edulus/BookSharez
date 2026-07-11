@@ -52,6 +52,8 @@ initRouter({
   book: (id) => browseBookById(id),
   profile: (id) => viewProfile(id),
   members: () => showMembers(),
+  terms: () => showTerms(),
+  privacy: () => showPrivacy(),
   dashboard: (tab) => showDashboard(tab),
 });
 
@@ -1206,6 +1208,7 @@ async function handleSignup(e) {
   const email = document.getElementById("signupEmail").value.trim();
   const password = document.getElementById("signupPassword").value;
   const confirm = document.getElementById("signupPasswordConfirm").value;
+  const ageConfirmed = document.getElementById("signupAgeConfirm").checked;
 
   if (password.length < 8) {
     showAuthMessage(
@@ -1219,8 +1222,20 @@ async function handleSignup(e) {
     showAuthMessage("signupMessage", "Passwords do not match.", "error");
     return;
   }
+  if (!ageConfirmed) {
+    showAuthMessage(
+      "signupMessage",
+      "You must confirm you are 18 or older to create an account.",
+      "error"
+    );
+    return;
+  }
 
-  const { data, error } = await supabaseClient.auth.signUp({ email, password });
+  const { data, error } = await supabaseClient.auth.signUp({
+    email,
+    password,
+    options: { data: { age_confirmed_18: true } },
+  });
 
   if (error) {
     showAuthMessage("signupMessage", mapAuthError(error), "error");
@@ -2565,10 +2580,9 @@ function backToBrowse() {
 
 function buyBook(listingId, price, title) {
   if (!isLoggedIn) { alert("Please login first to buy books"); showLogin(); return; }
-  const priceLabel = Number.isFinite(+price) ? ` for $${Number(price).toFixed(2)}` : "";
-  if (confirm(`Are you sure you want to buy "${title || "this book"}"${priceLabel}?`)) {
-    alert("Purchase successful! You will receive shipping information via email.");
-  }
+  alert(
+    `Online checkout isn't available yet. Contact the seller shown on this listing to arrange buying "${title || "this book"}" directly.`
+  );
 }
 
 // Edit a listing's price (basic; condition/description editing can follow).
@@ -3308,6 +3322,39 @@ function backFromMembers() {
   document.getElementById("homepage").style.display = "block";
 }
 
+// Static legal pages (launch gate #6). Content lives directly in index.html —
+// no data fetch, so these are the simplest possible page-show functions.
+function showTerms() {
+  setRoute("#/terms");
+  document.getElementById("homepage").style.display = "none";
+  document.getElementById("dashboard").style.display = "none";
+  document.getElementById("bookDetail").style.display = "none";
+  document.getElementById("profilePage").style.display = "none";
+  document.getElementById("membersPage").style.display = "none";
+  document.getElementById("privacyPage").style.display = "none";
+  document.getElementById("termsPage").style.display = "block";
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+function showPrivacy() {
+  setRoute("#/privacy");
+  document.getElementById("homepage").style.display = "none";
+  document.getElementById("dashboard").style.display = "none";
+  document.getElementById("bookDetail").style.display = "none";
+  document.getElementById("profilePage").style.display = "none";
+  document.getElementById("membersPage").style.display = "none";
+  document.getElementById("termsPage").style.display = "none";
+  document.getElementById("privacyPage").style.display = "block";
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+function backFromLegal() {
+  setRoute("#/");
+  document.getElementById("termsPage").style.display = "none";
+  document.getElementById("privacyPage").style.display = "none";
+  document.getElementById("homepage").style.display = "block";
+}
+
 async function toggleFollow() {
   if (!isLoggedIn) { showLogin(); return; }
   const followBtn = document.getElementById("followBtn");
@@ -3419,6 +3466,7 @@ Object.assign(window, {
   searchBooks, showMoreSearchResults, applyControls, backToBrowse,
   viewListing, browseBookById, browseBook, viewProfile, backFromProfile,
   showMembers, backFromMembers,
+  showTerms, showPrivacy, backFromLegal,
   searchByAuthor, searchByGenre, viewExternalBook,
   buyBook, submitDiscussionPost, deleteDiscussionPost, toggleFollow,
   reportDiscussionPost,

@@ -1,6 +1,6 @@
 # Launch Readiness — Gate Checklist
 
-**Date:** July 11, 2026
+**Date:** July 11, 2026 (Quick Wins 1–4 completed same day — see status table)
 **Status:** Authoritative. Supersedes the July 10 planning-session draft (root `LAUNCH_READINESS.md`, deleted).
 **Verification basis:** every condition below was checked against the actual repo and live site on July 11, 2026 — code inspection, the verify-*.js harness suite (15 harnesses), [CHANGELOG.md](../CHANGELOG.md), [ToDo.md](../ToDo.md), and [FOR_YOU_TO_DO.md](../FOR_YOU_TO_DO.md). Where a condition is marked met, the evidence is cited. Where it isn't, it is a **launch gate**.
 
@@ -14,13 +14,13 @@ Legend: ✅ met · 🟡 partially met (gate = the remaining slice) · 🔴 not s
 
 | # | Gate | Status | What remains |
 |---|------|--------|--------------|
-| 0 | Remove the fake purchase flow | 🔴 | Small code change — **do immediately, site is live** |
+| 0 | Remove the fake purchase flow | ✅ | Fixed July 11 (Quick Win 1) |
 | 1 | Transactions + fee collection | 🔴 | Full build (payment provider, checkout, fee model) |
 | 2 | Shipping with label printing | 🔴 | Full build; depends on #1 |
 | 3 | Phone barcode/cover capture | 🟡 | Real-device camera test + 1 SQL apply |
 | 4 | Auth & account security | 🟡 | 4 Supabase dashboard settings/applies + live reset test |
 | 5 | Listing flow E2E on real devices | 🟡 | One authenticated smoke session on real iOS + Android |
-| 6 | Legal & compliance live | 🔴 | Publish existing templates as pages + signup checkbox |
+| 6 | Legal & compliance live | 🟡 | Pages + 18+ checkbox shipped July 11 (Quick Wins 2–3) — placeholders need real values + a legal glance |
 | 7 | Payment failure paths | 🔴 | Design alongside #1, not after |
 | 8 | Error handling & fallbacks | ✅ | (1 SQL apply as residual, non-gating) |
 | 9 | Moderation & reporting | 🟡 | 2 SQL applies + live report test |
@@ -30,11 +30,9 @@ The cheap gates (#3, #4, #5, #9, and most of #10) are dominated by the already-s
 
 ---
 
-## 0. Immediate: remove the fake purchase flow 🔴
+## 0. Immediate: remove the fake purchase flow ✅ FIXED July 11
 
-**Not in the draft — found during this audit.** `buyBook()` ([js/main.js:2566-2572](../js/main.js#L2566-L2572)) is live on the public site today: a logged-in user who clicks **Buy Now** and confirms sees *"Purchase successful! You will receive shipping information via email."* No transaction occurs and no email is sent. The comment says "visual only," but to a real visitor it is a false claim of a completed purchase — a trust and plausibly a legal problem independent of launch timing.
-
-**Gate:** replace the alert with an honest interim behavior (e.g. "Buying isn't available yet — contact the seller" or hide the button) until #1 ships. This should not wait for launch.
+**Not in the draft — found during this audit, fixed same day.** `buyBook()` ([js/main.js:2566-2572](../js/main.js#L2566-L2572)) previously told a real visitor *"Purchase successful! You will receive shipping information via email"* on Buy Now, with no transaction and no email — a live trust problem. Replaced with an honest interim message directing the buyer to contact the seller shown on the listing, until #1 ships. Verified: no harness referenced the old string; an ad-hoc Playwright smoke check confirmed the new dialog text and that no purchase claim is made.
 
 ---
 
@@ -88,15 +86,17 @@ The cheap gates (#3, #4, #5, #9, and most of #10) are dominated by the already-s
 
 **Gate — remaining work:** the authenticated production smoke test on a **real iPhone (Safari) and a real Android (Chrome)** — the checklist is FOR_YOU_TO_DO item 8 (login → scan → shelf add → Add & List → photos → publish → report → reset). This is the same session as #3's device test; plan them together. Watch points are documented in [MOBILE_CORE_LOOP_AUDIT.md](MOBILE_CORE_LOOP_AUDIT.md) (iOS camera re-acquisition delay is the known risk).
 
-## 6. Legal & compliance live 🔴
+## 6. Legal & compliance live 🟡
 
-**Current state — verified:** no Terms of Service, Privacy Policy, or age-gate text exists anywhere on the site (searched `index.html`, `js/`, `css/`). **However, the drafting work is already done:** [PHASE_1_OPERATIONS.md](PHASE_1_OPERATIONS.md) §"Legal & Compliance" contains complete ToS and Privacy Policy templates and an 18+ self-declaration design (signup checkbox + email verification, deliberately low-friction).
+**Shipped July 11 (Quick Wins 2–3):**
+- **Terms of Service and Privacy Policy pages** are live at `#/terms` and `#/privacy` ([index.html](../index.html), new `termsPage`/`privacyPage` divs; routing wired in [js/router.js](../js/router.js) and [js/main.js](../js/main.js) `showTerms()`/`showPrivacy()`/`backFromLegal()`, following the existing page-toggle + hash-routing convention), linked from the site footer, content drawn from the existing [PHASE_1_OPERATIONS.md](PHASE_1_OPERATIONS.md) templates.
+- **18+ self-declaration checkbox** added to signup ([index.html](../index.html) `#signupAgeConfirm`, `required`), blocks submission (native HTML5 validation, same pattern as the existing password fields) until checked; on success the confirmation is stored in the user's Supabase auth metadata (`age_confirmed_18: true`) via `signUp({ options: { data } } )` in `handleSignup()` ([js/main.js](../js/main.js)) — no schema change needed.
+- Verified: `node verify-routing.js`, `verify-mobile.js`, and `verify-security.js` all still pass unchanged (no regression); an ad-hoc Playwright smoke check confirmed the checkbox blocks signup when unchecked, the metadata is sent, and both legal pages render, link from the footer, and deep-link correctly.
 
-**Gate — remaining work** (smaller than the draft implied):
-1. Publish the two templates as site pages (or modals) with footer links; fill in effective date, governing law, and contact email.
-2. Add the "I confirm I am 18 or older" checkbox to signup.
-3. Set up the contact email addresses the templates reference.
-4. **Sequencing:** must be live before #1 collects money or #2 collects addresses — and the Privacy Policy must be revised at that point (payment data, addresses, and the payment processor as a data recipient).
+**Gate — remaining work (narrow):**
+1. **Placeholders need real values** — both pages carry clearly-marked `[PLACEHOLDER]` text for effective date, governing-law state, and the `legal@`/`privacy@` contact inboxes (confirm those inboxes actually exist before launch).
+2. **A human legal glance is advisable** before real launch — these are the pre-existing operations-doc templates, not a vetted contract.
+3. **Sequencing:** must be revised before #1 collects money or #2 collects addresses — the Privacy Policy needs a new section for payment data, addresses, and the payment processor as a data recipient.
 
 ## 7. Payment failure paths 🔴
 
@@ -139,56 +139,49 @@ Verified in code — this gate is already satisfied:
 ## Sequencing
 
 **Track A — close the cheap gates now** (mostly dashboard work already scripted in [FOR_YOU_TO_DO.md](../FOR_YOU_TO_DO.md)):
-1. Fix the fake Buy Now (#0) — immediately, independent of everything.
+1. ~~Fix the fake Buy Now (#0)~~ — done July 11.
 2. Apply the pending SQL batch in the documented order (FOR_YOU_TO_DO 1–6) → closes the gates in #3, #4, #8-residual, #9.
 3. Supabase settings: auth URLs, email confirmation, leaked-password protection, Pro + backups (#4, #10).
-4. Publish legal pages + 18+ checkbox (#6).
+4. ~~Publish legal pages + 18+ checkbox (#6)~~ — done July 11; remaining: fill in the placeholders (date/governing law/contact emails) and a legal glance.
 5. One real-device session: iPhone Safari + Android Chrome, capture loop + full listing flow (#3, #5).
 
 Completing Track A makes the product launch-ready **as a local-pickup marketplace** — every gate except the payments cluster.
 
 **Track B — the payments cluster** (the heavy lift; sequence deliberately):
-1. #6 must be live first (it's in Track A).
+1. #6 must be live first (it's in Track A — pages are live; finish the placeholders before money/addresses are collected).
 2. #1 transactions, with #7's failure paths designed into the transaction model from day one — provider choice, fee model, order state machine including refund/dispute/fell-through states.
 3. #2 shipping + labels, which needs #1's paid orders and addresses; revise the Privacy Policy for the new data.
-4. Update [PHASE_1_MVP_SPEC.md](PHASE_1_MVP_SPEC.md)'s ADR to record that launch scope now includes payments/shipping (formerly Phase 3).
+4. ~~Update PHASE_1_MVP_SPEC.md's ADR~~ — done July 11: a "Launch Scope Note" now records that launch scope includes payments/shipping (formerly Phase 3) and points back to this doc.
 
 ---
 
-## Quick Wins — what Claude (Opus 4.8) can do now, in code/docs
+## Quick Wins — completed July 11, 2026
 
-The subset of remaining gate work that is code or documentation Claude can do
-directly and fast — no Supabase dashboard access, no real devices, no spending
-decisions, no large builds. Ordered by value-to-effort.
+The subset of remaining gate work that was code/documentation only — no
+Supabase dashboard access, no real devices, no spending decisions. All four
+done same day; see gates #0 and #6 above for the current state and residual
+placeholders.
 
-1. **Fix the fake "Purchase successful" alert (#0)** — *~5 min, no dependencies.*
-   Replace the misleading alert in `buyBook()` ([js/main.js:2566-2572](../js/main.js#L2566-L2572))
-   with an honest interim ("Buying isn't live yet — contact the seller to
-   arrange") or hide Buy Now until #1 ships. Highest value-to-effort: it's a
-   live-site trust problem, not a launch-timing one.
+1. ✅ **Fixed the fake "Purchase successful" alert (#0).** `buyBook()` now tells
+   the buyer to contact the seller directly instead of falsely confirming a
+   purchase.
+2. ✅ **Added the 18+ confirmation checkbox to signup (part of #6).** Required,
+   blocks submission until checked; the confirmation is stored in Supabase auth
+   user metadata on signup.
+3. ✅ **Published Terms of Service + Privacy Policy pages (#6).** Live at
+   `#/terms` / `#/privacy`, linked from the footer, content from the existing
+   PHASE_1_OPERATIONS.md templates. Effective date, governing-law state, and
+   contact-email placeholders are still marked `[PLACEHOLDER]` — need real
+   values from the founder, plus a legal glance, before real launch.
+4. ✅ **Recorded the payments-in-launch decision in the spec ADR (#1).**
+   [PHASE_1_MVP_SPEC.md](PHASE_1_MVP_SPEC.md) now has a dated "Launch Scope
+   Note" so the docs no longer contradict each other about payments/shipping.
 
-2. **Add the 18+ confirmation checkbox to signup (part of #6)** — *~15 min.*
-   Required checkbox on the signup form, block submit if unchecked, store the
-   self-declaration. The checkbox itself needs no input from you; it's the
-   low-friction age gate the ops doc already specifies.
-
-3. **Publish Terms of Service + Privacy Policy pages (#6)** — *~1 session.*
-   The full templates already exist in [PHASE_1_OPERATIONS.md](PHASE_1_OPERATIONS.md);
-   the work is wiring them as pages/modals with footer links and hash routes,
-   not drafting. **Needs from you:** effective date, governing-law state, and the
-   contact emails (privacy@/legal@/support@) — Claude leaves clearly-marked
-   placeholders. A human legal glance before real launch is advisable; these are
-   templates, not vetted contracts.
-
-4. **Record the payments-in-launch decision in the spec ADR (#1)** — *~10 min.*
-   Update [PHASE_1_MVP_SPEC.md](PHASE_1_MVP_SPEC.md)'s ADR so the docs stop
-   contradicting each other about whether launch includes payments/shipping.
-
-**Not quick wins** (out of Claude's reach or genuinely large): every Supabase
-SQL apply + dashboard setting (your access — FOR_YOU_TO_DO 1–7), the Pro upgrade
-and daily backups (your billing — #10), real-device camera/listing testing
-(physical phones — #3, #5), and the payments/shipping/failure-path builds (#1,
-#2, #7 — large, and gated on provider/fee decisions).
+**Still not quick wins** (out of code/docs reach): every Supabase SQL apply +
+dashboard setting (FOR_YOU_TO_DO 1–7), the Pro upgrade and daily backups
+(billing — #10), real-device camera/listing testing (physical phones — #3,
+#5), and the payments/shipping/failure-path builds (#1, #2, #7 — large, and
+gated on provider/fee decisions).
 
 ---
 
