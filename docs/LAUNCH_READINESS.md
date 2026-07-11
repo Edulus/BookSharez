@@ -155,6 +155,43 @@ Completing Track A makes the product launch-ready **as a local-pickup marketplac
 
 ---
 
+## Quick Wins — what Claude (Opus 4.8) can do now, in code/docs
+
+The subset of remaining gate work that is code or documentation Claude can do
+directly and fast — no Supabase dashboard access, no real devices, no spending
+decisions, no large builds. Ordered by value-to-effort.
+
+1. **Fix the fake "Purchase successful" alert (#0)** — *~5 min, no dependencies.*
+   Replace the misleading alert in `buyBook()` ([js/main.js:2566-2572](../js/main.js#L2566-L2572))
+   with an honest interim ("Buying isn't live yet — contact the seller to
+   arrange") or hide Buy Now until #1 ships. Highest value-to-effort: it's a
+   live-site trust problem, not a launch-timing one.
+
+2. **Add the 18+ confirmation checkbox to signup (part of #6)** — *~15 min.*
+   Required checkbox on the signup form, block submit if unchecked, store the
+   self-declaration. The checkbox itself needs no input from you; it's the
+   low-friction age gate the ops doc already specifies.
+
+3. **Publish Terms of Service + Privacy Policy pages (#6)** — *~1 session.*
+   The full templates already exist in [PHASE_1_OPERATIONS.md](PHASE_1_OPERATIONS.md);
+   the work is wiring them as pages/modals with footer links and hash routes,
+   not drafting. **Needs from you:** effective date, governing-law state, and the
+   contact emails (privacy@/legal@/support@) — Claude leaves clearly-marked
+   placeholders. A human legal glance before real launch is advisable; these are
+   templates, not vetted contracts.
+
+4. **Record the payments-in-launch decision in the spec ADR (#1)** — *~10 min.*
+   Update [PHASE_1_MVP_SPEC.md](PHASE_1_MVP_SPEC.md)'s ADR so the docs stop
+   contradicting each other about whether launch includes payments/shipping.
+
+**Not quick wins** (out of Claude's reach or genuinely large): every Supabase
+SQL apply + dashboard setting (your access — FOR_YOU_TO_DO 1–7), the Pro upgrade
+and daily backups (your billing — #10), real-device camera/listing testing
+(physical phones — #3, #5), and the payments/shipping/failure-path builds (#1,
+#2, #7 — large, and gated on provider/fee decisions).
+
+---
+
 ## Changes from the July 10 draft
 
 - **Added #0** (fake purchase alert) — found during verification; urgent because the site is already live.
