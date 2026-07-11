@@ -1,5 +1,18 @@
 # Changelog
 
+## July 11, 2026
+
+- Added [docs/LAUNCH_READINESS.md](docs/LAUNCH_READINESS.md) — the authoritative
+  launch-gate checklist, produced by verifying a July 10 planning-session draft
+  against the actual repo and live site (code inspection, the 15-harness verify
+  suite, ToDo/FOR_YOU_TO_DO state). Error-handling fallbacks confirmed already
+  met; phone capture, auth, moderation, and infrastructure narrowed to specific
+  scripted dashboard/SQL/device-test gates; legal and the payments cluster
+  (transactions, failure paths, shipping) confirmed as the remaining builds.
+  **Audit finding:** the visual-only Buy Now shows a fake "Purchase successful"
+  alert on the live site ([js/main.js:2566-2572](js/main.js#L2566-L2572)) —
+  flagged as immediate gate #0, not yet fixed.
+
 ## July 10, 2026
 
 - Public book pages now read cached Hardcover enrichment directly from the

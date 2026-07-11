@@ -13,6 +13,11 @@
 > condition system, ISBN-lookup design) plus the persistence trio (browse, sell,
 > My Shelf) are all done — see the changelog. What's left is below.
 
+> **Launch gates:** the authoritative launch-readiness checklist is
+> [docs/LAUNCH_READINESS.md](docs/LAUNCH_READINESS.md) (July 11) — repo-verified
+> status per gate, remaining work, and sequencing. The pending Supabase steps
+> below close most of the cheap gates.
+
 ---
 
 ## ⏳ PENDING SUPABASE STEPS (apply when DB access is available)
