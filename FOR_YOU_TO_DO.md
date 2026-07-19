@@ -1,6 +1,6 @@
 # For You To Do
 
-**Updated:** July 10, 2026
+**Updated:** July 19, 2026
 **Derived from:** [ToDo.md](ToDo.md), the master backlog and status record
 
 This file contains only active tasks that require the user's service-dashboard
@@ -8,6 +8,25 @@ access, a spending decision, or hands-on authenticated verification. Code work
 and completed tasks belong in `ToDo.md` and `CHANGELOG.md`, not here. When an
 item is completed, report the result so it can be recorded in the master files
 and removed from this checklist.
+
+## ⚠️ Do FIRST — the Supabase project is paused (July 19)
+
+The project was auto-paused on July 19 despite the keep-alive workflow running
+green every 3 days (HTTP 200 pings on July 13 and 16, inside the 7-day
+inactivity window) — Supabase's pause detection did not count the pings as
+activity. Diagnosis is in CHANGELOG.md (July 19); the accepted fix is the Pro
+upgrade, which never auto-pauses. **Every "Do now" item below is blocked until
+the project is restored.**
+
+- [ ] Supabase Dashboard → project `kkmxdemnbuyuxnrezxmn` → **Restore project**
+      (manual button; restore can take a few minutes).
+- [ ] **Upgrade the project to Supabase Pro** (Settings → Billing). This is the
+      accepted permanent fix and was already the pre-launch plan
+      (LAUNCH_READINESS gate #10).
+- [ ] **Enable daily backups** (comes with Pro) — the sharpest infra gap in the
+      launch checklist.
+- [ ] Tell Claude when Pro is live, so `.github/workflows/keep-alive.yml` can
+      be deleted (it's obsolete on Pro and already proven insufficient on Free).
 
 ## Do now
 
@@ -87,8 +106,8 @@ partial or completed application.
 
 ## Pre-launch
 
-- [ ] Upgrade Supabase to Pro. Afterward, ask Codex to remove
-      `.github/workflows/keep-alive.yml`.
+> The Pro upgrade, daily backups, and keep-alive removal moved to the
+> "Do FIRST" section above (July 19 pause incident).
+
 - [ ] Enable email confirmation and leaked-password protection in Supabase.
-- [ ] Enable daily backups.
 - [ ] Review the Supabase authentication email templates.

@@ -24,7 +24,7 @@ Legend: ✅ met · 🟡 partially met (gate = the remaining slice) · 🔴 not s
 | 7 | Payment failure paths | 🔴 | Design alongside #1, not after |
 | 8 | Error handling & fallbacks | ✅ | (1 SQL apply as residual, non-gating) |
 | 9 | Moderation & reporting | 🟡 | 2 SQL applies + live report test |
-| 10 | Production infrastructure | 🟡 | Supabase Pro upgrade + daily backups |
+| 10 | Production infrastructure | 🟡 | **URGENT July 19: project paused** — restore + Pro upgrade + daily backups |
 
 The cheap gates (#3, #4, #5, #9, and most of #10) are dominated by the already-scripted **pending Supabase applies and dashboard settings** in [FOR_YOU_TO_DO.md](../FOR_YOU_TO_DO.md). The expensive gates (#1, #2, #7) are one interdependent payments cluster, plus #6 which must precede it.
 
@@ -128,11 +128,13 @@ Verified in code — this gate is already satisfied:
 **Met and verified:**
 - **Secrets:** all billing-exposed keys (Google Books, DeepSeek, Hardcover, Gemini, optional ISBNdb) live only in Supabase Edge Function secrets; client files carry only `SUPABASE_URL` + the RLS-protected publishable key. Enforced by a pre-commit hook (blocks `AIzaSy…`/`sk-…`/service-role patterns) and gitleaks on every push ([.github/workflows/secret-scan.yml](../.github/workflows/secret-scan.yml)).
 - **HTTPS:** enforced by GitHub Pages on the production domain.
-- **Auto-pause:** mitigated today by the keep-alive workflow ([.github/workflows/keep-alive.yml](../.github/workflows/keep-alive.yml), pings every 3 days).
 
-**Gate — remaining work:**
-1. **Upgrade Supabase to Pro** (FOR_YOU_TO_DO "Pre-launch") — the durable fix for auto-pause; then delete the keep-alive workflow.
-2. **Enable daily database backups** — the Free plan has none; this is the sharpest infrastructure gap. Comes with Pro.
+**⚠️ Auto-pause mitigation FAILED — July 19 update:** the project **was paused on July 19** despite the keep-alive workflow ([.github/workflows/keep-alive.yml](../.github/workflows/keep-alive.yml)) running green every 3 days — its 200-status REST `SELECT`s on July 13 and 16 landed inside the 7-day inactivity window and Supabase's pause detection did not count them as activity. Diagnosis confirmed the workflow itself was correct (on `main`, scheduled runs fired, current key, real DB query, status-checked); the failure is in what Supabase counts as activity. Full report in [CHANGELOG.md](../CHANGELOG.md) (July 19). **Decision (founder-accepted, July 19): upgrade to Pro now rather than at launch.**
+
+**Gate — remaining work** (now urgent, in FOR_YOU_TO_DO "Do FIRST"):
+1. **Restore the paused project** (manual dashboard step) — everything else, including the pending SQL applies, is blocked until this happens.
+2. **Upgrade Supabase to Pro** — Pro never auto-pauses; then delete the keep-alive workflow (obsolete, and proven insufficient on Free).
+3. **Enable daily database backups** — comes with Pro; the sharpest infrastructure gap.
 
 ---
 

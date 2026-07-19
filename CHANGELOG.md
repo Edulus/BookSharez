@@ -1,5 +1,36 @@
 # Changelog
 
+## July 19, 2026
+
+### Diagnosed (Supabase auto-pause despite keep-alive — root cause + accepted fix)
+
+- **Incident:** the Supabase project (`kkmxdemnbuyuxnrezxmn`) was auto-paused on
+  July 19 after warning emails on July 3 and 18, despite the keep-alive
+  workflow (ToDo 12) being live since July 3.
+- **Diagnosis (verified against the repo and GitHub Actions, not assumed):**
+  every repo-side failure hypothesis was ruled out with evidence —
+  [.github/workflows/keep-alive.yml](.github/workflows/keep-alive.yml) was
+  committed to `main` July 3 (`69acc7b`); scheduled runs fired every 3 days
+  without a gap (July 4, 7, 10, 13, 16 all green, per `gh run list`); the July
+  16 run log shows `HTTP status: 200` from a real anon-key
+  `GET /rest/v1/books?select=id&limit=1`; the workflow status-checks the
+  response and fails loudly on non-2xx; secrets exist and target the right
+  project (the July 19 run died with curl exit 6 — DNS unresolvable — the
+  signature of the *paused* project); the 60-day auto-disable never applied
+  (self-re-enable step logged success on every run, workflow state `active`).
+- **Root cause:** successful 200-status REST reads on July 13 and 16 — inside
+  the 7-day inactivity window — did not register as activity in Supabase's
+  pause detection. A bare anon one-row `SELECT` every 3 days is not counted;
+  whether trivial reads are discounted generally or synthetic keep-alive
+  traffic specifically cannot be determined from repo evidence. Nothing on the
+  repo side malfunctioned.
+- **Accepted fix (founder decision, July 19): upgrade to Supabase Pro now**
+  (never auto-pauses; also brings the daily-backups launch gate #10) instead
+  of hardening the ping into a write-based heartbeat. User steps recorded in
+  FOR_YOU_TO_DO ("Do FIRST"): restore the paused project → upgrade to Pro →
+  enable daily backups → then the keep-alive workflow gets deleted as
+  originally planned (obsolete on Pro, proven insufficient on Free).
+
 ## July 11, 2026
 
 - Added [docs/LAUNCH_READINESS.md](docs/LAUNCH_READINESS.md) — the authoritative
