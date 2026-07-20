@@ -10,6 +10,8 @@
 //   #/book/<bookId>         unified book page
 //   #/profile/<userId>      public profile
 //   #/members               member directory
+//   #/terms                 Terms of Service
+//   #/privacy               Privacy Policy
 //   #/dashboard[/<tab>]     dashboard (login required)
 //
 // main.js wires the page functions in via initRouter(pages) — the router
@@ -71,6 +73,8 @@ function _applyRoute() {
   else if (page === "book" && arg) _pages.book(arg);
   else if (page === "profile" && arg) _pages.profile(arg);
   else if (page === "members") _pages.members();
+  else if (page === "terms") _pages.terms();
+  else if (page === "privacy") _pages.privacy();
   else if (page === "dashboard") _pages.dashboard(arg);
   else _pages.home(); // "", "#/" and anything unrecognized
 }

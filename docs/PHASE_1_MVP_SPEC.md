@@ -19,6 +19,18 @@ this spec is the slice of that product shipping in Phase 1.
 > Function (Deno) examples to match — Next.js/TypeScript samples are no longer the
 > reference.
 
+> ### Launch Scope Note (July 11, 2026)
+> **Payments and shipping are now founder-required launch conditions,
+> overriding this spec's "NOT included" line below for the *launch* gate
+> specifically.** See [LAUNCH_READINESS.md](LAUNCH_READINESS.md) conditions
+> #1–#2: the founder has decided BookSharez does not launch publicly without
+> in-app transaction/fee collection and shipping label printing, pulling that
+> work forward from Phase 3. This spec's Phase 1 *feature* scope (schema,
+> condition system, capture loop, browse/search) is otherwise unchanged and
+> remains what ships first; payments/shipping are tracked as their own
+> build (LAUNCH_READINESS.md Track B) rather than folded into this document's
+> phase breakdown.
+
 > ### Core UX Principle (July 7, 2026)
 > Phase 1 is built **phone-first around the capture loop** (see
 > [PRODUCT_VISION "The Core Loop"](BOOKSHAREZ_PRODUCT_VISION.md)): camera

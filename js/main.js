@@ -52,6 +52,8 @@ initRouter({
   book: (id) => browseBookById(id),
   profile: (id) => viewProfile(id),
   members: () => showMembers(),
+  terms: () => showTerms(),
+  privacy: () => showPrivacy(),
   dashboard: (tab) => showDashboard(tab),
 });
 
@@ -770,17 +772,65 @@ function renderBookOffers(offers) {
 // (_renderFull via viewListing, and _renderBookPage). Section styles live in
 // css/style.css; the data source is the book-enrichment Edge Function.
 
+function enrichmentPayloadFromBookRow(row) {
+  if (!row?.hc_enriched_at) return null;
+  return {
+    enriched: true,
+    source: "public-cache",
+    description: row.description ?? null,
+    rating: row.hc_rating ?? null,
+    ratingCount: row.hc_rating_count ?? null,
+    usersRead: row.hc_users_read ?? null,
+    genres: Array.isArray(row.hc_genres) ? row.hc_genres : null,
+    seriesName: row.hc_series_name ?? null,
+    seriesPosition: row.hc_series_pos ?? null,
+    category: row.hc_book_category ?? null,
+    slug: row.hc_slug ?? null,
+    pageCount: row.page_count ?? null,
+    publisher: row.publisher ?? null,
+    publishDate: row.publish_date ?? null,
+    enrichedAt: row.hc_enriched_at,
+  };
+}
+
+async function fetchPublicCachedEnrichment(isbn) {
+  const { data, error } = await supabaseClient
+    .from("books")
+    .select(
+      "description, page_count, publisher, publish_date, hc_rating, " +
+      "hc_rating_count, hc_users_read, hc_genres, hc_series_name, " +
+      "hc_series_pos, hc_slug, hc_book_category, hc_enriched_at"
+    )
+    .eq("isbn", isbn)
+    .maybeSingle();
+  if (error) {
+    console.error("Public enrichment cache read failed:", error);
+    return null;
+  }
+  return enrichmentPayloadFromBookRow(data);
+}
+
 async function fetchBookEnrichment(isbn, title, author) {
   if (!isbn) return null;
+  const cached = await fetchPublicCachedEnrichment(isbn);
+  const cacheAge = cached?.enrichedAt
+    ? Date.now() - new Date(cached.enrichedAt).getTime()
+    : Infinity;
+  if (cached && cacheAge < 30 * 24 * 60 * 60 * 1000) return cached;
+
+  // Anonymous visitors may read cached enrichment but cannot spend Hardcover
+  // API quota. Only authenticated sessions may refresh stale/missing cache.
+  const { data: { session } } = await supabaseClient.auth.getSession();
+  if (!session) return cached;
   try {
     const resp = await supabaseClient.functions.invoke("book-enrichment", {
       body: { isbn, title, author },
     });
-    if (resp.error || !resp.data?.enriched) return null;
+    if (resp.error || !resp.data?.enriched) return cached;
     return resp.data;
   } catch (e) {
     console.error("Enrichment fetch failed:", e);
-    return null;
+    return cached;
   }
 }
 
@@ -1048,7 +1098,13 @@ function showHomePage() { showBuyBooks(); }
 function showLogin() {
   closeModal("signupModal");
   clearAuthMessage("loginMessage");
+  const rememberedEmail = localStorage.getItem("booksharez:login-email");
+  const emailInput = document.getElementById("email");
+  const rememberInput = document.getElementById("rememberLoginEmail");
+  if (rememberedEmail) emailInput.value = rememberedEmail;
+  rememberInput.checked = Boolean(rememberedEmail) || rememberInput.checked;
   document.getElementById("loginModal").style.display = "block";
+  (rememberedEmail ? document.getElementById("password") : emailInput).focus();
 }
 
 // Show signup modal
@@ -1135,6 +1191,12 @@ async function handleLogin(e) {
     return;
   }
 
+  if (document.getElementById("rememberLoginEmail").checked) {
+    localStorage.setItem("booksharez:login-email", email);
+  } else {
+    localStorage.removeItem("booksharez:login-email");
+  }
+
   // onAuthStateChange updates the UI; just close the modal and reset the form.
   closeModal("loginModal");
   e.target.reset();
@@ -1146,6 +1208,7 @@ async function handleSignup(e) {
   const email = document.getElementById("signupEmail").value.trim();
   const password = document.getElementById("signupPassword").value;
   const confirm = document.getElementById("signupPasswordConfirm").value;
+  const ageConfirmed = document.getElementById("signupAgeConfirm").checked;
 
   if (password.length < 8) {
     showAuthMessage(
@@ -1159,8 +1222,20 @@ async function handleSignup(e) {
     showAuthMessage("signupMessage", "Passwords do not match.", "error");
     return;
   }
+  if (!ageConfirmed) {
+    showAuthMessage(
+      "signupMessage",
+      "You must confirm you are 18 or older to create an account.",
+      "error"
+    );
+    return;
+  }
 
-  const { data, error } = await supabaseClient.auth.signUp({ email, password });
+  const { data, error } = await supabaseClient.auth.signUp({
+    email,
+    password,
+    options: { data: { age_confirmed_18: true } },
+  });
 
   if (error) {
     showAuthMessage("signupMessage", mapAuthError(error), "error");
@@ -2505,10 +2580,9 @@ function backToBrowse() {
 
 function buyBook(listingId, price, title) {
   if (!isLoggedIn) { alert("Please login first to buy books"); showLogin(); return; }
-  const priceLabel = Number.isFinite(+price) ? ` for $${Number(price).toFixed(2)}` : "";
-  if (confirm(`Are you sure you want to buy "${title || "this book"}"${priceLabel}?`)) {
-    alert("Purchase successful! You will receive shipping information via email.");
-  }
+  alert(
+    `Online checkout isn't available yet. Contact the seller shown on this listing to arrange buying "${title || "this book"}" directly.`
+  );
 }
 
 // Edit a listing's price (basic; condition/description editing can follow).
@@ -3248,6 +3322,39 @@ function backFromMembers() {
   document.getElementById("homepage").style.display = "block";
 }
 
+// Static legal pages (launch gate #6). Content lives directly in index.html —
+// no data fetch, so these are the simplest possible page-show functions.
+function showTerms() {
+  setRoute("#/terms");
+  document.getElementById("homepage").style.display = "none";
+  document.getElementById("dashboard").style.display = "none";
+  document.getElementById("bookDetail").style.display = "none";
+  document.getElementById("profilePage").style.display = "none";
+  document.getElementById("membersPage").style.display = "none";
+  document.getElementById("privacyPage").style.display = "none";
+  document.getElementById("termsPage").style.display = "block";
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+function showPrivacy() {
+  setRoute("#/privacy");
+  document.getElementById("homepage").style.display = "none";
+  document.getElementById("dashboard").style.display = "none";
+  document.getElementById("bookDetail").style.display = "none";
+  document.getElementById("profilePage").style.display = "none";
+  document.getElementById("membersPage").style.display = "none";
+  document.getElementById("termsPage").style.display = "none";
+  document.getElementById("privacyPage").style.display = "block";
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+function backFromLegal() {
+  setRoute("#/");
+  document.getElementById("termsPage").style.display = "none";
+  document.getElementById("privacyPage").style.display = "none";
+  document.getElementById("homepage").style.display = "block";
+}
+
 async function toggleFollow() {
   if (!isLoggedIn) { showLogin(); return; }
   const followBtn = document.getElementById("followBtn");
@@ -3359,6 +3466,7 @@ Object.assign(window, {
   searchBooks, showMoreSearchResults, applyControls, backToBrowse,
   viewListing, browseBookById, browseBook, viewProfile, backFromProfile,
   showMembers, backFromMembers,
+  showTerms, showPrivacy, backFromLegal,
   searchByAuthor, searchByGenre, viewExternalBook,
   buyBook, submitDiscussionPost, deleteDiscussionPost, toggleFollow,
   reportDiscussionPost,

@@ -13,6 +13,11 @@
 > condition system, ISBN-lookup design) plus the persistence trio (browse, sell,
 > My Shelf) are all done — see the changelog. What's left is below.
 
+> **Launch gates:** the authoritative launch-readiness checklist is
+> [docs/LAUNCH_READINESS.md](docs/LAUNCH_READINESS.md) (July 11) — repo-verified
+> status per gate, remaining work, and sequencing. The pending Supabase steps
+> below close most of the cheap gates.
+
 ---
 
 ## ⏳ PENDING SUPABASE STEPS (apply when DB access is available)
@@ -38,7 +43,7 @@ cleanup → seed cleanup. The pending scripts are safe to rerun.
 - [ ] **14. Apply [db/books_isbn_nullable.sql](db/books_isbn_nullable.sql)** — one `ALTER TABLE`: lets catalog books have a NULL isbn, so pre-ISBN era books (surfaced by the scanner's cover path) can be shelved and listed. Until applied, adding a no-ISBN book shows the generic "Couldn't save book" alert; everything else is unaffected. Manual test at the bottom of the SQL file.
 - [ ] **13. Apply [db/notifications.sql](db/notifications.sql)** — creates the `notifications` table (generic rail: RLS owner read/update/delete, no client insert) + the `notify_want_match` trigger on `listings`. Required for the header bell + want-match notifications to work; until applied, the bell shows no badge and the panel says notifications are unavailable (graceful degradation). Manual test steps are at the bottom of the SQL file.
 - [ ] **18. Apply [db/listing_photo_cleanup.sql](db/listing_photo_cleanup.sql)** — lets listing owners delete their photo metadata and private Storage objects. Required for the completed client cleanup path to remove photos on mark-sold/delete and roll back uploads whose metadata insert fails.
-- [x] **12. Supabase keep-alive workflow** — [.github/workflows/keep-alive.yml](.github/workflows/keep-alive.yml) pings the REST API every 3 days so the Free Plan never auto-pauses; self-re-enables its schedule each run (no 60-day chore). Secrets set, deployed, verified HTTP 200. *(Done July 3 — see CHANGELOG.)* **Follow-up (pre-launch):** upgrade to Supabase Pro and delete this workflow.
+- [x] **12. Supabase keep-alive workflow** — [.github/workflows/keep-alive.yml](.github/workflows/keep-alive.yml) pings the REST API every 3 days; self-re-enables its schedule each run. Secrets set, deployed, verified HTTP 200. *(Done July 3.)* **⚠️ Proven insufficient July 19:** the project paused anyway despite green 200-status pings on July 13 and 16, inside the 7-day window — Supabase's pause detection doesn't count these reads as activity (full diagnosis in CHANGELOG July 19). **Accepted fix: upgrade to Pro now** (FOR_YOU_TO_DO "Do FIRST"), then delete this workflow.
 
 **Status:** the `pricing` function is live — tested successfully against a real book lookup. "Suggest price" now calls DeepSeek for real, with the local fallback algorithm kicking in automatically only if the Edge Function fails.
 

@@ -1,7 +1,88 @@
 # Changelog
 
+## July 19, 2026
+
+### Diagnosed (Supabase auto-pause despite keep-alive — root cause + accepted fix)
+
+- **Incident:** the Supabase project (`kkmxdemnbuyuxnrezxmn`) was auto-paused on
+  July 19 after warning emails on July 3 and 18, despite the keep-alive
+  workflow (ToDo 12) being live since July 3.
+- **Diagnosis (verified against the repo and GitHub Actions, not assumed):**
+  every repo-side failure hypothesis was ruled out with evidence —
+  [.github/workflows/keep-alive.yml](.github/workflows/keep-alive.yml) was
+  committed to `main` July 3 (`69acc7b`); scheduled runs fired every 3 days
+  without a gap (July 4, 7, 10, 13, 16 all green, per `gh run list`); the July
+  16 run log shows `HTTP status: 200` from a real anon-key
+  `GET /rest/v1/books?select=id&limit=1`; the workflow status-checks the
+  response and fails loudly on non-2xx; secrets exist and target the right
+  project (the July 19 run died with curl exit 6 — DNS unresolvable — the
+  signature of the *paused* project); the 60-day auto-disable never applied
+  (self-re-enable step logged success on every run, workflow state `active`).
+- **Root cause:** successful 200-status REST reads on July 13 and 16 — inside
+  the 7-day inactivity window — did not register as activity in Supabase's
+  pause detection. A bare anon one-row `SELECT` every 3 days is not counted;
+  whether trivial reads are discounted generally or synthetic keep-alive
+  traffic specifically cannot be determined from repo evidence. Nothing on the
+  repo side malfunctioned.
+- **Accepted fix (founder decision, July 19): upgrade to Supabase Pro now**
+  (never auto-pauses; also brings the daily-backups launch gate #10) instead
+  of hardening the ping into a write-based heartbeat. User steps recorded in
+  FOR_YOU_TO_DO ("Do FIRST"): restore the paused project → upgrade to Pro →
+  enable daily backups → then the keep-alive workflow gets deleted as
+  originally planned (obsolete on Pro, proven insufficient on Free).
+
+## July 11, 2026
+
+- Added [docs/LAUNCH_READINESS.md](docs/LAUNCH_READINESS.md) — the authoritative
+  launch-gate checklist, produced by verifying a July 10 planning-session draft
+  against the actual repo and live site (code inspection, the 15-harness verify
+  suite, ToDo/FOR_YOU_TO_DO state). Error-handling fallbacks confirmed already
+  met; phone capture, auth, moderation, and infrastructure narrowed to specific
+  scripted dashboard/SQL/device-test gates; legal and the payments cluster
+  (transactions, failure paths, shipping) confirmed as the remaining builds.
+  **Audit finding:** the visual-only Buy Now shows a fake "Purchase successful"
+  alert on the live site ([js/main.js:2566-2572](js/main.js#L2566-L2572)) —
+  flagged as immediate gate #0, not yet fixed.
+
+### Added (July 11 — Launch-readiness quick wins: gates #0 and #6)
+
+- **Fixed the fake "Purchase successful" alert** (gate #0): `buyBook()`
+  ([js/main.js](js/main.js)) now tells the buyer to contact the seller shown
+  on the listing instead of falsely confirming a completed purchase.
+- **18+ self-declaration on signup** (part of gate #6): a required checkbox
+  (`#signupAgeConfirm`) blocks form submission until checked (native HTML5
+  validation, same pattern as the existing password fields); on success the
+  confirmation is stored in the user's Supabase auth metadata
+  (`age_confirmed_18: true`) via `signUp({ options: { data } } )` — no schema
+  change needed.
+- **Terms of Service + Privacy Policy pages live** (gate #6): new `#/terms`
+  and `#/privacy` routes ([js/router.js](js/router.js), new
+  `showTerms()`/`showPrivacy()`/`backFromLegal()` in [js/main.js](js/main.js),
+  following the existing page-toggle + hash-routing convention), linked from
+  the site footer. Content is the existing PHASE_1_OPERATIONS.md templates;
+  effective date, governing-law state, and contact emails are left as
+  clearly-marked `[PLACEHOLDER]` text pending founder input and a legal
+  review before real launch.
+- **Spec ADR updated** (gate #1 scope note): [docs/PHASE_1_MVP_SPEC.md](docs/PHASE_1_MVP_SPEC.md)
+  now records that launch scope includes payments/shipping (formerly Phase 3)
+  per the founder's launch-readiness conditions, pointing to
+  [docs/LAUNCH_READINESS.md](docs/LAUNCH_READINESS.md) for the full picture.
+- **Verified:** `verify-routing.js`, `verify-mobile.js`, and
+  `verify-security.js` all pass unchanged (no regression). An ad-hoc Playwright
+  smoke check (not a permanent harness) confirmed: the age checkbox blocks
+  signup until checked and sends the metadata on success; both legal pages
+  render, link from the footer, and deep-link correctly via their hash routes;
+  Buy Now no longer claims a completed purchase. (`verify-bookflow.js`'s Flow 4
+  failure was confirmed pre-existing on a clean tree via `git stash` — unrelated
+  to this work.)
+
 ## July 10, 2026
 
+- Public book pages now read cached Hardcover enrichment directly from the
+  public `books` catalog, so logged-out visitors see descriptions, ratings,
+  genres, series, and the Hardcover link without spending external API quota.
+  Authenticated sessions alone refresh stale or missing cache. Login now uses
+  password-manager autocomplete hints and can remember only the email locally.
 - Enforced the Book-object interaction invariant across tile and thumbnail
   renderings: every book now opens its canonical book page by click, Enter, or
   Space with visible focus and link semantics. Profile shelves now select the
