@@ -1,5 +1,13 @@
 # Changelog
 
+## July 20, 2026
+
+- **Reworked the Supabase Free-Plan keep-alive after the July 19 auto-pause.** The previous workflow was not a health/root ping: it made a genuine authenticated `GET /rest/v1/books?select=id&limit=1` every 3 days. Because the project paused anyway, the earlier explanation that no query reached Postgres was incorrect or incomplete. Supabase describes the requirement as “sufficient” user database activity but does not document its threshold or how reads and writes are weighted.
+- Added and applied [db/keepalive_ping.sql](db/keepalive_ping.sql): a dedicated `keepalive_ping` table with `id`, `pinged_at`, RLS granting the anon workflow key only `INSERT`/`SELECT`, and a security-definer trigger that removes rows older than seven days without granting client DELETE access.
+- Replaced the read-only ping in [.github/workflows/keep-alive.yml](.github/workflows/keep-alive.yml) with a daily 09:17 UTC `INSERT` through `/rest/v1/keepalive_ping`, followed by a `SELECT` of the exact returned row. `workflow_dispatch` remains available, and the job still re-enables its schedule to avoid GitHub's 60-day scheduled-workflow timeout.
+- **Verified database activity:** the manual run returned HTTP 201 for the insert and HTTP 200 for the read-back; an independent REST query confirmed row `id=1`, `pinged_at=2026-07-20T21:36:56.963409+00:00`. The clean one-commit/two-file change landed on `main` through PR #7 (`50f8584`).
+- **Status: implemented but unproven.** A successful write proves Postgres activity, not that Supabase's auto-pauser will count it as sufficient. The project must remain active beyond the next seven-day window before this can be considered effective. Daily backups remain a separate Pro-only gap; the upgrade is deferred pre-revenue. The Hardcover.app complement/organic-traffic idea is parked for later.
+
 ## July 10, 2026
 
 - Enforced the Book-object interaction invariant across tile and thumbnail
@@ -190,7 +198,7 @@ _Phase 1 backend foundation + documentation. Work to date: 2026-06-14 – 2026-0
 
 ### Added (July 3 — Supabase keep-alive automation)
 
-- **Supabase Free-Plan auto-pause prevention** — GitHub Actions workflow [.github/workflows/keep-alive.yml](.github/workflows/keep-alive.yml) pings the Supabase REST API (`GET /rest/v1/books?select=id&limit=1`, anon key, RLS enforced) every 3 days, resetting the 7-day inactivity pause timer. Prompted by a pause-warning email (July 3). Fully zero-maintenance: each run also calls the GitHub API to re-enable its own schedule, defeating GitHub's 60-day scheduled-workflow deactivation; GitHub emails on run failure. Repo secrets `SUPABASE_URL` / `SUPABASE_ANON_KEY` set (both public-safe values). **Deployed and verified July 3** — manual dispatch run returned HTTP 200. Delete the workflow when the project moves to Supabase Pro (the pre-launch plan of record).
+- **Original Supabase Free-Plan auto-pause experiment** — GitHub Actions workflow [.github/workflows/keep-alive.yml](.github/workflows/keep-alive.yml) queried the Supabase REST data API (`GET /rest/v1/books?select=id&limit=1`, anon key, RLS enforced) every 3 days. Prompted by a pause-warning email (July 3), each run also called the GitHub API to re-enable its own schedule and avoid GitHub's 60-day scheduled-workflow deactivation. Repo secrets `SUPABASE_URL` / `SUPABASE_ANON_KEY` were set, and manual dispatch returned HTTP 200. **Later result:** the project still auto-paused on July 19. The query was real, but it was not sufficient to prevent pausing; this entry is superseded by the daily write-based experiment recorded above on July 20.
 
 ### Added (June 21 — Unified book page + browse-flow polish)
 

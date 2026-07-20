@@ -1,7 +1,7 @@
 # BookSharez ToDo
 **Created:** June 12, 2026
 **Source:** PROJECT_REVIEW_2026-06-12.md
-**Last updated:** July 10, 2026
+**Last updated:** July 20, 2026
 
 > **This is the master backlog and status record.** `FOR_YOU_TO_DO.md` is a
 > derived view containing only active tasks that require user-only access,
@@ -38,7 +38,9 @@ cleanup → seed cleanup. The pending scripts are safe to rerun.
 - [ ] **14. Apply [db/books_isbn_nullable.sql](db/books_isbn_nullable.sql)** — one `ALTER TABLE`: lets catalog books have a NULL isbn, so pre-ISBN era books (surfaced by the scanner's cover path) can be shelved and listed. Until applied, adding a no-ISBN book shows the generic "Couldn't save book" alert; everything else is unaffected. Manual test at the bottom of the SQL file.
 - [ ] **13. Apply [db/notifications.sql](db/notifications.sql)** — creates the `notifications` table (generic rail: RLS owner read/update/delete, no client insert) + the `notify_want_match` trigger on `listings`. Required for the header bell + want-match notifications to work; until applied, the bell shows no badge and the panel says notifications are unavailable (graceful degradation). Manual test steps are at the bottom of the SQL file.
 - [ ] **18. Apply [db/listing_photo_cleanup.sql](db/listing_photo_cleanup.sql)** — lets listing owners delete their photo metadata and private Storage objects. Required for the completed client cleanup path to remove photos on mark-sold/delete and roll back uploads whose metadata insert fails.
-- [x] **12. Supabase keep-alive workflow** — [.github/workflows/keep-alive.yml](.github/workflows/keep-alive.yml) pings the REST API every 3 days so the Free Plan never auto-pauses; self-re-enables its schedule each run (no 60-day chore). Secrets set, deployed, verified HTTP 200. *(Done July 3 — see CHANGELOG.)* **Follow-up (pre-launch):** upgrade to Supabase Pro and delete this workflow.
+- [x] **12. Supabase keep-alive workflow** — the original authenticated `GET /rest/v1/books?select=id&limit=1` every 3 days did **not** prevent the July 19 auto-pause, so a successful HTTP response is no longer treated as proof that Supabase counted enough activity. Reworked July 20: [db/keepalive_ping.sql](db/keepalive_ping.sql) creates an isolated RLS-protected marker table with seven-day cleanup, and [.github/workflows/keep-alive.yml](.github/workflows/keep-alive.yml) now performs a real `INSERT` plus exact-row `SELECT` every day at 09:17 UTC. The SQL is applied, the workflow is merged to `main`, and manual dispatch proved persistence (`INSERT` 201, `SELECT` 200, row `id=1`). The job still self-re-enables its schedule. **This is implemented, not yet proven as an auto-pause fix.**
+  - [ ] **Evaluation window:** confirm the project remains active for at least seven days after the July 20 rollout. Supabase's threshold for “sufficient” activity is undocumented; iterate if the project pauses again.
+  - [ ] **Daily backups:** still unavailable on the Free Plan and still the sharpest infrastructure gap. A Pro upgrade is deferred while the project is pre-revenue; the keep-alive does not solve backup coverage.
 
 **Status:** the `pricing` function is live — tested successfully against a real book lookup. "Suggest price" now calls DeepSeek for real, with the local fallback algorithm kicking in automatically only if the Edge Function fails.
 
@@ -79,6 +81,10 @@ live too (quick filter/sort behavior not yet explicitly retested).
 ## 📌 Doc loose end
 
 - [ ] **PROJECT_FILES_INDEX.md** — still labels the dev folder a "Next.js project," but that file lives in the Claude project, **not this repo** — patch it there.
+
+## 🅿️ PARKED
+
+- [ ] **Hardcover complement / organic acquisition** — revisit the idea of using a complementary Hardcover.app experience to attract organic reader traffic. Real user activity is the durable long-term answer to inactivity, but this work is intentionally deferred.
 
 ## 🚧 QUEUED — BLOCKED
 
