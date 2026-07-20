@@ -1,9 +1,14 @@
 # Supabase Free Plan keep-alive.
 #
-# Free projects are auto-paused after ~7 days without activity. This workflow
-# pings the Supabase REST API every 3 days so the inactivity timer never fires.
-# See docs/ (Supabase Auto-Pause Prevention brief, July 2026). Remove this
-# workflow once the project is on the Pro plan.
+# Free projects are auto-paused after insufficient user database activity.
+# The previous workflow made an authenticated SELECT from `books` every 3 days,
+# but the project still paused; Supabase does not document its activity threshold.
+# This workflow therefore tests a stronger signal: it inserts a row through the
+# REST data API daily, then reads that exact row back as proof that
+# Postgres persisted it. A successful run proves database activity, not that the
+# auto-pauser will count it; remaining unpaused beyond the next 7-day window is
+# the real verification, and frequency may need to increase if it pauses again.
+# Prerequisite: apply db/keepalive_ping.sql in the Supabase SQL Editor.
 #
 # Required repo secrets (Settings -> Secrets and variables -> Actions):
 #   SUPABASE_URL       e.g. https://xxxx.supabase.co
@@ -13,9 +18,9 @@ name: Supabase keep-alive
 
 on:
   schedule:
-    # Every 3 days at 09:17 UTC. Day-of-month stepping resets at month
-    # boundaries, so the gap is sometimes shorter than 3 days — never longer.
-    - cron: "17 9 */3 * *"
+    # Daily at 09:17 UTC. The higher frequency is deliberate because Supabase's
+    # threshold for "sufficient" user database activity is undocumented.
+    - cron: "17 9 * * *"
   workflow_dispatch: {}
 
 permissions:
@@ -33,24 +38,70 @@ jobs:
             "repos/${{ github.repository }}/actions/workflows/keep-alive.yml/enable" \
             && echo "Schedule re-enabled (timeout reset)" \
             || echo "::warning::Could not re-enable workflow schedule"
-      - name: Ping Supabase REST API
+      - name: Insert and verify database keep-alive row
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
         run: |
+          set -euo pipefail
+
           if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_ANON_KEY" ]; then
             echo "::error::SUPABASE_URL / SUPABASE_ANON_KEY repo secrets are not set"
             exit 1
           fi
-          status=$(curl -s -o /tmp/body.txt -w "%{http_code}" \
+
+          insert_body=$(mktemp)
+          verify_body=$(mktemp)
+          trap 'rm -f "$insert_body" "$verify_body"' EXIT
+
+          endpoint="${SUPABASE_URL%/}/rest/v1/keepalive_ping"
+          status=$(curl -sS -o "$insert_body" -w "%{http_code}" \
+            --max-time 30 --retry 3 --retry-delay 10 \
+            -X POST \
+            -H "apikey: $SUPABASE_ANON_KEY" \
+            -H "Authorization: Bearer $SUPABASE_ANON_KEY" \
+            -H "Content-Type: application/json" \
+            -H "Prefer: return=representation" \
+            --data '{}' \
+            "$endpoint")
+          echo "INSERT HTTP status: $status"
+          if [ "$status" -lt 200 ] || [ "$status" -ge 300 ]; then
+            echo "::error::Keep-alive INSERT failed with HTTP $status"
+            cat "$insert_body"
+            exit 1
+          fi
+
+          row_id=$(jq -er \
+            'if type == "array" and length == 1 then .[0].id else empty end' \
+            "$insert_body") || {
+              echo "::error::INSERT did not return exactly one keepalive row"
+              cat "$insert_body"
+              exit 1
+            }
+          pinged_at=$(jq -er '.[0].pinged_at' "$insert_body")
+
+          verify_status=$(curl -sS -o "$verify_body" -w "%{http_code}" \
             --max-time 30 --retry 3 --retry-delay 10 \
             -H "apikey: $SUPABASE_ANON_KEY" \
             -H "Authorization: Bearer $SUPABASE_ANON_KEY" \
-            "$SUPABASE_URL/rest/v1/books?select=id&limit=1")
-          echo "HTTP status: $status"
-          if [ "$status" -lt 200 ] || [ "$status" -ge 300 ]; then
-            echo "::error::Keep-alive ping failed with HTTP $status"
-            cat /tmp/body.txt
+            "$endpoint?select=id,pinged_at&id=eq.$row_id")
+          echo "SELECT HTTP status: $verify_status"
+          if [ "$verify_status" -lt 200 ] || [ "$verify_status" -ge 300 ]; then
+            echo "::error::Keep-alive verification SELECT failed with HTTP $verify_status"
+            cat "$verify_body"
             exit 1
           fi
-          echo "Supabase keep-alive ping OK"
+
+          verified_id=$(jq -er \
+            'if type == "array" and length == 1 then .[0].id else empty end' \
+            "$verify_body") || {
+              echo "::error::Inserted keepalive row was not found in Postgres"
+              cat "$verify_body"
+              exit 1
+            }
+          if [ "$verified_id" != "$row_id" ]; then
+            echo "::error::Verification returned row $verified_id instead of $row_id"
+            exit 1
+          fi
+
+          echo "Database keep-alive verified: id=$row_id pinged_at=$pinged_at"
