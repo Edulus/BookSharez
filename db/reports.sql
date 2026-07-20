@@ -10,7 +10,7 @@
 
 CREATE TABLE IF NOT EXISTS reports (
   id           UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  reporter_id  UUID REFERENCES auth.users(id) ON DELETE SET NULL NOT NULL,
+  reporter_id  UUID REFERENCES auth.users(id) ON DELETE SET NULL,
   subject_type TEXT NOT NULL CHECK (subject_type IN ('listing', 'profile', 'discussion_post')),
   subject_id   UUID NOT NULL,             -- id of the reported row (no FK: polymorphic, and the subject may be deleted)
   reason       TEXT NOT NULL CHECK (reason IN ('spam', 'inappropriate', 'misleading', 'harassment', 'other')),
@@ -18,7 +18,10 @@ CREATE TABLE IF NOT EXISTS reports (
   snapshot     JSONB NOT NULL DEFAULT '{}'::jsonb, -- what the reporter saw (title/username/text excerpt…)
   status       TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'resolved', 'dismissed')),
   created_at   TIMESTAMP DEFAULT NOW(),
-  -- one report per user per subject — repeat taps say "already reported"
+  -- One report per active user per subject — repeat taps say "already
+  -- reported". After account deletion reporter_id becomes NULL; PostgreSQL
+  -- treats NULLs as distinct, which is intentional because the user can no
+  -- longer file another report while the anonymized moderation record remains.
   UNIQUE (reporter_id, subject_type, subject_id)
 );
 
