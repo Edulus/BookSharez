@@ -1,9 +1,12 @@
 // Supabase Edge Function: vision-extract
 //
 // Extracts book metadata from a user-uploaded image using Google Gemini vision.
-// Two modes:
+// Three modes:
 //   "cover"   — reads title/author/isbn hint from a book cover photo
 //   "barcode" — recovers ISBN digits from a photo where the barcode scanner failed
+//   "shelf"   — identifies MANY books from one shelf/stack photo, returning an
+//               array of {title, author, confidence} hints (see
+//               docs/SHELF_PHOTO_CAPTURE.md). Capped server-side to SHELF_MAX_BOOKS.
 //
 // The function returns a hint only. The client is responsible for routing the
 // hint to the existing isbn-lookup / Google Books catalog flow — consistent with
@@ -28,8 +31,9 @@ const GEMINI_ENDPOINT =
   `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
 
 const ALLOWED_MIME_TYPES = ["image/jpeg", "image/png", "image/webp"];
-const ALLOWED_MODES = ["cover", "barcode"];
+const ALLOWED_MODES = ["cover", "barcode", "shelf"];
 const MAX_IMAGE_BYTES = 20 * 1024 * 1024; // 20 MB decoded
+const SHELF_MAX_BOOKS = 30; // cap the shelf array to bound the client's catalog fan-out
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -49,6 +53,8 @@ const PROMPTS: Record<string, string> = {
     'Read this book cover. Return ONLY JSON: {"title":string|null,"author":string|null,"isbn":string|null,"confidence":"high"|"medium"|"low"}. No prose, no markdown.',
   barcode:
     'Read the numeric ISBN/EAN-13 printed under the barcode in this image. Return ONLY JSON: {"isbn":string|null,"confidence":"high"|"medium"|"low"}. Digits only in isbn. No prose, no markdown.',
+  shelf:
+    'List every distinct book you can identify from its spine or front cover in this image. Return ONLY JSON: {"books":[{"title":string,"author":string|null,"confidence":"high"|"medium"|"low"}]}. Skip any book you cannot read confidently rather than guessing. No prose, no markdown.',
 };
 
 Deno.serve(async (req) => {
@@ -175,6 +181,29 @@ Deno.serve(async (req) => {
         },
         502
       );
+    }
+
+    // Shelf mode returns an array — normalize defensively (models sometimes
+    // return a bare array, or omit the wrapper) and cap the fan-out.
+    if (mode === "shelf") {
+      const rawBooks = Array.isArray(parsed)
+        ? parsed
+        : Array.isArray((parsed as { books?: unknown }).books)
+        ? (parsed as { books: unknown[] }).books
+        : [];
+      const books = rawBooks
+        .filter((b): b is Record<string, unknown> => !!b && typeof b === "object")
+        .map((b) => ({
+          title: typeof b.title === "string" ? b.title : null,
+          author: typeof b.author === "string" ? b.author : null,
+          confidence:
+            b.confidence === "high" || b.confidence === "medium" || b.confidence === "low"
+              ? b.confidence
+              : "low",
+        }))
+        .filter((b) => b.title) // a book with no readable title is not a hint
+        .slice(0, SHELF_MAX_BOOKS);
+      return jsonResponse({ ok: true, mode, data: { books } });
     }
 
     return jsonResponse({ ok: true, mode, data: parsed });
