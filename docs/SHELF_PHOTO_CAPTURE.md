@@ -158,16 +158,15 @@ unchanged.**
 
 ---
 
-## 8. Decisions to confirm (defaults proposed)
+## 8. Decisions (locked July 25, 2026)
 
-1. **Scope of "shelf" mode** — spines only, or also a stack/fan of covers?
-   *Default: one mode, prompt covers both; Gemini handles either.*
-2. **Pre-check policy** — which rows start checked?
-   *Default: high + medium confidence pre-checked; low unchecked; no-match unchecked.*
-3. **Cap per photo** — *default 30.*
-4. **Entry point** — distinct prominent "Scan a Shelf" button vs. tucked beside
-   "Read Book Cover". *Default: distinct button, since it's a different mental
-   model (many vs. one).*
+1. **Scope of "shelf" mode** — **one mode covering both spines and a stack/fan of
+   covers**; the prompt handles either and Gemini decides. No separate modes.
+2. **Pre-check policy** — **high + medium confidence rows start checked**; low-
+   confidence and no-match rows start unchecked.
+3. **Cap per photo** — **30 books**, enforced server-side in `vision-extract`.
+4. **Entry point** — **a distinct, prominent "Scan a Shelf" button**, separate
+   from "Read Book Cover" (many-vs-one is a different mental model).
 
 ---
 
