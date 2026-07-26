@@ -71,6 +71,7 @@ function loopMetricsSummary() {
   const listingsCreated = m.listingsCreated || 0;
   const activeMs = (m.activeMs || 0) + (_scannerOpenedAt !== null ? Date.now() - _scannerOpenedAt : 0);
   const minutes = activeMs / 60000;
+  const shelfPhotos = m.shelfPhotos || 0;
   return {
     captures,
     addsHave: m.addsHave || 0,
@@ -78,14 +79,17 @@ function loopMetricsSummary() {
     addAndList: m.addAndList || 0,
     duplicates: m.duplicates || 0,
     listingsCreated,
+    shelfPhotos,
     activeMs,
     capturesPerMinute: minutes > 0 ? Number((captures / minutes).toFixed(2)) : 0,
     listingRate: captures > 0 ? Number((listingsCreated / captures).toFixed(3)) : 0,
+    booksPerShelfPhoto: shelfPhotos > 0 ? Number((captures / shelfPhotos).toFixed(1)) : 0,
   };
 }
 
 let _scannerTarget = null;   // 'shelf' | 'sell' | 'dashboard'
 let _scannedBookData = null;
+let _shelfRows = [];         // multi-book shelf-photo review rows (batch capture)
 let _lastScanFile = null;    // File kept for AI barcode retry after Quagga/BarcodeDetector fails
 let _lastCaptureLive = false; // true when the current capture came from live camera (batch mode restarts it)
 let _addedMsgTimer = null;
@@ -175,6 +179,7 @@ function startLiveCamera() {
 function _showScannerState(state) {
   document.getElementById("scannerStateScanning").style.display = state === "scanning" ? "" : "none";
   document.getElementById("scannerStateFound").style.display   = state === "found"    ? "block" : "none";
+  document.getElementById("scannerStateShelfReview").style.display = state === "shelfReview" ? "block" : "none";
 }
 
 async function _startLiveScanner() {
@@ -374,16 +379,22 @@ async function _fetchBookByISBN(isbn) {
   return null;
 }
 
-// Shared core: put the currently scanned book on a shelf. Returns
+// Shared core: put a *specific* book on a shelf. Returns
 // { book, bookId, entryId, isDuplicate } on success (duplicates count as
 // success and resolve to the *existing* entry id, so Add & List can link the
-// listing to it), or null on failure (after alerting).
-async function _addScannedToShelf(shelfType) {
-  if (!_scannedBookData) return null;
+// listing to it), or null on failure (after alerting). Both single-capture
+// (via _addScannedToShelf) and batch shelf-photo capture route through here,
+// so the append-only books invariant and the no-ISBN insert path live in one
+// place. `book` shape: { id?, isbn?, title, author, cover_url }.
+async function _addBookToShelf(book, shelfType, opts = {}) {
+  if (!book) return null;
+  // Batch shelf capture passes { silent:true } so one bad row doesn't fire a
+  // dialog per book; it aggregates failures into a single summary toast. The
+  // single-capture path passes nothing → alerts exactly as before.
+  const alertErr = (m) => { if (!opts.silent) alert(m); };
   const { data: { user } } = await supabaseClient.auth.getUser();
-  if (!user) { alert("Please log in first."); return null; }
+  if (!user) { alertErr("Please log in first."); return null; }
 
-  const book = _scannedBookData;
   let bookId = book.id;
 
   if (!bookId && book.isbn) {
@@ -401,7 +412,7 @@ async function _addScannedToShelf(shelfType) {
       });
     } catch (e) {
       console.error("Couldn't ensure catalog book:", e);
-      alert("Couldn't save book. Please try again.");
+      alertErr("Couldn't save book. Please try again.");
       return null;
     }
   } else if (!bookId) {
@@ -434,7 +445,7 @@ async function _addScannedToShelf(shelfType) {
 
   const isDuplicate = !!(shelfError && shelfError.code === "23505");
   if (shelfError && !isDuplicate) {
-    alert("Couldn't add to shelf. Please try again.");
+    alertErr("Couldn't add to shelf. Please try again.");
     return null;
   }
 
@@ -451,6 +462,12 @@ async function _addScannedToShelf(shelfType) {
   }
 
   return { book, bookId, entryId, isDuplicate };
+}
+
+// Thin wrapper for the single-capture paths: operates on the currently
+// scanned book. Batch shelf capture calls _addBookToShelf directly per row.
+async function _addScannedToShelf(shelfType) {
+  return _addBookToShelf(_scannedBookData, shelfType);
 }
 
 async function addScannedBook(shelfType) {
@@ -508,12 +525,14 @@ async function scannerReset() {
   await _stopLiveScanner();
   _scannedBookData = null;
   _lastScanFile = null;
+  _shelfRows = [];
   _showScannerState("scanning");
   _resetCameraView();
   document.getElementById("scannerAddedMsg").style.display = "none";
   document.getElementById("scannerPhotoInput").value = "";
   document.getElementById("scannerGalleryInput").value = "";
   document.getElementById("scannerCoverInput").value = "";
+  document.getElementById("scannerShelfInput").value = "";
   document.getElementById("scannerVisionFallback").style.display = "none";
   document.getElementById("scannerCoverResults").style.display = "none";
 }
@@ -529,10 +548,12 @@ async function closeBarcodeScanner() {
   document.getElementById("scannerPhotoInput").value = "";
   document.getElementById("scannerGalleryInput").value = "";
   document.getElementById("scannerCoverInput").value = "";
+  document.getElementById("scannerShelfInput").value = "";
   document.getElementById("scannerVisionFallback").style.display = "none";
   document.getElementById("scannerCoverResults").style.display = "none";
   _scannedBookData = null;
   _lastScanFile = null;
+  _shelfRows = [];
 }
 
 async function scanFromPhoto(input) {
@@ -750,6 +771,207 @@ async function scanCoverPhoto(input) {
   }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Multi-book shelf-photo capture (docs/SHELF_PHOTO_CAPTURE.md)
+// One photo → many book hints (vision-extract "shelf" mode) → resolve each to a
+// catalog candidate → a single batch REVIEW screen (deselect, don't confirm
+// each) → bulk add to a shelf. The batch-level confirm keeps the cover-path
+// invariant: nothing is added the user didn't leave checked.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Called by the "Scan a Shelf" file input. Reads many books from one photo and
+// hands off to the review screen. Never silently adds anything.
+async function scanShelfPhoto(input) {
+  const file = input.files[0];
+  if (!file) return;
+  _lastCaptureLive = false;
+
+  const statusEl = document.getElementById("scannerStatus");
+  statusEl.style.display = "";
+  statusEl.textContent = "Reading shelf…";
+  document.getElementById("scannerVisionFallback").style.display = "none";
+  document.getElementById("scannerCoverResults").style.display = "none";
+  await _stopLiveScanner();
+
+  try {
+    const { base64, mimeType } = await _compressAndEncode(file);
+    const result = await _callVisionExtract(base64, mimeType, "shelf");
+    const books = (result && Array.isArray(result.books)) ? result.books : [];
+
+    if (!books.length) {
+      statusEl.textContent =
+        "Couldn't identify books in this photo — try better lighting or fewer books per shot, or scan them individually.";
+      return;
+    }
+
+    statusEl.textContent = "Matching " + books.length + " book" + (books.length === 1 ? "" : "s") + "…";
+    const rows = await _resolveShelfCandidates(books);
+    _bumpLoopMetric("shelfPhotos"); // metric: one shelf shot (books count on add)
+    statusEl.style.display = "none";
+    statusEl.textContent = "";
+    _renderShelfReview(rows);
+  } catch (e) {
+    console.error("Shelf scan failed:", e);
+    statusEl.textContent = e.message || "Couldn't read the shelf. Try again or scan books individually.";
+  } finally {
+    input.value = "";
+  }
+}
+
+// Resolve each detected {title, author, confidence} to a catalog candidate via
+// searchBooksAPI, with bounded concurrency so a 30-book shelf doesn't fan out
+// into 30 simultaneous requests. Dedupes rows that resolve to the same book.
+async function _resolveShelfCandidates(books) {
+  const CONCURRENCY = 4;
+  const rows = new Array(books.length);
+  let next = 0;
+
+  async function worker() {
+    while (next < books.length) {
+      const i = next++;
+      const b = books[i];
+      const query = [b.title, b.author].filter(Boolean).join(" ");
+      let match = null;
+      try {
+        // requireIsbn:false — pre-ISBN / old editions are normal shelf finds.
+        const results = await searchBooksAPI(query, { requireIsbn: false });
+        if (results && results.length) match = results[0];
+      } catch (e) { /* no match — the row stays unmatched */ }
+      const highOrMed = b.confidence === "high" || b.confidence === "medium";
+      rows[i] = {
+        detected: b,
+        match,
+        status: match ? "matched" : "unmatched",
+        // Pre-check policy (§8): a catalog match AND high/medium confidence.
+        checked: !!match && highOrMed,
+      };
+    }
+  }
+
+  const n = Math.min(CONCURRENCY, books.length);
+  await Promise.all(Array.from({ length: n }, worker));
+
+  // Dedup: two spines can read to the same book (or the same title twice).
+  const seen = new Set();
+  const deduped = [];
+  for (const r of rows) {
+    const m = r.match;
+    const key = m
+      ? (m.isbn ? "i:" + m.isbn
+         : "t:" + (m.title || "").toLowerCase() + "|" + (m.author || "").toLowerCase())
+      : "d:" + (r.detected.title || "").toLowerCase() + "|" + (r.detected.author || "").toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    deduped.push(r);
+  }
+  return deduped;
+}
+
+// Build the review checklist. DOM-constructed (not innerHTML) so titles with
+// quotes/brackets can't break markup — same rule as the shelf/profile cards.
+function _renderShelfReview(rows) {
+  _shelfRows = rows;
+  const list = document.getElementById("scannerShelfList");
+  const matched = rows.filter(r => r.status === "matched").length;
+  document.getElementById("scannerShelfHint").textContent =
+    "Found " + matched + " of " + rows.length + " — uncheck any that are wrong, then add:";
+  list.innerHTML = "";
+
+  rows.forEach((r, i) => {
+    const m = r.match || {};
+    const title = (r.match ? (m.title || r.detected.title) : r.detected.title) || "Unknown title";
+    const author = r.match ? (m.author || "") : (r.detected.author || "");
+    const cover = (r.match && m.cover) || FALLBACK_COVER;
+
+    const rowEl = document.createElement("label");
+    rowEl.className = "scanner-shelf-row" + (r.status === "unmatched" ? " scanner-shelf-row-unmatched" : "");
+
+    const cb = document.createElement("input");
+    cb.type = "checkbox";
+    cb.className = "scanner-shelf-check";
+    cb.checked = r.checked;
+    cb.disabled = r.status === "unmatched";
+    cb.addEventListener("change", () => { _shelfRows[i].checked = cb.checked; _updateShelfAddBtn(); });
+
+    const img = document.createElement("img");
+    img.className = "scanner-shelf-cover";
+    img.src = cover;
+    img.alt = "";
+
+    const info = document.createElement("div");
+    info.className = "scanner-shelf-info";
+    const t = document.createElement("div");
+    t.className = "scanner-shelf-title";
+    t.textContent = title;
+    const a = document.createElement("div");
+    a.className = "scanner-shelf-author";
+    a.textContent = r.status === "unmatched"
+      ? "No catalog match — scan this one individually"
+      : (author ? "by " + author : "");
+    info.appendChild(t);
+    info.appendChild(a);
+
+    rowEl.appendChild(cb);
+    rowEl.appendChild(img);
+    rowEl.appendChild(info);
+    list.appendChild(rowEl);
+  });
+
+  _updateShelfAddBtn();
+  _showScannerState("shelfReview");
+}
+
+function _updateShelfAddBtn() {
+  const n = _shelfRows.filter(r => r.checked).length;
+  const btn = document.getElementById("scannerShelfAddBtn");
+  if (!btn) return;
+  btn.textContent = n > 0 ? "Add " + n + " to Books I Have" : "Select books to add";
+  btn.disabled = n === 0;
+}
+
+// Bulk-add the checked rows in one pass. Aggregates duplicates and failures
+// into a single summary toast (no per-row dialogs — _addBookToShelf runs silent
+// here). Each newly-added book counts as one capture.
+async function addSelectedShelfBooks(shelfType = "have") {
+  const selected = _shelfRows.filter(r => r.checked && r.match);
+  if (!selected.length) return;
+
+  const btn = document.getElementById("scannerShelfAddBtn");
+  if (btn) { btn.disabled = true; btn.textContent = "Adding…"; }
+
+  let added = 0, dupes = 0, failed = 0;
+  for (const r of selected) {
+    const m = r.match;
+    const book = {
+      isbn: m.isbn || null,
+      title: m.title || r.detected.title,
+      author: m.author || r.detected.author || "",
+      cover_url: m.cover || "",
+    };
+    const res = await _addBookToShelf(book, shelfType, { silent: true });
+    if (!res) { failed++; continue; }
+    _bumpLoopMetric(shelfType === "have" ? "addsHave" : "addsWant"); // metric: intent
+    if (res.isDuplicate) {
+      dupes++;
+      _bumpLoopMetric("duplicates");
+    } else {
+      added++;
+      _bumpLoopMetric("captures"); // metric: a book reached a confirmed, added state
+      _bumpCaptureCount();
+    }
+  }
+
+  if (shelfType === "have") deps.loadShelfHave(); else deps.loadShelfWant();
+
+  const shelfLabel = shelfType === "have" ? "Books I Have" : "Books I Want";
+  let msg = `<i class="fas fa-check-circle"></i> Added ${added} book${added === 1 ? "" : "s"} to ${shelfLabel}.`;
+  if (dupes) msg += ` ${dupes} already on your shelf.`;
+  if (failed) msg += ` ${failed} couldn’t be saved.`;
+
+  await scannerReset();
+  _flashAddedMessage(msg);
+}
+
 // ── Add & List completion (crosses the module boundary) ─────────────────────
 // _pendingLoopListing is set when Add & List is tapped; the sell flow in
 // main.js reports how it ended. Submitted successfully → count the listing;
@@ -768,6 +990,7 @@ export function loopListingCancelled() {
 export {
   openBookScanner, openBarcodeScanner, startLiveCamera, scanFromPhoto,
   scanCoverPhoto, retryWithVision, addScannedBook, addScannedBookAndList,
+  scanShelfPhoto, addSelectedShelfBooks,
   scannerReset, closeBarcodeScanner, scannerManualLookup, loopMetricsSummary,
   // internal, but probed by verify-vision.js (through main.js's window block)
   _compressAndEncode, _callVisionExtract,

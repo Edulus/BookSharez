@@ -1,8 +1,12 @@
 # Multi-Book Shelf-Photo Capture — Scope
 
-**Version:** 0.1 (scope / not yet implemented)
-**Date:** July 25, 2026
-**Status:** Scoping — extends the scanner (`js/scanner.js`) and `vision-extract`
+**Version:** 1.0
+**Date:** July 25, 2026 (implemented July 26, 2026)
+**Status:** Implemented — `shelf` mode on `vision-extract`, batch review screen in
+`js/scanner.js`, verified by [verify-shelfscan.js](../verify-shelfscan.js) (24
+checks). **Deferred to a follow-up** (see §5): per-row *swap match* and *manual
+search* on a row that resolved wrong or unmatched — v1 lets the user uncheck such
+rows and scan them individually instead.
 **Purpose:** Identify **many** books from a single photo of a shelf (spines) or a
 stack/fan of covers, then add them to "Books I Have" in one reviewed batch.
 
@@ -234,12 +238,17 @@ harness.
 
 ## 14. Acceptance criteria (for the eventual build)
 
-- [ ] `vision-extract` `shelf` mode returns a bounded JSON array from a real shelf photo.
-- [ ] Review screen shows one row per detected book with a resolved catalog match.
-- [ ] Pre-check policy (§8.2) applied; user can uncheck, swap match, or manually search a row.
-- [ ] "Add N" performs a single reviewed batch add to Books I Have; one toast; partial failures reported honestly.
-- [ ] No book is added that the user didn't leave checked (batch-level confirm invariant).
-- [ ] `books` stays append-only (per-book `ensureBook` / no-ISBN insert; no upsert).
-- [ ] Metrics: `captures` bumps per confirmed book; `shelfPhotos` bumps per shot.
-- [ ] Single-book capture behavior unchanged (`verify-batchscan.js` green).
-- [ ] `verify-shelfscan.js` passes; mobile layout holds at 360/390/414px.
+- [x] `vision-extract` `shelf` mode returns a bounded (≤30) JSON array from a shelf photo.
+- [x] Review screen shows one row per detected book with a resolved catalog match.
+- [x] Pre-check policy (§8.2) applied; user can **uncheck** a row. *(Swap-match / per-row manual search deferred — unmatched rows are labelled "scan individually".)*
+- [x] "Add N" performs a single reviewed batch add to Books I Have; one toast; partial failures reported honestly.
+- [x] No book is added that the user didn't leave checked (batch-level confirm invariant).
+- [x] `books` stays append-only (per-book `ensureBook` / no-ISBN insert; no upsert). *(verify-shelfscan §6.1 guard green.)*
+- [x] Metrics: `captures` bumps per confirmed book; `shelfPhotos` bumps per shot.
+- [x] Single-book capture behavior unchanged (`verify-batchscan.js` green).
+- [x] `verify-shelfscan.js` passes (24 checks); mobile layout holds at 360/390/414px (`verify-mobile.js` green).
+
+**Runtime dependencies (unchanged from the cover path):** `GEMINI_API_KEY` set,
+and `db/books_isbn_nullable.sql` applied (ToDo 14) — without the migration, the
+no-ISBN rows a shelf produces fail to save and land in the "couldn't be saved"
+tail of the summary toast.

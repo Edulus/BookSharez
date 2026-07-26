@@ -27,6 +27,7 @@ import {
   loopListingCancelled,
   openBookScanner, openBarcodeScanner, startLiveCamera, scanFromPhoto,
   scanCoverPhoto, retryWithVision, addScannedBook, addScannedBookAndList,
+  scanShelfPhoto, addSelectedShelfBooks,
   scannerReset, closeBarcodeScanner, scannerManualLookup, loopMetricsSummary,
   _compressAndEncode, _callVisionExtract,
 } from "./scanner.js";
@@ -3369,6 +3370,7 @@ Object.assign(window, {
   // scanner (imported from js/scanner.js)
   openBookScanner, openBarcodeScanner, startLiveCamera, scanFromPhoto,
   scanCoverPhoto, retryWithVision, addScannedBook, addScannedBookAndList,
+  scanShelfPhoto, addSelectedShelfBooks,
   scannerReset, closeBarcodeScanner, scannerManualLookup,
   // loop metrics (debug: run loopMetricsSummary() in the console)
   loopMetricsSummary,
