@@ -1,5 +1,12 @@
 # Changelog
 
+## July 26, 2026
+
+- **Multi-book shelf-photo capture** ([docs/SHELF_PHOTO_CAPTURE.md](docs/SHELF_PHOTO_CAPTURE.md)) — a third scanner capture path: one photo of a shelf or a stack identifies many books at once and adds a reviewed batch to "Books I Have". A new `shelf` mode on the `vision-extract` Edge Function prompts for every readable spine/cover and returns a `{title, author, confidence}` array, normalized and capped to 30 server-side. The client resolves each hint to a catalog candidate (`searchBooksAPI`, bounded 4-way concurrency, deduped by resolved book id), then shows a **batch review checklist** — high/medium-confidence matches pre-checked, low-confidence unchecked, no-match rows disabled with a "scan individually" note. "Add N" bulk-adds through the shared shelf-add core; duplicates and failures fold into one honest summary toast. Nothing is added the user didn't leave checked.
+- Refactored the scanner's shelf-add into a shared `_addBookToShelf(book, shelfType, opts)` core used by both single capture and the batch path; the single-capture wrapper (`_addScannedToShelf`) is byte-for-byte unchanged in behavior (`verify-batchscan.js` still green). Batch adds run `{ silent:true }` so one bad row can't fire a dialog per book.
+- Loop metrics gained `shelfPhotos` (and a derived `booksPerShelfPhoto`); each confirmed shelf book counts as one `capture`. Added [verify-shelfscan.js](verify-shelfscan.js) (24 checks); `verify-mobile.js` still green with the new "Scan a Shelf" button and review state.
+- **Not shipped yet:** per-row *swap match* / *manual search* (deferred — uncheck-and-scan-individually covers wrong/unmatched rows for now). Runtime deps are the same as the cover path: `GEMINI_API_KEY` set and `db/books_isbn_nullable.sql` applied (ToDo 14) for the no-ISBN rows a shelf commonly produces.
+
 ## July 20, 2026
 
 - **Reworked the Supabase Free-Plan keep-alive after the July 19 auto-pause.** The previous workflow was not a health/root ping: it made a genuine authenticated `GET /rest/v1/books?select=id&limit=1` every 3 days. Because the project paused anyway, the earlier explanation that no query reached Postgres was incorrect or incomplete. Supabase describes the requirement as “sufficient” user database activity but does not document its threshold or how reads and writes are weighted.

@@ -1,8 +1,8 @@
 # Vision OCR Feature — Cover & Barcode Image Reading
 
 **Version:** 1.0
-**Date:** June 19, 2026
-**Status:** Planning — implementation by Claude Code
+**Date:** June 19, 2026 (shipped June 20, 2026)
+**Status:** Implemented — `vision-extract` Edge Function deployed, client wiring live (barcode recovery + cover photo), verified by [verify-vision.js](../verify-vision.js). See [ToDo.md](../ToDo.md) item 92 and [CHANGELOG.md](../CHANGELOG.md). Runtime dependency: the `GEMINI_API_KEY` secret must be set in Supabase Edge Function Secrets, else both modes degrade gracefully to manual entry.
 **Purpose:** Extract book metadata from user-uploaded images using a vision LLM, as a fallback when barcode scanning is unavailable or fails.
 
 ---
@@ -146,10 +146,13 @@ User chooses listing method:
 
 ## 10. Acceptance criteria
 
+Code-verified (in the repo, guarded by verify-vision.js):
+- [x] Cover reads route through ISBNdb/Google Books and show candidates for confirmation. *(`scanCoverPhoto` → `searchBooksAPI` → `renderBookSearchResults`)*
+- [x] Barcode recovery routes a valid ISBN straight to the lookup flow. *(`retryWithVision` → `_onBarcodeDetected`)*
+- [x] No API key exposed client-side; errors are user-safe. *(key read via `Deno.env.get()` server-side; generic user messages)*
+- [x] Manual entry remains available at every dead end. *(`scannerManualEntry` shown on every failure branch)*
+
+Runtime — confirm live in the Supabase project (cannot be verified from the repo):
 - [ ] `vision-extract` deployed via Supabase Dashboard, `GEMINI_API_KEY` set.
 - [ ] Cover mode returns valid JSON hint from a real cover photo.
 - [ ] Barcode mode recovers a correct ISBN from a photo where Quagga2/html5-qrcode failed.
-- [ ] Cover reads route through ISBNdb/Google Books and show candidates for confirmation.
-- [ ] Barcode recovery routes a valid ISBN straight to `isbn-lookup`.
-- [ ] No API key exposed client-side; errors are user-safe.
-- [ ] Manual entry remains available at every dead end.

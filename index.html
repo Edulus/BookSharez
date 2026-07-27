@@ -831,6 +831,14 @@
             </label>
             <!-- Candidate list shown after a cover vision read -->
             <div id="scannerCoverResults" class="scanner-cover-results" style="display:none"></div>
+            <div class="scanner-divider"><span>or</span></div>
+            <!-- Multi-book shelf capture — one photo, many books, batch review -->
+            <label class="scanner-photo-label scanner-shelf-label">
+              <i class="fas fa-layer-group"></i> Scan a Shelf (many books)
+              <input type="file" id="scannerShelfInput"
+                accept="image/jpeg,image/png,image/webp" capture="environment"
+                onchange="scanShelfPhoto(this)" class="scanner-file-input">
+            </label>
             <div id="scannerManualEntry" style="display:none">
               <div class="scanner-manual-input">
                 <input type="text" id="scannerManualISBN" placeholder="e.g. 9780553296129"
@@ -870,6 +878,19 @@
             <button type="button" class="btn-scan scanner-rescan-btn" onclick="scannerReset()">
               <i class="fas fa-redo"></i> Scan another book
             </button>
+          </div>
+
+          <!-- State 3: shelf review — batch-confirm many books from one photo -->
+          <div id="scannerStateShelfReview" class="scanner-shelf-review" style="display:none">
+            <p id="scannerShelfHint" class="scanner-shelf-review-hint"></p>
+            <div id="scannerShelfList" class="scanner-shelf-list"></div>
+            <div class="scanner-shelf-review-actions">
+              <button type="button" class="btn btn-primary" id="scannerShelfAddBtn"
+                onclick="addSelectedShelfBooks('have')">Add to Books I Have</button>
+              <button type="button" class="btn-scan scanner-rescan-btn" onclick="scannerReset()">
+                <i class="fas fa-redo"></i> Cancel
+              </button>
+            </div>
           </div>
 
         </div>
